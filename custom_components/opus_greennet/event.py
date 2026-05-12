@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from homeassistant.components.event import EventEntity
 from homeassistant.config_entries import ConfigEntry
@@ -11,7 +10,13 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import CONF_EAG_ID, DOMAIN
+from .const import (
+    BUTTON_KEYS,
+    BUTTON_VALUE_PRESSED,
+    BUTTON_VALUE_RELEASED,
+    CONF_EAG_ID,
+    DOMAIN,
+)
 from .coordinator import (
     SIGNAL_DEVICE_DISCOVERED,
     SIGNAL_DEVICE_STATE_UPDATE,
@@ -21,17 +26,11 @@ from .enocean_device import EnOceanDevice
 
 _LOGGER = logging.getLogger(__name__)
 
-# Event types for rocker switches
-EVENT_TYPE_PRESS = "press"
-EVENT_TYPE_RELEASE = "release"
-EVENT_TYPE_SHORT_PRESS = "short_press"
-EVENT_TYPE_LONG_PRESS = "long_press"
-
-EVENT_TYPES = [
-    EVENT_TYPE_PRESS,
-    EVENT_TYPE_RELEASE,
-    EVENT_TYPE_SHORT_PRESS,
-    EVENT_TYPE_LONG_PRESS,
+# One event type per (button, action) pair, e.g. "buttonA0_pressed".
+EVENT_TYPES: list[str] = [
+    f"{button}_{action}"
+    for button in BUTTON_KEYS
+    for action in (BUTTON_VALUE_PRESSED, BUTTON_VALUE_RELEASED)
 ]
 
 
@@ -126,20 +125,23 @@ class OpusGreenNetEvent(EventEntity):
         """Handle state update from coordinator - fire event."""
         self._device = device
 
-        # Extract event data from the latest telegram functions
-        # Rocker switches typically send button action data
         channel = device.channels.get(0)
         if not channel:
             return
 
-        # Determine event type from device state
-        # The exact mapping depends on the gateway's telegram format for F6 profiles
-        event_data: dict[str, Any] = {}
+        button = channel.last_button
+        action = channel.last_button_action
+        if not button or not action:
+            return
 
-        if channel.is_on:
-            event_type = EVENT_TYPE_PRESS
-        else:
-            event_type = EVENT_TYPE_RELEASE
+        event_type = f"{button}_{action}"
+        if event_type not in EVENT_TYPES:
+            _LOGGER.debug(
+                "Ignoring unknown rocker event %s for device %s",
+                event_type,
+                self._device_key,
+            )
+            return
 
-        self._trigger_event(event_type, event_data)
+        self._trigger_event(event_type, {"button": button, "action": action})
         self.async_write_ha_state()

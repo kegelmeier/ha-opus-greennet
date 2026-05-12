@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .const import (
+    BUTTON_KEYS,
     DEFAULT_CHANNEL,
     EEP_MAPPINGS,
     KEY_ACTUATOR_DEACTIVATED,
@@ -65,6 +66,10 @@ class EnOceanChannel:
     actuator_not_responding: str | None = None
     missing_temperature: str | None = None
     circuit_in_use: str | None = None
+    # Transient rocker-switch state: set only by the most recent telegram and
+    # consumed once by the event entity. Reset on every update_from_telegram call.
+    last_button: str | None = None
+    last_button_action: str | None = None
 
 
 @dataclass
@@ -211,12 +216,20 @@ class EnOceanDevice:
 
         channel = self.get_or_create_channel(channel_id)
 
+        # Reset transient rocker fields so they only reflect the current telegram.
+        channel.last_button = None
+        channel.last_button_action = None
+
         # Update channel state from functions
         for func in functions:
             key = func.get("key")
             value = func.get("value")
 
-            if key == KEY_SWITCH:
+            if key in BUTTON_KEYS:
+                channel.last_button = key
+                channel.last_button_action = str(value) if value is not None else None
+
+            elif key == KEY_SWITCH:
                 channel.is_on = value == STATE_ON
 
             elif key == KEY_DIMMER:

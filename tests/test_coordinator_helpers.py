@@ -219,3 +219,16 @@ class TestCommandBuilding:
         coordinator.async_send_command.assert_called_once_with(
             "DEV1", [{"key": "query", "value": "status"}]
         )
+
+
+# ── KNOWN_STATE_KEYS ───────────────────────────────────────────────────
+
+
+class TestKnownStateKeys:
+    """Regression guards for KNOWN_STATE_KEYS membership."""
+
+    def test_includes_rocker_button_keys(self):
+        from custom_components.opus_greennet.const import BUTTON_KEYS, KNOWN_STATE_KEYS
+
+        for key in BUTTON_KEYS:
+            assert key in KNOWN_STATE_KEYS, f"{key} missing from KNOWN_STATE_KEYS"

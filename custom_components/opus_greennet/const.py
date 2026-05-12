@@ -161,6 +161,17 @@ KEY_ACTUATOR_NOT_RESPONDING: Final = "actuatorNotResponding"
 KEY_MISSING_TEMPERATURE: Final = "missingTemperature"
 KEY_CIRCUIT_IN_USE: Final = "circuitInUse"
 
+# Rocker switch button keys (F6-02-xx / F6-03-xx profiles)
+BUTTON_KEYS: Final = (
+    "buttonA0",
+    "buttonAI",
+    "buttonB0",
+    "buttonBI",
+    "multipleButtons",
+)
+BUTTON_VALUE_PRESSED: Final = "pressed"
+BUTTON_VALUE_RELEASED: Final = "released"
+
 # Switch/Light states
 STATE_ON: Final = "on"
 STATE_OFF: Final = "off"
@@ -206,4 +217,5 @@ KNOWN_STATE_KEYS: Final = frozenset({
     "actuatorNotResponding",
     "missingTemperature",
     "circuitInUse",
+    *BUTTON_KEYS,
 })

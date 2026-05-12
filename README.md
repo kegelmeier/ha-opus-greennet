@@ -16,7 +16,7 @@ A custom Home Assistant integration for the Opus GreenNet Bridge, enabling contr
 - **Climate control**: HeatArea thermostat support for Valve, CosiTherm, and Electro Heating areas
 - **Sensors**: Humidity, temperature, energy consumption, and signal strength monitoring
 - **Binary sensors**: Window open detection, actuator error states, battery monitoring
-- **Events**: Rocker switch button press/release events
+- **Events**: Per-button rocker switch press/release events (`buttonA0`, `buttonAI`, `buttonB0`, `buttonBI`, `multipleButtons`)
 - **Device services**: ReCom API access for advanced device configuration and diagnostics
 - **UI Configuration**: Set up via Home Assistant's Integrations page
 
@@ -30,7 +30,7 @@ A custom Home Assistant integration for the Opus GreenNet Bridge, enabling contr
 | **Climate** | D1-4B-05, D1-4B-06, D1-4B-07 | OPUS HeatArea thermostats (Valve, CosiTherm, Electro Heating) |
 | **Sensor** | _(from climate devices)_ | Humidity, feed temperature, energy consumption, signal strength |
 | **Binary Sensor** | _(from climate devices)_ | Window open, actuator errors, battery low |
-| **Event** | F6-02-01, F6-02-02, F6-02-03, F6-03-01, F6-03-02 | Rocker switch press/release events |
+| **Event** | F6-02-01, F6-02-02, F6-02-03, F6-03-01, F6-03-02 | Rocker switch press/release events, per button (`buttonA0_pressed`, `buttonA0_released`, …, `multipleButtons_released`) with `button` and `action` event attributes |
 
 ## Prerequisites
 
@@ -213,6 +213,7 @@ tests/
 ├── test_enocean_device.py       # Device model tests
 ├── test_coordinator_helpers.py  # Pure helper and command tests
 ├── test_coordinator_mqtt.py     # MQTT finalization tests
+├── test_event_entity.py         # Rocker switch event entity tests
 └── test_config_flow.py          # Config flow validation tests
 ```
 
@@ -223,7 +224,7 @@ pip install -r requirements_test.txt
 pytest -v
 ```
 
-155 tests run in <0.5s, covering device properties, telegram parsing, command building, MQTT finalization, and config flow validation.
+174 tests run in under 2s, covering device properties, telegram parsing, command building, MQTT finalization, rocker switch events, and config flow validation.
 
 ## License
 

@@ -310,6 +310,43 @@ class TestUpdateFromTelegram:
         assert ch.is_on is True
         assert ch.brightness == 80
 
+    @pytest.mark.parametrize(
+        "key,value",
+        [
+            ("buttonA0", "pressed"),
+            ("buttonA0", "released"),
+            ("buttonAI", "pressed"),
+            ("buttonB0", "pressed"),
+            ("buttonBI", "released"),
+            ("multipleButtons", "pressed"),
+        ],
+    )
+    def test_rocker_button_recorded(self, make_telegram, key, value):
+        dev = self._device()
+        dev.update_from_telegram(make_telegram([{"key": key, "value": value}]))
+        ch = dev.channels[0]
+        assert ch.last_button == key
+        assert ch.last_button_action == value
+
+    def test_rocker_button_cleared_on_next_non_button_telegram(self, make_telegram):
+        dev = self._device()
+        dev.update_from_telegram(make_telegram([{"key": "buttonA0", "value": "pressed"}]))
+        assert dev.channels[0].last_button == "buttonA0"
+
+        dev.update_from_telegram(make_telegram([{"key": "switch", "value": "on"}]))
+        ch = dev.channels[0]
+        assert ch.last_button is None
+        assert ch.last_button_action is None
+        assert ch.is_on is True
+
+    def test_rocker_button_overwritten_on_next_button_telegram(self, make_telegram):
+        dev = self._device()
+        dev.update_from_telegram(make_telegram([{"key": "buttonA0", "value": "pressed"}]))
+        dev.update_from_telegram(make_telegram([{"key": "buttonB0", "value": "released"}]))
+        ch = dev.channels[0]
+        assert ch.last_button == "buttonB0"
+        assert ch.last_button_action == "released"
+
 
 # ── from_device_object ─────────────────────────────────────────────────
 
