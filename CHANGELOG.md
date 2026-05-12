@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] - 2026-05-12
+
+### Added
+- **Per-button rocker switch events** (#18): event entities for F6-02-xx / F6-03-xx rocker switches now fire one event per (button, action) pair — `buttonA0_pressed`, `buttonA0_released`, `buttonAI_pressed`, …, `multipleButtons_released`. Each event also carries `button` and `action` in its event attributes, so HA automations can react to the specific physical button that was pressed.
+
+### Fixed
+- **Rocker events were effectively unusable**: the previous implementation fired a generic `press`/`release` derived from `channel.is_on`, which was never set by F6-* button telegrams. Automations triggered by old event types received no useful button information.
+
+### Changed
+- **Breaking**: event types on rocker entities changed from `press` / `release` / `short_press` / `long_press` to per-button names listed above. Any existing automation triggers using the old event types must be updated. The old types never carried button data, so practical impact should be minimal.
+
 ## [0.1.10] - 2026-02-14
 
 ### Reset
