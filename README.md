@@ -3,7 +3,7 @@
 ![OPUS Logo](custom_components/opus_greennet/logo.png)
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
-[![GitHub Release](https://img.shields.io/github/release/kegelmeier/opus_homeassistant.svg)](https://github.com/kegelmeier/opus_homeassistant/releases)
+[![GitHub Release](https://img.shields.io/github/release/kegelmeier/ha-opus-greennet.svg)](https://github.com/kegelmeier/ha-opus-greennet/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A custom Home Assistant integration for the Opus GreenNet Bridge, enabling control of EnOcean devices via MQTT following the EnOcean over IP specification.
