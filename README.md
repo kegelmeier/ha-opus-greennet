@@ -1,10 +1,20 @@
-# Opus GreenNet Bridge - Home Assistant Integration
+<div align="center">
 
-![OPUS Logo](custom_components/opus_greennet/logo.png)
+<img src="https://raw.githubusercontent.com/kegelmeier/ha-opus-greennet/main/custom_components/opus_greennet/brand/logo.png" alt="Opus GreenNet Bridge" width="180">
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
-[![GitHub Release](https://img.shields.io/github/release/kegelmeier/ha-opus-greennet.svg)](https://github.com/kegelmeier/ha-opus-greennet/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+# Opus GreenNet Bridge
+
+Home Assistant integration for the **Opus GreenNet Bridge**, controlling
+**EnOcean** devices via MQTT following the EnOcean over IP specification.
+
+[![HACS Custom][hacs-shield]][hacs]
+[![GitHub Release][release-shield]][releases]
+[![License][license-shield]][license]
+![HA Min Version][ha-shield]
+
+[![Open in HACS][hacs-repo-badge]][hacs-repo]
+
+</div>
 
 A custom Home Assistant integration for the Opus GreenNet Bridge, enabling control of EnOcean devices via MQTT following the EnOcean over IP specification.
 
@@ -98,12 +108,14 @@ If you see messages when triggering EnOcean devices, the bridge is working.
 
 ### HACS (Recommended)
 
-1. Open HACS in Home Assistant
-2. Go to "Integrations"
-3. Click the menu (three dots) → "Custom repositories"
-4. Add this repository URL and select "Integration"
-5. Install "Opus GreenNet Bridge"
-6. Restart Home Assistant
+1. Make sure [HACS](https://hacs.xyz) is installed.
+2. Add this repository as a **custom repository** (category **Integration**):
+
+   [![Open in HACS][hacs-repo-badge]][hacs-repo]
+
+   …or in HACS go to **⋮ → Custom repositories**, paste
+   `https://github.com/kegelmeier/ha-opus-greennet`, choose **Integration**, and add it.
+3. Search for **Opus GreenNet Bridge**, install, and **restart Home Assistant**.
 
 ### Manual Installation
 
@@ -112,11 +124,14 @@ If you see messages when triggering EnOcean devices, the bridge is working.
 
 ## Configuration
 
-1. Go to **Settings** → **Devices & Services** → **Integrations**
-2. Click **Add Integration**
-3. Search for "Opus GreenNet Bridge"
-4. Enter your **EAG Identifier** (Bridge ID, e.g., `050B4DFA`)
-5. Click **Submit**
+After installing, add the integration:
+
+[![Add Integration][config-flow-badge]][config-flow]
+
+…or go to **Settings → Devices & Services → Add Integration → “Opus GreenNet Bridge”**, then:
+
+1. Enter your **EAG Identifier** (Bridge ID, e.g., `050B4DFA`)
+2. Click **Submit**
 
 ## Services
 
@@ -226,12 +241,25 @@ pytest -v
 
 174 tests run in under 2s, covering device properties, telegram parsing, command building, MQTT finalization, rocker switch events, and config flow validation.
 
-## License
-
-MIT License
-
 ## References
 
 - [EnOcean over IP MQTT Specification](https://www.enocean-alliance.org/ip/)
 - [EnOcean Equipment Profiles (EEP)](https://www.enocean-alliance.org/eep/)
 - [Home Assistant Developer Documentation](https://developers.home-assistant.io/)
+
+## License
+
+Released under the [MIT License](LICENSE).
+
+<!-- badges -->
+[hacs]: https://hacs.xyz
+[hacs-shield]: https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge
+[releases]: https://github.com/kegelmeier/ha-opus-greennet/releases
+[release-shield]: https://img.shields.io/github/v/release/kegelmeier/ha-opus-greennet?style=for-the-badge
+[license]: https://github.com/kegelmeier/ha-opus-greennet/blob/main/LICENSE
+[license-shield]: https://img.shields.io/github/license/kegelmeier/ha-opus-greennet?style=for-the-badge
+[ha-shield]: https://img.shields.io/badge/Home%20Assistant-2023.1%2B-41BDF5.svg?style=for-the-badge&logo=home-assistant&logoColor=white
+[hacs-repo]: https://my.home-assistant.io/redirect/hacs_repository/?owner=kegelmeier&repository=ha-opus-greennet&category=integration
+[hacs-repo-badge]: https://my.home-assistant.io/badges/hacs_repository.svg
+[config-flow]: https://my.home-assistant.io/redirect/config_flow_start/?domain=opus_greennet
+[config-flow-badge]: https://my.home-assistant.io/badges/config_flow_start.svg

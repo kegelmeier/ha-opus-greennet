@@ -1,8 +1,6 @@
 {
   "name": "Opus GreenNet Bridge",
-  "homeassistant": "2023.1.0",
+  "content_in_root": false,
   "render_readme": true,
-  "zip_release": false,
-  "filename": "opus_greennet.zip",
-  "content_in_root": false
+  "homeassistant": "2023.1.0"
 }

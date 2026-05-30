@@ -3,7 +3,7 @@
 ## Project Overview
 
 Home Assistant custom integration for OPUS GreenNet Bridge (EnOcean over IP via MQTT).
-Repository: https://github.com/kegelmeier/opus_homeassistant
+Repository: https://github.com/kegelmeier/ha-opus-greennet
 
 ## Tech Stack
 
@@ -105,7 +105,7 @@ Versioning is done **manually and separately** from PRs. After one or more PRs a
    ```bash
    gh release create v<version> --title "v<version>" --notes "<paste CHANGELOG section>"
    ```
-5. Verify at: `https://github.com/kegelmeier/opus_homeassistant/releases`
+5. Verify at: `https://github.com/kegelmeier/ha-opus-greennet/releases`
 
 ## Coding Patterns
 
