@@ -206,10 +206,16 @@ class OpusGreenNetCoordinator:
 
             if device_id not in self._device_data:
                 self._device_data[device_id] = {"deviceId": device_id}
-                self._pending_devices.add(device_id)
+                if self._find_device_by_id(device_id) is None:
+                    self._pending_devices.add(device_id)
 
             payload = msg.payload.decode() if isinstance(msg.payload, bytes) else str(msg.payload)
             self._set_nested_property(self._device_data[device_id], property_path, payload)
+
+            if self._apply_known_device_state_property(
+                device_id, property_path, payload
+            ):
+                return
 
             # Reset discovery timer on each message
             if self._discovery_timer:
@@ -413,6 +419,56 @@ class OpusGreenNetCoordinator:
     # ──────────────────────────────────────────────────────────────────────
     # Shared helpers
     # ──────────────────────────────────────────────────────────────────────
+
+    def _find_device_by_id(self, device_id: str) -> tuple[str, EnOceanDevice] | None:
+        """Find an existing device by EURID and return its coordinator key."""
+        for device_key, device in self.devices.items():
+            if device.device_id == device_id:
+                return device_key, device
+        return None
+
+    def _apply_known_device_state_property(
+        self, device_id: str, property_path: str, payload: str
+    ) -> bool:
+        """Apply stream/devices state updates immediately for known devices.
+
+        stream/devices is primarily a startup snapshot, but some bridges may also
+        publish local-control state there. Once a device is known, state updates
+        should not wait on the discovery debounce.
+        """
+        if not property_path.startswith("states/"):
+            return False
+
+        device_entry = self._find_device_by_id(device_id)
+        if device_entry is None:
+            return False
+
+        state_key = property_path.removeprefix("states/").split("/", 1)[0]
+        if state_key not in KNOWN_STATE_KEYS:
+            return False
+
+        device_key, device = device_entry
+        value = self._parse_value(payload)
+        device.update_from_telegram(
+            {
+                "functions": [
+                    {
+                        "key": state_key,
+                        "value": value,
+                    }
+                ]
+            }
+        )
+
+        signal = f"{SIGNAL_DEVICE_STATE_UPDATE}_{self.eag_id}_{device_key}"
+        _LOGGER.debug(
+            "Fast stream/devices state update for %s: %s=%r",
+            device_id,
+            state_key,
+            value,
+        )
+        async_dispatcher_send(self.hass, signal, device)
+        return True
 
     def _set_nested_property(self, data: dict, path: str, value: str) -> None:
         """Set a nested property in a dict using a path like 'eeps/0/eep'."""

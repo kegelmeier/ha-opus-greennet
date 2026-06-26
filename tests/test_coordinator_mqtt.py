@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -201,6 +202,54 @@ class TestFinalizeDeviceStream:
         # Device should be stored in _device_data for later discovery
         assert "NEW1" in coord._device_data
         assert "NEW1" in coord._pending_devices
+
+
+# ── _handle_device_property_message ──────────────────────────────────
+
+
+class TestDevicePropertyMessage:
+    """Tests for stream/devices property message handling."""
+
+    def test_known_device_state_updates_immediately(self, coord):
+        """Known device state from stream/devices skips discovery debounce."""
+        coord.devices["Switch"] = EnOceanDevice(
+            device_id="DEV1", friendly_id="Switch", eeps=[{"eep": "D2-01-00"}]
+        )
+        msg = SimpleNamespace(
+            topic="EnOcean/AABB0011/stream/devices/DEV1/states/switch",
+            payload=b"on",
+        )
+
+        with (
+            patch(
+                "custom_components.opus_greennet.coordinator.async_call_later"
+            ) as mock_call_later,
+            patch(
+                "custom_components.opus_greennet.coordinator.async_dispatcher_send"
+            ) as mock_dispatch,
+        ):
+            coord._handle_device_property_message(msg)
+
+        assert coord.devices["Switch"].channels[0].is_on is True
+        assert "DEV1" not in coord._pending_devices
+        mock_call_later.assert_not_called()
+        mock_dispatch.assert_called_once()
+
+    def test_unknown_device_state_still_uses_discovery(self, coord):
+        """Unknown stream/devices state remains part of delayed discovery."""
+        msg = SimpleNamespace(
+            topic="EnOcean/AABB0011/stream/devices/DEV1/states/switch",
+            payload=b"on",
+        )
+
+        with patch(
+            "custom_components.opus_greennet.coordinator.async_call_later"
+        ) as mock_call_later:
+            coord._handle_device_property_message(msg)
+
+        assert coord._device_data["DEV1"]["states"]["switch"] == "on"
+        assert "DEV1" in coord._pending_devices
+        mock_call_later.assert_called_once()
 
 
 # ── async_send_command ────────────────────────────────────────────────

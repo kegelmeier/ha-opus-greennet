@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1b0] - 2026-06-26
+
+### Fixed
+- **Faster local-control state updates**: Known devices receiving `stream/devices/.../states/...` updates now update Home Assistant immediately instead of waiting for the discovery debounce. This pre-release is intended to test physical switch/local control update latency.
+
 ## [0.2.0] - 2026-05-12
 
 ### Added
