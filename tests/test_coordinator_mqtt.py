@@ -51,8 +51,8 @@ class TestFinalizeTelegram:
         device = coord.devices["My Light"]
         assert device.channels[0].is_on is True
 
-    def test_skips_to_only_telegram(self, coord):
-        """Telegrams with only 'to' data (outbound commands) are skipped."""
+    def test_applies_to_only_state_command(self, coord):
+        """Outbound command telegrams are used as optimistic state updates."""
         coord._telegram_data["DEV1"] = {
             "deviceId": "DEV1",
             "to": {
@@ -65,8 +65,41 @@ class TestFinalizeTelegram:
 
         coord._finalize_telegram("DEV1")
 
-        # Device state should NOT have changed
-        assert 0 not in coord.devices["Light"].channels or coord.devices["Light"].channels[0].is_on is False
+        assert coord.devices["Light"].channels[0].is_on is True
+
+    def test_applies_flat_direction_to_state_command(self, coord):
+        """Native bridge HomeKit commands can arrive as flat direction=to data."""
+        coord._telegram_data["DEV1"] = {
+            "deviceId": "DEV1",
+            "direction": "to",
+            "functions": [{"key": "switch", "value": "on"}],
+        }
+        coord.devices["Light"] = EnOceanDevice(
+            device_id="DEV1", friendly_id="Light", eeps=[{"eep": "D2-01-02"}]
+        )
+
+        coord._finalize_telegram("DEV1")
+
+        assert coord.devices["Light"].channels[0].is_on is True
+
+    def test_skips_to_only_query_command(self, coord):
+        """Outbound query telegrams do not change device state."""
+        coord._telegram_data["DEV1"] = {
+            "deviceId": "DEV1",
+            "direction": "to",
+            "functions": [{"key": "query", "value": "status"}],
+        }
+        coord.devices["Light"] = EnOceanDevice(
+            device_id="DEV1", friendly_id="Light", eeps=[{"eep": "D2-01-02"}]
+        )
+
+        with patch(
+            "custom_components.opus_greennet.coordinator.async_dispatcher_send"
+        ) as mock_dispatch:
+            coord._finalize_telegram("DEV1")
+
+        assert 0 not in coord.devices["Light"].channels
+        mock_dispatch.assert_not_called()
 
     def test_skips_direction_to(self, coord):
         """Telegrams with direction='to' in effective data are skipped."""

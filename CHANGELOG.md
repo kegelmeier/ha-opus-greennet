@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1b4] - 2026-06-26
+
+### Fixed
+- **Native bridge HomeKit state sync**: Outbound OPUS MQTT command telegrams that carry state functions are now used as optimistic state updates, so changes made through the bridge's native HomeKit integration can be reflected in Home Assistant even when the bridge does not publish a separate immediate confirmed status telegram.
+
 ## [0.2.1b3] - 2026-06-26
 
 ### Added

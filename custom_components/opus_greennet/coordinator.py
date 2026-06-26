@@ -722,24 +722,30 @@ class OpusGreenNetCoordinator:
         telegram_data = self._telegram_data.pop(device_id)
         self._pending_telegrams.pop(device_id, None)
 
-        # Flattened MQTT topics nest data under "from" or "to" sub-keys:
+        # Flattened MQTT topics can nest data under "from" or "to" sub-keys:
         #   stream/telegram/{DEVICE}/from/functions/0/key → {"from": {"functions": ...}}
         #   stream/telegram/{DEVICE}/to/... → {"to": {...}}
-        # We only want "from" telegrams (device reports), not "to" (outbound commands).
+        # OPUS also publishes flat messages with a top-level "direction" field.
+        # Prefer confirmed "from" device reports when they are present. If only a
+        # "to" command telegram is available, use state functions optimistically;
+        # this captures native bridge HomeKit commands that otherwise have no
+        # immediate confirmed status telegram.
         from_data = telegram_data.get("from", {})
         to_data = telegram_data.get("to", {})
 
-        if to_data and not from_data:
-            # Only "to" (command) data — skip
-            return
+        if from_data:
+            effective_data = from_data
+        elif to_data:
+            effective_data = to_data
+        else:
+            effective_data = telegram_data
 
-        # Use the "from" sub-object as primary data source; fall back to top-level
-        # for backwards compatibility (e.g. if topic structure differs).
-        effective_data = from_data if from_data else telegram_data
-
-        # Also check top-level direction field (legacy fallback)
         direction = effective_data.get("direction") or telegram_data.get("direction")
-        if direction == "to":
+        is_outbound_command = direction == "to" or (to_data and not from_data)
+
+        # Inconsistent data under a "from" topic with direction=to is not a device
+        # report and should not be treated as confirmed state.
+        if from_data and is_outbound_command:
             return
 
         friendly_id = (
@@ -780,6 +786,31 @@ class OpusGreenNetCoordinator:
                 device_id,
             )
             return
+
+        if is_outbound_command:
+            state_functions = [
+                func for func in functions if func.get("key") in KNOWN_STATE_KEYS
+            ]
+            ignored_count = len(functions) - len(state_functions)
+            if ignored_count:
+                _LOGGER.debug(
+                    "Ignoring %d non-state outbound telegram function(s) for %s: %s",
+                    ignored_count,
+                    device_id,
+                    [func for func in functions if func not in state_functions],
+                )
+            functions = state_functions
+            if not functions:
+                _LOGGER.debug(
+                    "Ignoring outbound telegram for %s because it has no state functions",
+                    device_id,
+                )
+                return
+            _LOGGER.debug(
+                "Using outbound telegram for optimistic state update of %s: %s",
+                device_id,
+                functions,
+            )
 
         # Create telegram dict in the format expected by update_from_telegram
         telegram = {
