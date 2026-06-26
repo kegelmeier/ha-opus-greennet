@@ -198,32 +198,50 @@ class EnOceanDevice:
             self.channels[channel_id] = EnOceanChannel(channel_id=channel_id)
         return self.channels[channel_id]
 
+    def _parse_channel_id(self, value: Any) -> int:
+        """Parse a channel id from a telegram value."""
+        try:
+            return int(value)
+        except (ValueError, TypeError):
+            try:
+                return int(float(value))
+            except (ValueError, TypeError):
+                return DEFAULT_CHANNEL
+
     def update_from_telegram(self, telegram: dict[str, Any]) -> None:
         """Update device state from a telegram message."""
         functions = telegram.get("functions", [])
         if isinstance(functions, dict):
             functions = [functions]
 
-        # Determine channel from telegram
-        channel_id = DEFAULT_CHANNEL
+        # Determine default channel from telegram-level channel function.
+        default_channel_id = DEFAULT_CHANNEL
         for func in functions:
             if func.get("key") == KEY_CHANNEL:
-                try:
-                    channel_id = int(func.get("value", DEFAULT_CHANNEL))
-                except (ValueError, TypeError):
-                    channel_id = DEFAULT_CHANNEL
+                default_channel_id = self._parse_channel_id(
+                    func.get("value", DEFAULT_CHANNEL)
+                )
                 break
 
-        channel = self.get_or_create_channel(channel_id)
-
-        # Reset transient rocker fields so they only reflect the current telegram.
-        channel.last_button = None
-        channel.last_button_action = None
-
         # Update channel state from functions
+        reset_channels: set[int] = set()
         for func in functions:
             key = func.get("key")
+            if key == KEY_CHANNEL:
+                continue
+
             value = func.get("value")
+            channel_id = self._parse_channel_id(
+                func.get("channel", default_channel_id)
+            )
+            channel = self.get_or_create_channel(channel_id)
+
+            # Reset transient rocker fields so they only reflect the current
+            # telegram for channels touched by this update.
+            if channel_id not in reset_channels:
+                channel.last_button = None
+                channel.last_button_action = None
+                reset_channels.add(channel_id)
 
             if key in BUTTON_KEYS:
                 channel.last_button = key

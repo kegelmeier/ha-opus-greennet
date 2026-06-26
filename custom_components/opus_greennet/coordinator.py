@@ -542,6 +542,9 @@ class OpusGreenNetCoordinator:
         try:
             friendly_id = data.get("friendlyId", device_id)
             device_key = friendly_id
+            existing_entry = self._find_device_by_id(device_id)
+            existing_key = existing_entry[0] if existing_entry else None
+            existing_device = existing_entry[1] if existing_entry else None
 
             # Build EEPs list
             eeps = []
@@ -556,8 +559,10 @@ class OpusGreenNetCoordinator:
                     elif isinstance(eep_entry, str):
                         eeps.append({"eep": eep_entry})
 
-            is_new = device_key not in self.devices
+            is_new = existing_entry is None and device_key not in self.devices
             was_incomplete = (
+                existing_device is not None and not existing_device.eeps
+            ) or (
                 device_key in self.devices and not self.devices[device_key].eeps
             )
 
@@ -573,8 +578,20 @@ class OpusGreenNetCoordinator:
             )
 
             # Preserve existing channel state or apply initial state from discovery
-            if device_key in self.devices:
+            if existing_device is not None:
+                device.channels = existing_device.channels
+                device.profile = existing_device.profile
+                if existing_key and existing_key != device_key:
+                    _LOGGER.debug(
+                        "Re-keying device %s from %s to %s after discovery",
+                        device_id,
+                        existing_key,
+                        device_key,
+                    )
+                    self.devices.pop(existing_key, None)
+            elif device_key in self.devices:
                 device.channels = self.devices[device_key].channels
+                device.profile = self.devices[device_key].profile
             else:
                 self._apply_initial_state(device, data)
 
@@ -755,17 +772,19 @@ class OpusGreenNetCoordinator:
             device = EnOceanDevice(
                 device_id=device_id,
                 friendly_id=friendly_id,
+                eeps=effective_data.get("eeps", []),
             )
             self.devices[device_key] = device
             _LOGGER.info(
-                "Auto-discovered device from telegram: %s",
+                "Cached device from telegram before discovery: %s",
                 device_id,
             )
-            async_dispatcher_send(
-                self.hass,
-                f"{SIGNAL_DEVICE_DISCOVERED}_{self.eag_id}",
-                device,
-            )
+            if device.entity_type is not None:
+                async_dispatcher_send(
+                    self.hass,
+                    f"{SIGNAL_DEVICE_DISCOVERED}_{self.eag_id}",
+                    device,
+                )
 
         # Update device state
         if functions:

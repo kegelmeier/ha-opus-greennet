@@ -102,6 +102,28 @@ class TestFinalizeTelegram:
         assert device.device_id == "NEW1"
         assert device.channels[0].is_on is True
 
+    def test_unknown_telegram_without_eep_does_not_dispatch_discovery(self, coord):
+        """Temporary telegram-only devices wait for metadata before HA discovery."""
+        coord._telegram_data["NEW1"] = {
+            "deviceId": "NEW1",
+            "from": {
+                "friendlyId": "New Light",
+                "functions": [{"key": "switch", "value": "on"}],
+            },
+        }
+
+        with patch(
+            "custom_components.opus_greennet.coordinator.async_dispatcher_send"
+        ) as mock_dispatch:
+            coord._finalize_telegram("NEW1")
+
+        assert "New Light" in coord.devices
+        assert coord.devices["New Light"].channels[0].is_on is True
+        mock_dispatch.assert_called_once()
+        assert mock_dispatch.call_args[0][1].startswith(
+            "opus_greennet_device_state_update_"
+        )
+
     def test_functions_as_dict_from_flattened_mqtt(self, coord):
         """Functions may arrive as a dict (from _set_nested_property indexing)."""
         coord._telegram_data["DEV1"] = {
@@ -436,3 +458,25 @@ class TestFinalizeDiscovery:
 
         dev = coord.devices["Switch"]
         assert dev.primary_eep == "D2-01-00"
+
+    def test_discovery_rekeys_cached_telegram_device_by_device_id(self, coord):
+        """Discovery metadata merges with an earlier telegram-only device."""
+        cached = EnOceanDevice(device_id="DEV1", friendly_id="Temporary Name")
+        cached.update_from_telegram({"functions": [{"key": "switch", "value": "on"}]})
+        coord.devices["Temporary Name"] = cached
+        coord._device_data["DEV1"] = {
+            "deviceId": "DEV1",
+            "friendlyId": "Final Name",
+            "eeps": [{"eep": "D2-01-01"}],
+        }
+        coord._pending_devices.add("DEV1")
+
+        with patch(
+            "custom_components.opus_greennet.coordinator.async_dispatcher_send"
+        ) as mock_dispatch:
+            coord._finalize_discovery()
+
+        assert "Temporary Name" not in coord.devices
+        assert "Final Name" in coord.devices
+        assert coord.devices["Final Name"].channels[0].is_on is True
+        mock_dispatch.assert_called_once()

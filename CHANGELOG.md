@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1b2] - 2026-06-26
+
+### Fixed
+- **Local-control updates for multi-channel devices**: Telegram functions that carry a `channel` field directly on the state function now update the matching Home Assistant channel entity instead of falling back to channel 0.
+- **Pre-discovery telegram merge**: Devices first seen through `stream/telegram` are now merged by device ID when the full device metadata arrives, avoiding temporary internal device entries that can miss later entity updates.
+
 ## [0.2.1b1] - 2026-06-26
 
 ### Fixed

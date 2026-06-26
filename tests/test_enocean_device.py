@@ -266,6 +266,27 @@ class TestUpdateFromTelegram:
         # Channel 1 should be on
         assert dev.channels[1].is_on is True
 
+    def test_embedded_function_channel_routing(self, make_telegram):
+        """OPUS telegrams can carry channel directly on the state function."""
+        dev = self._device()
+        dev.update_from_telegram(make_telegram([
+            {"key": "switch", "value": "on", "channel": 1},
+        ]))
+
+        assert 0 not in dev.channels or dev.channels[0].is_on is False
+        assert dev.channels[1].is_on is True
+
+    def test_mixed_embedded_channels_update_independently(self, make_telegram):
+        """One telegram can report separate functions for different channels."""
+        dev = self._device()
+        dev.update_from_telegram(make_telegram([
+            {"key": "switch", "value": "off", "channel": 1},
+            {"key": "switch", "value": "on", "channel": 0},
+        ]))
+
+        assert dev.channels[0].is_on is True
+        assert dev.channels[1].is_on is False
+
     def test_actuator_error_states(self, make_telegram):
         dev = self._device()
         dev.update_from_telegram(make_telegram([
