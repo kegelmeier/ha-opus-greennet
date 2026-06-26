@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from custom_components.opus_greennet.coordinator import (
+    OUTBOUND_STATE_RECONCILIATION_DELAYS,
     OpusGreenNetCoordinator,
     TELEGRAM_FINALIZE_DELAY,
 )
@@ -63,9 +64,22 @@ class TestFinalizeTelegram:
             device_id="DEV1", friendly_id="Light", eeps=[{"eep": "D2-01-02"}]
         )
 
-        coord._finalize_telegram("DEV1")
+        cancel_early = MagicMock()
+        cancel_late = MagicMock()
+        with patch(
+            "custom_components.opus_greennet.coordinator.async_call_later",
+            side_effect=[cancel_early, cancel_late],
+        ) as mock_call_later:
+            coord._finalize_telegram("DEV1")
 
         assert coord.devices["Light"].channels[0].is_on is True
+        assert [call.args[1] for call in mock_call_later.call_args_list] == list(
+            OUTBOUND_STATE_RECONCILIATION_DELAYS
+        )
+        assert coord._pending_reconciliation_queries["DEV1"] == [
+            cancel_early,
+            cancel_late,
+        ]
 
     def test_applies_flat_direction_to_state_command(self, coord):
         """Native bridge HomeKit commands can arrive as flat direction=to data."""
@@ -78,9 +92,40 @@ class TestFinalizeTelegram:
             device_id="DEV1", friendly_id="Light", eeps=[{"eep": "D2-01-02"}]
         )
 
-        coord._finalize_telegram("DEV1")
+        with patch(
+            "custom_components.opus_greennet.coordinator.async_call_later",
+            return_value=MagicMock(),
+        ) as mock_call_later:
+            coord._finalize_telegram("DEV1")
 
         assert coord.devices["Light"].channels[0].is_on is True
+        assert mock_call_later.call_count == len(OUTBOUND_STATE_RECONCILIATION_DELAYS)
+
+    def test_confirmed_from_cancels_pending_reconciliation(self, coord):
+        """Confirmed device reports cancel delayed status checks."""
+        cancel_early = MagicMock()
+        cancel_late = MagicMock()
+        coord._pending_reconciliation_queries["DEV1"] = [cancel_early, cancel_late]
+        coord._telegram_data["DEV1"] = {
+            "deviceId": "DEV1",
+            "from": {
+                "friendlyId": "Light",
+                "functions": [{"key": "switch", "value": "off"}],
+            },
+        }
+        coord.devices["Light"] = EnOceanDevice(
+            device_id="DEV1", friendly_id="Light", eeps=[{"eep": "D2-01-02"}]
+        )
+        coord.devices["Light"].update_from_telegram(
+            {"functions": [{"key": "switch", "value": "on"}]}
+        )
+
+        coord._finalize_telegram("DEV1")
+
+        assert coord.devices["Light"].channels[0].is_on is False
+        cancel_early.assert_called_once()
+        cancel_late.assert_called_once()
+        assert "DEV1" not in coord._pending_reconciliation_queries
 
     def test_skips_to_only_query_command(self, coord):
         """Outbound query telegrams do not change device state."""
@@ -259,9 +304,11 @@ class TestFinalizeDeviceStream:
 
     def test_state_functions_array_format(self, coord):
         """stream/device deltas use state.functions array format."""
+        cancel_query = MagicMock()
         coord.devices["Light"] = EnOceanDevice(
             device_id="DEV1", friendly_id="Light", eeps=[{"eep": "D2-01-02"}]
         )
+        coord._pending_reconciliation_queries["DEV1"] = [cancel_query]
         coord._device_stream_data["DEV1"] = {
             "deviceId": "DEV1",
             "state": {
@@ -277,6 +324,8 @@ class TestFinalizeDeviceStream:
         ch = coord.devices["Light"].channels[0]
         assert ch.is_on is True
         assert ch.brightness == 50
+        cancel_query.assert_called_once()
+        assert "DEV1" not in coord._pending_reconciliation_queries
 
     def test_state_functions_dict_format(self, coord):
         """state.functions may arrive as a dict from _set_nested_property."""
@@ -340,9 +389,11 @@ class TestDevicePropertyMessage:
 
     def test_known_device_state_updates_immediately(self, coord):
         """Known device state from stream/devices skips discovery debounce."""
+        cancel_query = MagicMock()
         coord.devices["Switch"] = EnOceanDevice(
             device_id="DEV1", friendly_id="Switch", eeps=[{"eep": "D2-01-00"}]
         )
+        coord._pending_reconciliation_queries["DEV1"] = [cancel_query]
         msg = SimpleNamespace(
             topic="EnOcean/AABB0011/stream/devices/DEV1/states/switch",
             payload=b"on",
@@ -360,6 +411,8 @@ class TestDevicePropertyMessage:
 
         assert coord.devices["Switch"].channels[0].is_on is True
         assert "DEV1" not in coord._pending_devices
+        cancel_query.assert_called_once()
+        assert "DEV1" not in coord._pending_reconciliation_queries
         mock_call_later.assert_not_called()
         mock_dispatch.assert_called_once()
 
@@ -430,6 +483,25 @@ class TestAsyncSendCommand:
             call_kwargs = mock_publish.call_args
             # qos is passed as keyword or positional
             assert call_kwargs[1].get("qos", call_kwargs[0][3] if len(call_kwargs[0]) > 3 else None) == 1
+
+    @pytest.mark.asyncio
+    async def test_query_device_status(self):
+        """Device status queries use the OPUS query=status function."""
+        hass = MagicMock()
+        coord = OpusGreenNetCoordinator(hass, "AABB0011")
+
+        with patch(
+            "custom_components.opus_greennet.coordinator.mqtt.async_publish",
+            new_callable=AsyncMock,
+        ) as mock_publish:
+            await coord.async_query_device_status("DEV1")
+
+        payload = json.loads(mock_publish.call_args[0][2])
+        assert payload == {
+            "state": {
+                "functions": [{"key": "query", "value": "status"}],
+            }
+        }
 
 
 # ── _finalize_discovery ──────────────────────────────────────────────

@@ -21,7 +21,8 @@ A custom Home Assistant integration for the Opus GreenNet Bridge, enabling contr
 ## Features
 
 - **Auto-discovery**: Automatically discovers EnOcean devices connected to your Opus GreenNet Bridge
-- **Real-time updates**: Receives state changes via MQTT push notifications (stream/device deltas)
+- **Real-time updates**: Receives state changes via MQTT push notifications, including device deltas, local-control telegrams, and bridge-originated command telegrams
+- **State reconciliation**: Optimistic command updates are followed by delayed status checks so later confirmed bridge state can correct failed commands
 - **Bidirectional control**: Send commands to actuators (lights, switches, covers, thermostats)
 - **Climate control**: HeatArea thermostat support for Valve, CosiTherm, and Electro Heating areas
 - **Sensors**: Humidity, temperature, energy consumption, and signal strength monitoring
@@ -239,7 +240,7 @@ pip install -r requirements_test.txt
 pytest -v
 ```
 
-174 tests run in under 2s, covering device properties, telegram parsing, command building, MQTT finalization, rocker switch events, and config flow validation.
+187 tests run in under 2s, covering device properties, telegram parsing, command building, MQTT finalization, rocker switch events, and config flow validation.
 
 ## References
 

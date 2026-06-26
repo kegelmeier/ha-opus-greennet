@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1rc1] - 2026-06-26
+
+### Added
+- **Raw OPUS MQTT debug logging**: Debug logging now includes raw subscribed OPUS MQTT topic and payload details before parsing, with long payloads truncated.
+- **Native bridge HomeKit reconciliation**: State commands seen on the OPUS MQTT telegram stream are applied optimistically and followed by delayed status checks after 5 and 20 seconds, so failed commands can be corrected by the bridge's confirmed status response.
+
+### Fixed
+- **Faster local-control updates**: Known devices now apply `stream/devices/.../states/...` updates immediately instead of waiting for the discovery debounce.
+- **Fragmented telegram handling**: `stream/telegram` processing waits long enough to collect split key/value messages and ignores incomplete function fragments.
+- **Multi-channel local-control updates**: Telegram functions with an embedded `channel` field now update the matching Home Assistant channel entity.
+- **Pre-discovery telegram merge**: Devices first seen through `stream/telegram` are merged by device ID when full metadata arrives, avoiding temporary entries that could miss later entity updates.
+- **Native bridge HomeKit state sync**: Outbound OPUS MQTT command telegrams that carry state functions can now update Home Assistant even when the bridge does not publish an immediate separate confirmed status telegram.
+- **Outbound query filtering**: Outbound query/status telegrams are ignored as state updates, preventing status requests from changing entities.
+
 ## [0.2.1b4] - 2026-06-26
 
 ### Fixed

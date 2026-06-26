@@ -45,6 +45,7 @@ SIGNAL_DEVICE_STATE_UPDATE = f"{DOMAIN}_device_state_update"
 DEVICE_STREAM_FINALIZE_DELAY = 0.02
 TELEGRAM_FINALIZE_DELAY = 0.15
 RAW_MQTT_DEBUG_PAYLOAD_LIMIT = 500
+OUTBOUND_STATE_RECONCILIATION_DELAYS = (5, 20)
 
 # Regex to parse device topics (plural - initial full state at boot)
 # EnOcean/{EAG}/stream/devices/{DeviceID}/{property}
@@ -81,6 +82,9 @@ class OpusGreenNetCoordinator:
         self._pending_devices: set[str] = set()
         self._pending_telegrams: dict[str, Callable | None] = {}  # Timers per device
         self._pending_device_streams: dict[str, Callable | None] = {}  # Timers per device
+        self._pending_reconciliation_queries: dict[
+            str, list[Callable[[], None]]
+        ] = {}
         self._discovery_timer: Callable | None = None
         # Gateway info
         self.gateway_info: dict[str, Any] = {}
@@ -187,6 +191,8 @@ class OpusGreenNetCoordinator:
         _LOGGER.debug("Unloading Opus GreenNet coordinator for EAG %s", self.eag_id)
         if self._discovery_timer:
             self._discovery_timer()
+        for device_id in list(self._pending_reconciliation_queries):
+            self._cancel_reconciliation_queries(device_id)
         for unsubscribe in self._subscriptions:
             unsubscribe()
         self._subscriptions.clear()
@@ -333,6 +339,7 @@ class OpusGreenNetCoordinator:
                         functions.append({"key": key, "value": value})
 
         if functions:
+            self._cancel_reconciliation_queries(device_id)
             telegram = {"functions": functions}
             device.update_from_telegram(telegram)
 
@@ -483,6 +490,7 @@ class OpusGreenNetCoordinator:
 
         device_key, device = device_entry
         value = self._parse_value(payload)
+        self._cancel_reconciliation_queries(device_id)
         device.update_from_telegram(
             {
                 "functions": [
@@ -503,6 +511,31 @@ class OpusGreenNetCoordinator:
         )
         async_dispatcher_send(self.hass, signal, device)
         return True
+
+    def _cancel_reconciliation_queries(self, device_id: str) -> None:
+        """Cancel delayed status queries for a device."""
+        for cancel in self._pending_reconciliation_queries.pop(device_id, []):
+            cancel()
+
+    def _schedule_reconciliation_queries(self, device_id: str) -> None:
+        """Schedule delayed status checks after an optimistic state update."""
+        self._cancel_reconciliation_queries(device_id)
+        self._pending_reconciliation_queries[device_id] = []
+
+        for delay in OUTBOUND_STATE_RECONCILIATION_DELAYS:
+
+            @callback
+            def query_callback(_now, did=device_id, seconds=delay):
+                _LOGGER.debug(
+                    "Querying OPUS status for %s %.0fs after outbound state command",
+                    did,
+                    seconds,
+                )
+                self.hass.async_create_task(self.async_query_device_status(did))
+
+            self._pending_reconciliation_queries[device_id].append(
+                async_call_later(self.hass, delay, query_callback)
+            )
 
     def _set_nested_property(self, data: dict, path: str, value: str) -> None:
         """Set a nested property in a dict using a path like 'eeps/0/eep'."""
@@ -811,6 +844,8 @@ class OpusGreenNetCoordinator:
                 device_id,
                 functions,
             )
+        else:
+            self._cancel_reconciliation_queries(device_id)
 
         # Create telegram dict in the format expected by update_from_telegram
         telegram = {
@@ -861,6 +896,9 @@ class OpusGreenNetCoordinator:
         # Notify listeners of state update
         signal = f"{SIGNAL_DEVICE_STATE_UPDATE}_{self.eag_id}_{device_key}"
         async_dispatcher_send(self.hass, signal, device)
+
+        if is_outbound_command:
+            self._schedule_reconciliation_queries(device_id)
 
     # ──────────────────────────────────────────────────────────────────────
     # Command sending
@@ -959,6 +997,14 @@ class OpusGreenNetCoordinator:
         self._add_channel_if_needed(functions, channel)
         await self.async_send_command(device_id, functions)
 
+    async def async_query_device_status(
+        self,
+        device_id: str,
+    ) -> None:
+        """Query the current device status."""
+        functions = [{"key": "query", "value": "status"}]
+        await self.async_send_command(device_id, functions)
+
     # ──────────────────────────────────────────────────────────────────────
     # Climate commands
     # ──────────────────────────────────────────────────────────────────────
@@ -986,8 +1032,7 @@ class OpusGreenNetCoordinator:
         device_id: str,
     ) -> None:
         """Query the current status of a climate device."""
-        functions = [{"key": "query", "value": "status"}]
-        await self.async_send_command(device_id, functions)
+        await self.async_query_device_status(device_id)
 
     # ──────────────────────────────────────────────────────────────────────
     # Device profile queries
