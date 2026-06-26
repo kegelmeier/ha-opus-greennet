@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1b3] - 2026-06-26
+
+### Added
+- **Raw OPUS MQTT debug logging**: When debug logging is enabled for the integration, subscribed OPUS MQTT messages now log their raw topic and payload before parsing. This pre-release is intended to verify whether native HomeKit control also emits OPUS MQTT updates.
+
 ## [0.2.1b2] - 2026-06-26
 
 ### Fixed

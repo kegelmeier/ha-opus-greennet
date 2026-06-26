@@ -44,6 +44,7 @@ SIGNAL_DEVICE_STATE_UPDATE = f"{DOMAIN}_device_state_update"
 
 DEVICE_STREAM_FINALIZE_DELAY = 0.02
 TELEGRAM_FINALIZE_DELAY = 0.15
+RAW_MQTT_DEBUG_PAYLOAD_LIMIT = 500
 
 # Regex to parse device topics (plural - initial full state at boot)
 # EnOcean/{EAG}/stream/devices/{DeviceID}/{property}
@@ -198,6 +199,8 @@ class OpusGreenNetCoordinator:
     def _handle_device_property_message(self, msg: ReceiveMessage) -> None:
         """Handle incoming device property messages from flattened MQTT structure."""
         try:
+            self._log_raw_mqtt_message("stream/devices", msg)
+
             match = DEVICE_TOPIC_PATTERN.match(msg.topic)
             if not match:
                 return
@@ -238,6 +241,8 @@ class OpusGreenNetCoordinator:
     def _handle_device_stream_message(self, msg: ReceiveMessage) -> None:
         """Handle live device model delta messages from stream/device/{EURID}."""
         try:
+            self._log_raw_mqtt_message("stream/device", msg)
+
             match = DEVICE_STREAM_TOPIC_PATTERN.match(msg.topic)
             if not match:
                 return
@@ -342,6 +347,8 @@ class OpusGreenNetCoordinator:
     def _handle_get_answer_devices(self, msg: ReceiveMessage) -> None:
         """Handle getAnswer/devices response with device data."""
         try:
+            self._log_raw_mqtt_message("getAnswer/devices", msg)
+
             payload = msg.payload
             if isinstance(payload, bytes):
                 payload = payload.decode()
@@ -422,6 +429,30 @@ class OpusGreenNetCoordinator:
     # ──────────────────────────────────────────────────────────────────────
     # Shared helpers
     # ──────────────────────────────────────────────────────────────────────
+
+    def _log_raw_mqtt_message(self, source: str, msg: ReceiveMessage) -> None:
+        """Log raw OPUS MQTT message details when debug logging is enabled."""
+        if not _LOGGER.isEnabledFor(logging.DEBUG):
+            return
+
+        payload = msg.payload
+        if isinstance(payload, bytes):
+            payload_text = payload.decode("utf-8", errors="replace")
+        else:
+            payload_text = str(payload)
+
+        if len(payload_text) > RAW_MQTT_DEBUG_PAYLOAD_LIMIT:
+            payload_text = (
+                f"{payload_text[:RAW_MQTT_DEBUG_PAYLOAD_LIMIT]}..."
+                f" [truncated {len(payload_text)} chars]"
+            )
+
+        _LOGGER.debug(
+            "Raw OPUS MQTT %s: topic=%s payload=%r",
+            source,
+            msg.topic,
+            payload_text,
+        )
 
     def _find_device_by_id(self, device_id: str) -> tuple[str, EnOceanDevice] | None:
         """Find an existing device by EURID and return its coordinator key."""
@@ -648,6 +679,8 @@ class OpusGreenNetCoordinator:
     def _handle_telegram_property_message(self, msg: ReceiveMessage) -> None:
         """Handle incoming telegram property messages from flattened MQTT structure."""
         try:
+            self._log_raw_mqtt_message("stream/telegram", msg)
+
             match = TELEGRAM_TOPIC_PATTERN.match(msg.topic)
             if not match:
                 return
