@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.2b0] - 2026-06-26
+
+### Added
+- **Update latency diagnostics**: Debug logs now mark MQTT receive, debounce finalization, dispatcher notification, and entity state write points for state updates.
+- **Update source attributes**: Entities expose `last_update_source` and `last_seen` diagnostic attributes when available, making it easier to verify whether a state came from `stream/devices`, `stream/device`, `stream/telegram/from`, or `stream/telegram/to`.
+- **Lag troubleshooting docs**: README now documents the latency log markers and how to interpret them during physical-switch tests.
+
 ## [0.2.1] - 2026-06-26
 
 ### Added
