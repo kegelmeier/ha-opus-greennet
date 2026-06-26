@@ -51,6 +51,8 @@ class TestFinalizeTelegram:
 
         device = coord.devices["My Light"]
         assert device.channels[0].is_on is True
+        assert device.last_update_source == "stream/telegram/from"
+        assert device.last_update_dispatched_monotonic is not None
 
     def test_applies_to_only_state_command(self, coord):
         """Outbound command telegrams are used as optimistic state updates."""
@@ -73,6 +75,7 @@ class TestFinalizeTelegram:
             coord._finalize_telegram("DEV1")
 
         assert coord.devices["Light"].channels[0].is_on is True
+        assert coord.devices["Light"].last_update_source == "stream/telegram/to"
         assert [call.args[1] for call in mock_call_later.call_args_list] == list(
             OUTBOUND_STATE_RECONCILIATION_DELAYS
         )
@@ -99,6 +102,7 @@ class TestFinalizeTelegram:
             coord._finalize_telegram("DEV1")
 
         assert coord.devices["Light"].channels[0].is_on is True
+        assert coord.devices["Light"].last_update_source == "stream/telegram/to"
         assert mock_call_later.call_count == len(OUTBOUND_STATE_RECONCILIATION_DELAYS)
 
     def test_confirmed_from_cancels_pending_reconciliation(self, coord):
@@ -324,6 +328,7 @@ class TestFinalizeDeviceStream:
         ch = coord.devices["Light"].channels[0]
         assert ch.is_on is True
         assert ch.brightness == 50
+        assert coord.devices["Light"].last_update_source == "stream/device"
         cancel_query.assert_called_once()
         assert "DEV1" not in coord._pending_reconciliation_queries
 
@@ -410,6 +415,8 @@ class TestDevicePropertyMessage:
             coord._handle_device_property_message(msg)
 
         assert coord.devices["Switch"].channels[0].is_on is True
+        assert coord.devices["Switch"].last_update_source == "stream/devices"
+        assert coord.devices["Switch"].last_update_received_monotonic is not None
         assert "DEV1" not in coord._pending_devices
         cancel_query.assert_called_once()
         assert "DEV1" not in coord._pending_reconciliation_queries

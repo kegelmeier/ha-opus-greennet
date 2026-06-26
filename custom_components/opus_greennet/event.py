@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from homeassistant.components.event import EventEntity
 from homeassistant.config_entries import ConfigEntry
@@ -22,6 +23,7 @@ from .coordinator import (
     SIGNAL_DEVICE_STATE_UPDATE,
     OpusGreenNetCoordinator,
 )
+from .diagnostics import device_diagnostic_attributes, log_entity_state_write
 from .enocean_device import EnOceanDevice
 
 _LOGGER = logging.getLogger(__name__)
@@ -110,6 +112,11 @@ class OpusGreenNetEvent(EventEntity):
             via_device=(DOMAIN, self._eag_id),
         )
 
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return diagnostic state attributes."""
+        return device_diagnostic_attributes(self._device)
+
     async def async_added_to_hass(self) -> None:
         """Register callbacks when entity is added."""
         self.async_on_remove(
@@ -144,4 +151,10 @@ class OpusGreenNetEvent(EventEntity):
             return
 
         self._trigger_event(event_type, {"button": button, "action": action})
+        log_entity_state_write(
+            _LOGGER,
+            self.entity_id or self._attr_unique_id,
+            self._device,
+            0,
+        )
         self.async_write_ha_state()

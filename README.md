@@ -201,6 +201,26 @@ logger:
     custom_components.opus_greennet: debug
 ```
 
+### Debug update lag
+
+When debug logging is enabled, state updates include latency markers for the
+main handoff points:
+
+- `OPUS update latency received`: MQTT message reached the integration
+- `OPUS update latency finalized`: debounced MQTT fragments were converted into state functions
+- `OPUS update latency dispatch`: the coordinator notified Home Assistant entities
+- `OPUS update latency entity_write`: the entity wrote its Home Assistant state
+
+Entities also expose diagnostic attributes when available:
+
+- `last_seen`: timestamp reported by the bridge or device telegram
+- `last_update_source`: the MQTT path that last updated the entity, such as `stream/devices`, `stream/device`, `stream/telegram/from`, or `stream/telegram/to`
+
+For local switch tests, press the physical control and compare the time between
+`received`, `dispatch`, and `entity_write`. If `received` is already delayed, the
+lag is before this integration. If `received` is fast but `entity_write` is slow,
+the lag is inside Home Assistant or this integration.
+
 ## Development
 
 ### Project Structure
