@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.2.1rc1] - 2026-06-26
+## [0.2.1] - 2026-06-26
 
 ### Added
 - **Raw OPUS MQTT debug logging**: Debug logging now includes raw subscribed OPUS MQTT topic and payload details before parsing, with long payloads truncated.
@@ -15,33 +15,6 @@ All notable changes to this project will be documented in this file.
 - **Pre-discovery telegram merge**: Devices first seen through `stream/telegram` are merged by device ID when full metadata arrives, avoiding temporary entries that could miss later entity updates.
 - **Native bridge HomeKit state sync**: Outbound OPUS MQTT command telegrams that carry state functions can now update Home Assistant even when the bridge does not publish an immediate separate confirmed status telegram.
 - **Outbound query filtering**: Outbound query/status telegrams are ignored as state updates, preventing status requests from changing entities.
-
-## [0.2.1b4] - 2026-06-26
-
-### Fixed
-- **Native bridge HomeKit state sync**: Outbound OPUS MQTT command telegrams that carry state functions are now used as optimistic state updates, so changes made through the bridge's native HomeKit integration can be reflected in Home Assistant even when the bridge does not publish a separate immediate confirmed status telegram.
-
-## [0.2.1b3] - 2026-06-26
-
-### Added
-- **Raw OPUS MQTT debug logging**: When debug logging is enabled for the integration, subscribed OPUS MQTT messages now log their raw topic and payload before parsing. This pre-release is intended to verify whether native HomeKit control also emits OPUS MQTT updates.
-
-## [0.2.1b2] - 2026-06-26
-
-### Fixed
-- **Local-control updates for multi-channel devices**: Telegram functions that carry a `channel` field directly on the state function now update the matching Home Assistant channel entity instead of falling back to channel 0.
-- **Pre-discovery telegram merge**: Devices first seen through `stream/telegram` are now merged by device ID when the full device metadata arrives, avoiding temporary internal device entries that can miss later entity updates.
-
-## [0.2.1b1] - 2026-06-26
-
-### Fixed
-- **More reliable local-control telegram updates**: `stream/telegram` updates now wait slightly longer before finalizing so fragmented flattened MQTT key/value messages can be collected before dispatching the state update.
-- **Ignored incomplete telegram fragments**: Partial function entries without both `key` and `value` are dropped instead of producing no-op Home Assistant updates.
-
-## [0.2.1b0] - 2026-06-26
-
-### Fixed
-- **Faster local-control state updates**: Known devices receiving `stream/devices/.../states/...` updates now update Home Assistant immediately instead of waiting for the discovery debounce. This pre-release is intended to test physical switch/local control update latency.
 
 ## [0.2.0] - 2026-05-12
 
