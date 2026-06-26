@@ -83,6 +83,16 @@ class EnOceanDevice:
     physical_device: str = ""
     first_seen: str = ""
     last_seen: str = ""
+    last_update_source: str = ""
+    last_update_received_monotonic: float | None = field(
+        default=None, repr=False, compare=False
+    )
+    last_update_finalized_monotonic: float | None = field(
+        default=None, repr=False, compare=False
+    )
+    last_update_dispatched_monotonic: float | None = field(
+        default=None, repr=False, compare=False
+    )
     dbm: int = 0
     channels: dict[int, EnOceanChannel] = field(default_factory=dict)
     profile: dict[str, Any] | None = None
