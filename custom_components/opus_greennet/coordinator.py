@@ -42,6 +42,9 @@ _LOGGER = logging.getLogger(__name__)
 SIGNAL_DEVICE_DISCOVERED = f"{DOMAIN}_device_discovered"
 SIGNAL_DEVICE_STATE_UPDATE = f"{DOMAIN}_device_state_update"
 
+DEVICE_STREAM_FINALIZE_DELAY = 0.02
+TELEGRAM_FINALIZE_DELAY = 0.15
+
 # Regex to parse device topics (plural - initial full state at boot)
 # EnOcean/{EAG}/stream/devices/{DeviceID}/{property}
 DEVICE_TOPIC_PATTERN = re.compile(
@@ -261,9 +264,9 @@ class OpusGreenNetCoordinator:
                 self._finalize_device_stream(did)
 
             # Short debounce: gateway publishes all properties within ms,
-            # so 20ms is ample to collect a full delta while keeping UI snappy.
+            # so this is ample to collect a full delta while keeping UI snappy.
             self._pending_device_streams[device_id] = async_call_later(
-                self.hass, 0.02, finalize_callback
+                self.hass, DEVICE_STREAM_FINALIZE_DELAY, finalize_callback
             )
 
         except Exception as err:
@@ -651,10 +654,10 @@ class OpusGreenNetCoordinator:
             def finalize_callback(_now, did=device_id):
                 self._finalize_telegram(did)
 
-            # Short debounce: gateway publishes all properties within ms,
-            # so 20ms is ample to collect a full telegram while keeping UI snappy.
+            # Telegram function key/value pairs can arrive as separate flattened
+            # MQTT messages. Wait long enough to avoid dispatching partial pairs.
             self._pending_telegrams[device_id] = async_call_later(
-                self.hass, 0.02, finalize_callback
+                self.hass, TELEGRAM_FINALIZE_DELAY, finalize_callback
             )
 
         except Exception as err:
@@ -706,6 +709,27 @@ class OpusGreenNetCoordinator:
                 func_entry = functions_data[idx]
                 if isinstance(func_entry, dict):
                     functions.append(func_entry)
+
+        complete_functions = [
+            func
+            for func in functions
+            if func.get("key") is not None and func.get("value") is not None
+        ]
+        dropped_count = len(functions) - len(complete_functions)
+        if dropped_count:
+            _LOGGER.debug(
+                "Dropping %d incomplete telegram function(s) for %s: %s",
+                dropped_count,
+                device_id,
+                [func for func in functions if func not in complete_functions],
+            )
+        functions = complete_functions
+        if not functions:
+            _LOGGER.debug(
+                "Ignoring telegram for %s because it contains no complete functions",
+                device_id,
+            )
+            return
 
         # Create telegram dict in the format expected by update_from_telegram
         telegram = {

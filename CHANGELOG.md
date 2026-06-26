@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1b1] - 2026-06-26
+
+### Fixed
+- **More reliable local-control telegram updates**: `stream/telegram` updates now wait slightly longer before finalizing so fragmented flattened MQTT key/value messages can be collected before dispatching the state update.
+- **Ignored incomplete telegram fragments**: Partial function entries without both `key` and `value` are dropped instead of producing no-op Home Assistant updates.
+
 ## [0.2.1b0] - 2026-06-26
 
 ### Fixed

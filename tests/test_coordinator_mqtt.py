@@ -7,7 +7,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from custom_components.opus_greennet.coordinator import OpusGreenNetCoordinator
+from custom_components.opus_greennet.coordinator import (
+    OpusGreenNetCoordinator,
+    TELEGRAM_FINALIZE_DELAY,
+)
 from custom_components.opus_greennet.enocean_device import EnOceanDevice
 
 
@@ -117,10 +120,80 @@ class TestFinalizeTelegram:
 
         assert coord.devices["Light"].channels[0].brightness == 75
 
+    def test_ignores_incomplete_function_fragments(self, coord):
+        """Partial flattened telegram functions do not dispatch stale updates."""
+        coord._telegram_data["DEV1"] = {
+            "deviceId": "DEV1",
+            "from": {
+                "functions": [
+                    {"key": "switch"},
+                    {"value": "on"},
+                ],
+            },
+        }
+        coord.devices["Light"] = EnOceanDevice(
+            device_id="DEV1", friendly_id="Light", eeps=[{"eep": "D2-01-02"}]
+        )
+
+        with patch(
+            "custom_components.opus_greennet.coordinator.async_dispatcher_send"
+        ) as mock_dispatch:
+            coord._finalize_telegram("DEV1")
+
+        assert 0 not in coord.devices["Light"].channels
+        mock_dispatch.assert_not_called()
+
+    def test_applies_only_complete_function_fragments(self, coord):
+        """Mixed complete and partial telegram functions keep the valid update."""
+        coord._telegram_data["DEV1"] = {
+            "deviceId": "DEV1",
+            "from": {
+                "functions": [
+                    {"key": "localControl"},
+                    {"key": "switch", "value": "on"},
+                    {"value": "off"},
+                ],
+            },
+        }
+        coord.devices["Light"] = EnOceanDevice(
+            device_id="DEV1", friendly_id="Light", eeps=[{"eep": "D2-01-02"}]
+        )
+
+        with patch(
+            "custom_components.opus_greennet.coordinator.async_dispatcher_send"
+        ) as mock_dispatch:
+            coord._finalize_telegram("DEV1")
+
+        assert coord.devices["Light"].channels[0].is_on is True
+        mock_dispatch.assert_called_once()
+
     def test_noop_when_no_data(self, coord):
         """Calling finalize for a device with no pending data does nothing."""
         coord._finalize_telegram("NONEXISTENT")
         # Should not raise
+
+
+# ── _handle_telegram_property_message ────────────────────────────────
+
+
+class TestTelegramPropertyMessage:
+    """Tests for stream/telegram property message handling."""
+
+    def test_telegram_debounce_allows_fragmented_key_value_pairs(self, coord):
+        """Telegram finalization waits long enough for split key/value messages."""
+        msg = SimpleNamespace(
+            topic="EnOcean/AABB0011/stream/telegram/DEV1/from/functions/0/key",
+            payload=b"switch",
+        )
+
+        with patch(
+            "custom_components.opus_greennet.coordinator.async_call_later"
+        ) as mock_call_later:
+            coord._handle_telegram_property_message(msg)
+
+        assert coord._telegram_data["DEV1"]["from"]["functions"][0]["key"] == "switch"
+        mock_call_later.assert_called_once()
+        assert mock_call_later.call_args[0][1] == TELEGRAM_FINALIZE_DELAY
 
 
 # ── _finalize_device_stream ───────────────────────────────────────────
