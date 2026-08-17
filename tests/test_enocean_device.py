@@ -1,4 +1,5 @@
 """Tests for EnOceanDevice data model."""
+
 from __future__ import annotations
 
 import pytest
@@ -7,7 +8,6 @@ from custom_components.opus_greennet.enocean_device import (
     EnOceanChannel,
     EnOceanDevice,
 )
-
 
 # ── Device Properties ──────────────────────────────────────────────────
 
@@ -56,9 +56,16 @@ class TestDeviceProperties:
     @pytest.mark.parametrize(
         "eep",
         [
-            "D2-01-02", "D2-01-03", "D2-01-06", "D2-01-07",
-            "D2-01-0A", "D2-01-0B", "D2-01-0F", "D2-01-10",
-            "D2-01-12", "A5-38-08",
+            "D2-01-02",
+            "D2-01-03",
+            "D2-01-06",
+            "D2-01-07",
+            "D2-01-0A",
+            "D2-01-0B",
+            "D2-01-0F",
+            "D2-01-10",
+            "D2-01-12",
+            "A5-38-08",
         ],
     )
     def test_is_dimmable_true(self, make_device, eep):
@@ -131,7 +138,9 @@ class TestUpdateFromTelegram:
     """Tests for EnOceanDevice.update_from_telegram."""
 
     def _device(self) -> EnOceanDevice:
-        return EnOceanDevice(device_id="DEV1", friendly_id="Test", eeps=[{"eep": "D2-01-02"}])
+        return EnOceanDevice(
+            device_id="DEV1", friendly_id="Test", eeps=[{"eep": "D2-01-02"}]
+        )
 
     def test_switch_on(self, make_telegram):
         dev = self._device()
@@ -168,27 +177,37 @@ class TestUpdateFromTelegram:
 
     def test_temperature(self, make_telegram):
         dev = self._device()
-        dev.update_from_telegram(make_telegram([{"key": "temperature", "value": "21.5"}]))
+        dev.update_from_telegram(
+            make_telegram([{"key": "temperature", "value": "21.5"}])
+        )
         assert dev.channels[0].temperature == 21.5
 
     def test_temperature_not_available(self, make_telegram):
         dev = self._device()
-        dev.update_from_telegram(make_telegram([{"key": "temperature", "value": "notAvailable"}]))
+        dev.update_from_telegram(
+            make_telegram([{"key": "temperature", "value": "notAvailable"}])
+        )
         assert dev.channels[0].temperature is None
 
     def test_temperature_setpoint(self, make_telegram):
         dev = self._device()
-        dev.update_from_telegram(make_telegram([{"key": "temperatureSetpoint", "value": "22.0"}]))
+        dev.update_from_telegram(
+            make_telegram([{"key": "temperatureSetpoint", "value": "22.0"}])
+        )
         assert dev.channels[0].temperature_setpoint == 22.0
 
     def test_temperature_setpoint_not_available(self, make_telegram):
         dev = self._device()
-        dev.update_from_telegram(make_telegram([{"key": "temperatureSetpoint", "value": "notAvailable"}]))
+        dev.update_from_telegram(
+            make_telegram([{"key": "temperatureSetpoint", "value": "notAvailable"}])
+        )
         assert dev.channels[0].temperature_setpoint is None
 
     def test_heater_mode(self, make_telegram):
         dev = self._device()
-        dev.update_from_telegram(make_telegram([{"key": "heaterMode", "value": "heating"}]))
+        dev.update_from_telegram(
+            make_telegram([{"key": "heaterMode", "value": "heating"}])
+        )
         assert dev.channels[0].heater_mode == "heating"
 
     def test_humidity(self, make_telegram):
@@ -198,12 +217,16 @@ class TestUpdateFromTelegram:
 
     def test_humidity_not_available(self, make_telegram):
         dev = self._device()
-        dev.update_from_telegram(make_telegram([{"key": "humidity", "value": "notAvailable"}]))
+        dev.update_from_telegram(
+            make_telegram([{"key": "humidity", "value": "notAvailable"}])
+        )
         assert dev.channels[0].humidity is None
 
     def test_window_open_string(self, make_telegram):
         dev = self._device()
-        dev.update_from_telegram(make_telegram([{"key": "windowOpen", "value": "true"}]))
+        dev.update_from_telegram(
+            make_telegram([{"key": "windowOpen", "value": "true"}])
+        )
         assert dev.channels[0].window_open is True
 
     def test_window_open_bool(self, make_telegram):
@@ -213,54 +236,76 @@ class TestUpdateFromTelegram:
 
     def test_window_closed(self, make_telegram):
         dev = self._device()
-        dev.update_from_telegram(make_telegram([{"key": "windowOpen", "value": "false"}]))
+        dev.update_from_telegram(
+            make_telegram([{"key": "windowOpen", "value": "false"}])
+        )
         assert dev.channels[0].window_open is False
 
     def test_summer_mode(self, make_telegram):
         dev = self._device()
-        dev.update_from_telegram(make_telegram([{"key": "summerMode", "value": "true"}]))
+        dev.update_from_telegram(
+            make_telegram([{"key": "summerMode", "value": "true"}])
+        )
         assert dev.channels[0].summer_mode is True
 
     def test_feed_temperature(self, make_telegram):
         dev = self._device()
-        dev.update_from_telegram(make_telegram([{"key": "feedTemperature", "value": "35.5"}]))
+        dev.update_from_telegram(
+            make_telegram([{"key": "feedTemperature", "value": "35.5"}])
+        )
         assert dev.channels[0].feed_temperature == 35.5
 
     def test_feed_temperature_not_available(self, make_telegram):
         dev = self._device()
-        dev.update_from_telegram(make_telegram([{"key": "feedTemperature", "value": "notAvailable"}]))
+        dev.update_from_telegram(
+            make_telegram([{"key": "feedTemperature", "value": "notAvailable"}])
+        )
         assert dev.channels[0].feed_temperature is None
 
     def test_energy_consumption(self, make_telegram):
         dev = self._device()
-        dev.update_from_telegram(make_telegram([{"key": "energyConsumption", "value": "1.5"}]))
+        dev.update_from_telegram(
+            make_telegram([{"key": "energyConsumption", "value": "1.5"}])
+        )
         assert dev.channels[0].energy_consumption == 1.5
 
     def test_power_state(self, make_telegram):
         dev = self._device()
-        dev.update_from_telegram(make_telegram([{"key": "powerState", "value": "active"}]))
+        dev.update_from_telegram(
+            make_telegram([{"key": "powerState", "value": "active"}])
+        )
         assert dev.channels[0].power_state == "active"
 
     def test_local_control(self, make_telegram):
         dev = self._device()
-        dev.update_from_telegram(make_telegram([{"key": "localControl", "value": "on"}]))
+        dev.update_from_telegram(
+            make_telegram([{"key": "localControl", "value": "on"}])
+        )
         assert dev.channels[0].local_control is True
 
     def test_energy_and_power(self, make_telegram):
         dev = self._device()
-        dev.update_from_telegram(make_telegram([
-            {"key": "energy", "value": "1234.5"},
-            {"key": "power", "value": "56.7"},
-        ]))
+        dev.update_from_telegram(
+            make_telegram(
+                [
+                    {"key": "energy", "value": "1234.5"},
+                    {"key": "power", "value": "56.7"},
+                ]
+            )
+        )
         assert dev.channels[0].energy == 1234.5
         assert dev.channels[0].power == 56.7
 
     def test_multi_channel_routing(self, make_telegram):
         dev = self._device()
-        dev.update_from_telegram(make_telegram([
-            {"key": "switch", "value": "on"},
-            {"key": "channel", "value": "1"},
-        ]))
+        dev.update_from_telegram(
+            make_telegram(
+                [
+                    {"key": "switch", "value": "on"},
+                    {"key": "channel", "value": "1"},
+                ]
+            )
+        )
         # Channel 0 should not be affected
         assert 0 not in dev.channels or dev.channels[0].is_on is False
         # Channel 1 should be on
@@ -269,9 +314,13 @@ class TestUpdateFromTelegram:
     def test_embedded_function_channel_routing(self, make_telegram):
         """OPUS telegrams can carry channel directly on the state function."""
         dev = self._device()
-        dev.update_from_telegram(make_telegram([
-            {"key": "switch", "value": "on", "channel": 1},
-        ]))
+        dev.update_from_telegram(
+            make_telegram(
+                [
+                    {"key": "switch", "value": "on", "channel": 1},
+                ]
+            )
+        )
 
         assert 0 not in dev.channels or dev.channels[0].is_on is False
         assert dev.channels[1].is_on is True
@@ -279,21 +328,29 @@ class TestUpdateFromTelegram:
     def test_mixed_embedded_channels_update_independently(self, make_telegram):
         """One telegram can report separate functions for different channels."""
         dev = self._device()
-        dev.update_from_telegram(make_telegram([
-            {"key": "switch", "value": "off", "channel": 1},
-            {"key": "switch", "value": "on", "channel": 0},
-        ]))
+        dev.update_from_telegram(
+            make_telegram(
+                [
+                    {"key": "switch", "value": "off", "channel": 1},
+                    {"key": "switch", "value": "on", "channel": 0},
+                ]
+            )
+        )
 
         assert dev.channels[0].is_on is True
         assert dev.channels[1].is_on is False
 
     def test_actuator_error_states(self, make_telegram):
         dev = self._device()
-        dev.update_from_telegram(make_telegram([
-            {"key": "actuatorNotResponding", "value": "warning"},
-            {"key": "actuatorLowBattery", "value": "warning"},
-            {"key": "missingTemperature", "value": "info"},
-        ]))
+        dev.update_from_telegram(
+            make_telegram(
+                [
+                    {"key": "actuatorNotResponding", "value": "warning"},
+                    {"key": "actuatorLowBattery", "value": "warning"},
+                    {"key": "missingTemperature", "value": "info"},
+                ]
+            )
+        )
         ch = dev.channels[0]
         assert ch.actuator_not_responding == "warning"
         assert ch.actuator_low_battery == "warning"
@@ -306,26 +363,34 @@ class TestUpdateFromTelegram:
 
     def test_timestamp_updates(self):
         dev = self._device()
-        dev.update_from_telegram({
-            "functions": [{"key": "switch", "value": "on"}],
-            "timestamp": "2024-06-01T12:00:00",
-        })
+        dev.update_from_telegram(
+            {
+                "functions": [{"key": "switch", "value": "on"}],
+                "timestamp": "2024-06-01T12:00:00",
+            }
+        )
         assert dev.last_seen == "2024-06-01T12:00:00"
 
     def test_dbm_updates(self):
         dev = self._device()
-        dev.update_from_telegram({
-            "functions": [{"key": "switch", "value": "on"}],
-            "telegramInfo": {"dbm": -72},
-        })
+        dev.update_from_telegram(
+            {
+                "functions": [{"key": "switch", "value": "on"}],
+                "telegramInfo": {"dbm": -72},
+            }
+        )
         assert dev.dbm == -72
 
     def test_multiple_functions(self, make_telegram):
         dev = self._device()
-        dev.update_from_telegram(make_telegram([
-            {"key": "switch", "value": "on"},
-            {"key": "dimValue", "value": "80"},
-        ]))
+        dev.update_from_telegram(
+            make_telegram(
+                [
+                    {"key": "switch", "value": "on"},
+                    {"key": "dimValue", "value": "80"},
+                ]
+            )
+        )
         ch = dev.channels[0]
         # dimValue processed after switch, sets is_on=True and brightness=80
         assert ch.is_on is True
@@ -351,7 +416,9 @@ class TestUpdateFromTelegram:
 
     def test_rocker_button_cleared_on_next_non_button_telegram(self, make_telegram):
         dev = self._device()
-        dev.update_from_telegram(make_telegram([{"key": "buttonA0", "value": "pressed"}]))
+        dev.update_from_telegram(
+            make_telegram([{"key": "buttonA0", "value": "pressed"}])
+        )
         assert dev.channels[0].last_button == "buttonA0"
 
         dev.update_from_telegram(make_telegram([{"key": "switch", "value": "on"}]))
@@ -362,8 +429,12 @@ class TestUpdateFromTelegram:
 
     def test_rocker_button_overwritten_on_next_button_telegram(self, make_telegram):
         dev = self._device()
-        dev.update_from_telegram(make_telegram([{"key": "buttonA0", "value": "pressed"}]))
-        dev.update_from_telegram(make_telegram([{"key": "buttonB0", "value": "released"}]))
+        dev.update_from_telegram(
+            make_telegram([{"key": "buttonA0", "value": "pressed"}])
+        )
+        dev.update_from_telegram(
+            make_telegram([{"key": "buttonB0", "value": "released"}])
+        )
         ch = dev.channels[0]
         assert ch.last_button == "buttonB0"
         assert ch.last_button_action == "released"
@@ -404,7 +475,7 @@ class TestFromDeviceObject:
         assert dev.device_id == ""
         assert dev.friendly_id == ""
         assert dev.eeps == []
-        assert dev.dbm == 0
+        assert dev.dbm is None
 
 
 # ── get_or_create_channel ──────────────────────────────────────────────

@@ -1,70 +1,50 @@
 get_device_configuration:
-  name: Get device configuration
-  description: Retrieve the stored configuration for an EnOcean device via ReCom API.
   fields:
     device_id:
-      name: Device ID
-      description: The EURID of the EnOcean device.
       required: true
       example: "AABBCCDD"
       selector:
         text:
     config_entry_id:
-      name: Config entry ID
-      description: The config entry ID of the gateway (optional, uses first gateway if omitted).
       required: false
       selector:
-        text:
+        config_entry:
+          integration: opus_greennet
 
 set_device_configuration:
-  name: Set device configuration
-  description: Write configuration to an EnOcean device via ReCom API.
   fields:
     device_id:
-      name: Device ID
-      description: The EURID of the EnOcean device.
       required: true
       example: "AABBCCDD"
       selector:
         text:
     configuration:
-      name: Configuration
-      description: The configuration object to write to the device.
       required: true
       selector:
         object:
     config_entry_id:
-      name: Config entry ID
-      description: The config entry ID of the gateway (optional, uses first gateway if omitted).
       required: false
       selector:
-        text:
+        config_entry:
+          integration: opus_greennet
 
 get_device_parameters:
-  name: Get device parameters
-  description: Retrieve DDF parameters for an EnOcean device via ReCom API.
   fields:
     device_id:
-      name: Device ID
-      description: The EURID of the EnOcean device.
       required: true
       example: "AABBCCDD"
       selector:
         text:
     config_entry_id:
-      name: Config entry ID
-      description: The config entry ID of the gateway (optional, uses first gateway if omitted).
       required: false
       selector:
-        text:
+        config_entry:
+          integration: opus_greennet
 
 reload_entry:
-  name: Reload integration
-  description: Re-run setup/teardown for the integration config entry. Useful for testing MQTT reconnection and config lifecycle. Does NOT reload Python bytecode — code changes still need an HA restart.
   fields:
     config_entry_id:
-      name: Config entry ID
-      description: The config entry ID to reload (optional, reloads all entries if omitted).
       required: false
       selector:
-        text:
+        config_entry:
+          integration: opus_greennet

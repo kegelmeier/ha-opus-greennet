@@ -1,40 +1,38 @@
 """Cover platform for Opus GreenNet Bridge integration."""
+
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 from homeassistant.components.cover import (
     ATTR_POSITION,
     ATTR_TILT_POSITION,
+    CoverDeviceClass,
     CoverEntity,
     CoverEntityFeature,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import CONF_EAG_ID, DEFAULT_CHANNEL, DOMAIN
+from . import OpusGreenNetConfigEntry
+from .const import CONF_EAG_ID, DEFAULT_CHANNEL
 from .coordinator import (
     SIGNAL_DEVICE_DISCOVERED,
-    SIGNAL_DEVICE_STATE_UPDATE,
     OpusGreenNetCoordinator,
 )
-from .diagnostics import device_diagnostic_attributes, log_entity_state_write
 from .enocean_device import EnOceanDevice
-
-_LOGGER = logging.getLogger(__name__)
+from .entity import OpusGreenNetEntity
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: OpusGreenNetConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Opus GreenNet covers from a config entry."""
-    coordinator: OpusGreenNetCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data.coordinator
+    gateway_device_id = entry.runtime_data.gateway_device_id
     eag_id = entry.data[CONF_EAG_ID]
 
     @callback
@@ -43,12 +41,6 @@ async def async_setup_entry(
         if device.entity_type != "cover":
             return
 
-        _LOGGER.debug(
-            "Adding cover entity for device: %s (%s)",
-            device.friendly_id,
-            device.device_id,
-        )
-
         # Create entity for each channel
         entities = []
         for channel_id in range(device.channel_count):
@@ -56,6 +48,7 @@ async def async_setup_entry(
                 OpusGreenNetCover(
                     coordinator=coordinator,
                     eag_id=eag_id,
+                    gateway_device_id=gateway_device_id,
                     device=device,
                     channel_id=channel_id,
                 )
@@ -77,32 +70,31 @@ async def async_setup_entry(
         async_add_cover(device)
 
 
-class OpusGreenNetCover(CoverEntity):
+class OpusGreenNetCover(OpusGreenNetEntity, CoverEntity):
     """Representation of an Opus GreenNet cover (blinds/shades)."""
 
     _attr_has_entity_name = True
     _attr_assumed_state = True
+    _attr_device_class = CoverDeviceClass.BLIND
 
     def __init__(
         self,
         coordinator: OpusGreenNetCoordinator,
         eag_id: str,
+        gateway_device_id: str,
         device: EnOceanDevice,
         channel_id: int = DEFAULT_CHANNEL,
     ) -> None:
         """Initialize the cover."""
-        self._coordinator = coordinator
-        self._eag_id = eag_id
-        self._device = device
-        self._channel_id = channel_id
-        self._device_key = device.friendly_id or device.device_id
+        super().__init__(coordinator, eag_id, gateway_device_id, device, channel_id)
 
         # Entity attributes
         channel_suffix = f"_ch{channel_id}" if device.channel_count > 1 else ""
         self._attr_unique_id = f"{eag_id}_{device.device_id}{channel_suffix}"
 
         if device.channel_count > 1:
-            self._attr_name = f"Channel {channel_id}"
+            self._attr_translation_key = "channel"
+            self._attr_translation_placeholders = {"channel": str(channel_id)}
         else:
             self._attr_name = None  # Use device name
 
@@ -118,17 +110,6 @@ class OpusGreenNetCover(CoverEntity):
             features |= CoverEntityFeature.SET_TILT_POSITION
 
         self._attr_supported_features = features
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return device info."""
-        return DeviceInfo(
-            identifiers={(DOMAIN, f"{self._eag_id}_{self._device.device_id}")},
-            name=self._device.friendly_id or self._device.device_id,
-            manufacturer=self._device.manufacturer or "EnOcean",
-            model=self._device.primary_eep or "Unknown",
-            via_device=(DOMAIN, self._eag_id),
-        )
 
     @property
     def current_cover_position(self) -> int | None:
@@ -159,52 +140,38 @@ class OpusGreenNetCover(CoverEntity):
         return position == 0
 
     @property
-    def is_opening(self) -> bool:
+    def is_opening(self) -> bool | None:
         """Return if the cover is opening."""
-        return False  # Would need to track state transitions
+        return None
 
     @property
-    def is_closing(self) -> bool:
+    def is_closing(self) -> bool | None:
         """Return if the cover is closing."""
-        return False  # Would need to track state transitions
-
-    @property
-    def available(self) -> bool:
-        """Return if entity is available."""
-        return True
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        """Return diagnostic state attributes."""
-        return device_diagnostic_attributes(self._device)
+        return None
 
     async def async_open_cover(self, **kwargs: Any) -> None:
         """Open the cover."""
-        # Optimistic state update - update immediately before sending MQTT
-        # OPUS: 0 = fully open
+        await self._coordinator.async_set_cover_position(
+            self._device.device_id, 0, self._channel_id
+        )
         channel = self._device.get_or_create_channel(self._channel_id)
         channel.position = 0
         self.async_write_ha_state()
 
-        await self._coordinator.async_set_cover_position(
-            self._device.device_id, 0, self._channel_id
-        )
-
     async def async_close_cover(self, **kwargs: Any) -> None:
         """Close the cover."""
-        # Optimistic state update - update immediately before sending MQTT
-        # OPUS: 100 = fully closed
+        await self._coordinator.async_set_cover_position(
+            self._device.device_id, 100, self._channel_id
+        )
         channel = self._device.get_or_create_channel(self._channel_id)
         channel.position = 100
         self.async_write_ha_state()
 
-        await self._coordinator.async_set_cover_position(
-            self._device.device_id, 100, self._channel_id
-        )
-
     async def async_stop_cover(self, **kwargs: Any) -> None:
         """Stop the cover."""
-        await self._coordinator.async_stop_cover(self._device.device_id, self._channel_id)
+        await self._coordinator.async_stop_cover(
+            self._device.device_id, self._channel_id
+        )
 
     async def async_set_cover_position(self, **kwargs: Any) -> None:
         """Move the cover to a specific position."""
@@ -212,46 +179,20 @@ class OpusGreenNetCover(CoverEntity):
         if position is not None:
             # Invert: HA position (0=closed,100=open) → OPUS (0=open,100=closed)
             opus_position = 100 - position
-            # Optimistic state update - update immediately before sending MQTT
-            channel = self._device.get_or_create_channel(self._channel_id)
-            channel.position = opus_position
-            self.async_write_ha_state()
-
             await self._coordinator.async_set_cover_position(
                 self._device.device_id, opus_position, self._channel_id
             )
+            channel = self._device.get_or_create_channel(self._channel_id)
+            channel.position = opus_position
+            self.async_write_ha_state()
 
     async def async_set_cover_tilt_position(self, **kwargs: Any) -> None:
         """Set the cover tilt position."""
         tilt = kwargs.get(ATTR_TILT_POSITION)
         if tilt is not None:
-            # Optimistic state update - update immediately before sending MQTT
-            channel = self._device.get_or_create_channel(self._channel_id)
-            channel.angle = tilt
-            self.async_write_ha_state()
-
             await self._coordinator.async_set_cover_tilt(
                 self._device.device_id, tilt, self._channel_id
             )
-
-    async def async_added_to_hass(self) -> None:
-        """Register callbacks when entity is added."""
-        self.async_on_remove(
-            async_dispatcher_connect(
-                self.hass,
-                f"{SIGNAL_DEVICE_STATE_UPDATE}_{self._eag_id}_{self._device_key}",
-                self._handle_state_update,
-            )
-        )
-
-    @callback
-    def _handle_state_update(self, device: EnOceanDevice) -> None:
-        """Handle state update from coordinator."""
-        self._device = device
-        log_entity_state_write(
-            _LOGGER,
-            self.entity_id or self._attr_unique_id,
-            self._device,
-            self._channel_id,
-        )
-        self.async_write_ha_state()
+            channel = self._device.get_or_create_channel(self._channel_id)
+            channel.angle = tilt
+            self.async_write_ha_state()

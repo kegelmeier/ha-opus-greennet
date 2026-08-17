@@ -206,16 +206,16 @@ Multiple key/value pairs can be sent in the `functions` array simultaneously.
 
 | Action | Keys | Values |
 |--------|------|--------|
-| Switch on channel 0 | `switch` + `channel` | `on` + `0` |
-| Switch off channel 1 | `switch` + `channel` | `off` + `1` |
+| Switch on channel 0 | `channel` + `switch` | `0` + `on` |
+| Switch off channel 1 | `channel` + `switch` | `1` + `off` |
 
 **Example payload (switch on channel 0):**
 ```json
 {
   "state": {
     "functions": [
-      { "key": "switch", "value": "on" },
-      { "key": "channel", "value": "0" }
+      { "key": "channel", "value": "0" },
+      { "key": "switch", "value": "on" }
     ]
   }
 }

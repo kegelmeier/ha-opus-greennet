@@ -1,6 +1,8 @@
 """Data coordinator for Opus GreenNet Bridge integration."""
+
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -16,23 +18,26 @@ from homeassistant.helpers.event import async_call_later
 
 from .const import (
     DOMAIN,
+    KEY_CHANNEL,
     KNOWN_STATE_KEYS,
     TOPIC_BASE,
-    TOPIC_GET_ANSWER_DEVICES,
     TOPIC_GET_ANSWER_DEVICE_CONFIGURATION,
+    TOPIC_GET_ANSWER_DEVICE_PARAMETERS,
     TOPIC_GET_ANSWER_DEVICE_PROFILE,
+    TOPIC_GET_ANSWER_DEVICES,
     TOPIC_GET_ANSWER_SYSTEM_INFO,
     TOPIC_GET_ANSWER_SYSTEM_UPTIME,
-    TOPIC_GET_DEVICES,
     TOPIC_GET_DEVICE_CONFIGURATION,
     TOPIC_GET_DEVICE_PARAMETERS,
     TOPIC_GET_DEVICE_PROFILE,
+    TOPIC_GET_DEVICES,
     TOPIC_GET_SYSTEM_INFO,
     TOPIC_GET_SYSTEM_UPTIME,
     TOPIC_PUT_DEVICE_CONFIGURATION,
     TOPIC_PUT_STATE,
     TOPIC_SUB_DEVICE_STREAM_ALL,
     TOPIC_SUB_DEVICES_ALL,
+    TOPIC_SUB_PUT_ANSWER_STATE,
     TOPIC_SUB_TELEGRAM_FROM_ALL,
 )
 from .enocean_device import EnOceanDevice
@@ -50,20 +55,17 @@ OUTBOUND_STATE_RECONCILIATION_DELAYS = (5, 20)
 
 # Regex to parse device topics (plural - initial full state at boot)
 # EnOcean/{EAG}/stream/devices/{DeviceID}/{property}
-DEVICE_TOPIC_PATTERN = re.compile(
-    r"EnOcean/([^/]+)/stream/devices/([^/]+)/(.+)"
-)
+DEVICE_TOPIC_PATTERN = re.compile(r"EnOcean/([^/]+)/stream/devices/([^/]+)/(.+)")
 
 # Regex to parse telegram topics
 # EnOcean/{EAG}/stream/telegram/{DeviceID}/{property}
-TELEGRAM_TOPIC_PATTERN = re.compile(
-    r"EnOcean/([^/]+)/stream/telegram/([^/]+)/(.+)"
-)
+TELEGRAM_TOPIC_PATTERN = re.compile(r"EnOcean/([^/]+)/stream/telegram/([^/]+)/(.+)")
 
 # Regex to parse device stream topics (singular - live deltas)
 # EnOcean/{EAG}/stream/device/{DeviceID}/{property}
-DEVICE_STREAM_TOPIC_PATTERN = re.compile(
-    r"EnOcean/([^/]+)/stream/device/([^/]+)/(.+)"
+DEVICE_STREAM_TOPIC_PATTERN = re.compile(r"EnOcean/([^/]+)/stream/device/([^/]+)/(.+)")
+PUT_ANSWER_STATE_TOPIC_PATTERN = re.compile(
+    r"EnOcean/([^/]+)/putAnswer/devices/([^/]+)/state"
 )
 
 
@@ -82,16 +84,24 @@ class OpusGreenNetCoordinator:
         self._discovery_complete = False
         self._pending_devices: set[str] = set()
         self._pending_telegrams: dict[str, Callable | None] = {}  # Timers per device
-        self._pending_device_streams: dict[str, Callable | None] = {}  # Timers per device
+        self._pending_device_streams: dict[
+            str, Callable | None
+        ] = {}  # Timers per device
         self._telegram_received_at: dict[str, float] = {}
         self._device_stream_received_at: dict[str, float] = {}
         self._pending_reconciliation_queries: dict[
-            str, list[Callable[[], None]]
+            tuple[str, int], list[Callable[[], None]]
         ] = {}
+        self._temporary_cancellations: list[Callable[[], None]] = []
         self._discovery_timer: Callable | None = None
         # Gateway info
         self.gateway_info: dict[str, Any] = {}
         self.gateway_uptime: str | None = None
+
+    @property
+    def available(self) -> bool:
+        """Return whether Home Assistant's MQTT client is connected."""
+        return mqtt.is_connected(self.hass)
 
     async def async_setup(self) -> bool:
         """Set up the coordinator and start MQTT subscriptions."""
@@ -114,7 +124,10 @@ class OpusGreenNetCoordinator:
         )
         self._subscriptions.append(
             await mqtt.async_subscribe(
-                self.hass, topic_devices_all, self._handle_device_property_message, qos=1
+                self.hass,
+                topic_devices_all,
+                self._handle_device_property_message,
+                qos=1,
             )
         )
         _LOGGER.info("Subscribed to devices topic: %s", topic_devices_all)
@@ -147,6 +160,18 @@ class OpusGreenNetCoordinator:
         )
         _LOGGER.info("Subscribed to getAnswer topic: %s", topic_get_answer)
 
+        topic_put_answer = TOPIC_SUB_PUT_ANSWER_STATE.format(
+            base=TOPIC_BASE, eag_id=self.eag_id
+        )
+        self._subscriptions.append(
+            await mqtt.async_subscribe(
+                self.hass,
+                topic_put_answer,
+                self._handle_put_answer_state,
+                qos=1,
+            )
+        )
+
         # Subscribe to gateway system info answers
         topic_system_info = TOPIC_GET_ANSWER_SYSTEM_INFO.format(
             base=TOPIC_BASE, eag_id=self.eag_id
@@ -173,9 +198,7 @@ class OpusGreenNetCoordinator:
         )
 
         # Request device list via GET (active discovery)
-        topic_get = TOPIC_GET_DEVICES.format(
-            base=TOPIC_BASE, eag_id=self.eag_id
-        )
+        topic_get = TOPIC_GET_DEVICES.format(base=TOPIC_BASE, eag_id=self.eag_id)
         await mqtt.async_publish(self.hass, topic_get, "", qos=1)
         _LOGGER.info("Requested device list via GET: %s", topic_get)
 
@@ -183,9 +206,7 @@ class OpusGreenNetCoordinator:
         await self._request_gateway_info()
 
         # Schedule device discovery finalization after 5 seconds
-        self._discovery_timer = async_call_later(
-            self.hass, 5, self._finalize_discovery
-        )
+        self._discovery_timer = async_call_later(self.hass, 5, self._finalize_discovery)
 
         return True
 
@@ -194,11 +215,27 @@ class OpusGreenNetCoordinator:
         _LOGGER.debug("Unloading Opus GreenNet coordinator for EAG %s", self.eag_id)
         if self._discovery_timer:
             self._discovery_timer()
-        for device_id in list(self._pending_reconciliation_queries):
-            self._cancel_reconciliation_queries(device_id)
+            self._discovery_timer = None
+        for cancel in self._pending_telegrams.values():
+            if cancel:
+                cancel()
+        for cancel in self._pending_device_streams.values():
+            if cancel:
+                cancel()
+        for device_id, channel_id in list(self._pending_reconciliation_queries):
+            self._cancel_reconciliation_queries(device_id, channel_id)
+        for cancel in self._temporary_cancellations:
+            cancel()
+        self._temporary_cancellations.clear()
         for unsubscribe in self._subscriptions:
             unsubscribe()
         self._subscriptions.clear()
+        self._pending_telegrams.clear()
+        self._pending_device_streams.clear()
+        self._telegram_data.clear()
+        self._device_stream_data.clear()
+        self._telegram_received_at.clear()
+        self._device_stream_received_at.clear()
 
     # ──────────────────────────────────────────────────────────────────────
     # Device property messages (stream/devices - initial full state at boot)
@@ -229,8 +266,14 @@ class OpusGreenNetCoordinator:
                 if self._find_device_by_id(device_id) is None:
                     self._pending_devices.add(device_id)
 
-            payload = msg.payload.decode() if isinstance(msg.payload, bytes) else str(msg.payload)
-            self._set_nested_property(self._device_data[device_id], property_path, payload)
+            payload = (
+                msg.payload.decode()
+                if isinstance(msg.payload, bytes)
+                else str(msg.payload)
+            )
+            self._set_nested_property(
+                self._device_data[device_id], property_path, payload
+            )
 
             if self._apply_known_device_state_property(
                 device_id, property_path, payload, received_at
@@ -275,13 +318,20 @@ class OpusGreenNetCoordinator:
             if device_id not in self._device_stream_data:
                 self._device_stream_data[device_id] = {"deviceId": device_id}
 
-            payload = msg.payload.decode() if isinstance(msg.payload, bytes) else str(msg.payload)
+            payload = (
+                msg.payload.decode()
+                if isinstance(msg.payload, bytes)
+                else str(msg.payload)
+            )
             self._set_nested_property(
                 self._device_stream_data[device_id], property_path, payload
             )
 
             # Reset stream timer for this device - finalize after short delay
-            if device_id in self._pending_device_streams and self._pending_device_streams[device_id]:
+            if (
+                device_id in self._pending_device_streams
+                and self._pending_device_streams[device_id]
+            ):
                 self._pending_device_streams[device_id]()
 
             @callback
@@ -308,18 +358,10 @@ class OpusGreenNetCoordinator:
         received_at = self._device_stream_received_at.pop(device_id, None)
         finalized_at = monotonic()
 
-        # Find the device
-        device = None
-        device_key = None
-        for key, dev in self.devices.items():
-            if dev.device_id == device_id:
-                device = dev
-                device_key = key
-                break
+        device = self.devices.get(device_id)
 
         if device is None:
             # Device not yet discovered - store for later discovery
-            friendly_id = stream_data.get("friendlyId", device_id)
             self._device_data[device_id] = stream_data
             self._pending_devices.add(device_id)
             if not self._discovery_timer:
@@ -341,7 +383,10 @@ class OpusGreenNetCoordinator:
             if isinstance(functions_data, list):
                 functions = [f for f in functions_data if isinstance(f, dict)]
             elif isinstance(functions_data, dict):
-                for idx in sorted(functions_data.keys(), key=lambda x: int(x) if str(x).isdigit() else x):
+                for idx in sorted(
+                    functions_data.keys(),
+                    key=lambda x: int(x) if str(x).isdigit() else x,
+                ):
                     func_entry = functions_data[idx]
                     if isinstance(func_entry, dict):
                         functions.append(func_entry)
@@ -358,11 +403,13 @@ class OpusGreenNetCoordinator:
             self._log_latency_finalized(
                 "stream/device", device_id, received_at, finalized_at, len(functions)
             )
-            self._cancel_reconciliation_queries(device_id)
+            channel_id = self._channel_from_functions(functions)
+            self._cancel_reconciliation_queries(device_id, channel_id)
             telegram = {"functions": functions}
             device.update_from_telegram(telegram)
+            device.last_command_error = None
 
-            signal = f"{SIGNAL_DEVICE_STATE_UPDATE}_{self.eag_id}_{device_key}"
+            signal = f"{SIGNAL_DEVICE_STATE_UPDATE}_{self.eag_id}_{device_id}"
             self._mark_and_log_dispatch(
                 device, "stream/device", signal, received_at, finalized_at
             )
@@ -396,8 +443,16 @@ class OpusGreenNetCoordinator:
             else:
                 return
 
-            for device_data in devices_list:
-                device_id = device_data.get("deviceId", "")
+            if not isinstance(devices_list, list):
+                return
+
+            for raw_device_data in devices_list:
+                if not isinstance(raw_device_data, dict):
+                    continue
+                device_data = raw_device_data.get("device", raw_device_data)
+                if not isinstance(device_data, dict):
+                    continue
+                device_id = str(device_data.get("deviceId", ""))
                 if device_id:
                     self._device_data[device_id] = device_data
                     self._pending_devices.add(device_id)
@@ -415,6 +470,30 @@ class OpusGreenNetCoordinator:
         except Exception as err:
             _LOGGER.exception("Error handling getAnswer/devices: %s", err)
 
+    @callback
+    def _handle_put_answer_state(self, msg: ReceiveMessage) -> None:
+        """Handle the protocol's asynchronous command-error response."""
+        match = PUT_ANSWER_STATE_TOPIC_PATTERN.fullmatch(msg.topic)
+        if not match or match.group(1) != self.eag_id:
+            return
+
+        device_id = match.group(2)
+        payload = (
+            msg.payload.decode(errors="replace")
+            if isinstance(msg.payload, bytes)
+            else str(msg.payload)
+        )
+        error = payload or "Gateway rejected the state command"
+        _LOGGER.warning("OPUS command failed for %s: %s", device_id, error)
+
+        if (device := self.get_device(device_id)) is None:
+            return
+
+        device.last_command_error = error
+        self._cancel_reconciliation_queries(device_id)
+        signal = f"{SIGNAL_DEVICE_STATE_UPDATE}_{self.eag_id}_{device_id}"
+        async_dispatcher_send(self.hass, signal, device)
+
     # ──────────────────────────────────────────────────────────────────────
     # Gateway system info
     # ──────────────────────────────────────────────────────────────────────
@@ -427,9 +506,10 @@ class OpusGreenNetCoordinator:
             if isinstance(payload, bytes):
                 payload = payload.decode()
             data = json.loads(payload)
-            self.gateway_info = data
-            _LOGGER.info("Gateway info: %s", data)
-        except (json.JSONDecodeError, Exception) as err:
+            if isinstance(data, dict):
+                self.gateway_info = data
+                _LOGGER.info("Gateway info: %s", data)
+        except (json.JSONDecodeError, TypeError, UnicodeDecodeError) as err:
             _LOGGER.debug("Could not parse system info: %s", err)
 
     @callback
@@ -441,14 +521,12 @@ class OpusGreenNetCoordinator:
                 payload = payload.decode()
             self.gateway_uptime = payload
             _LOGGER.debug("Gateway uptime: %s", payload)
-        except Exception as err:
+        except UnicodeDecodeError as err:
             _LOGGER.debug("Could not parse system uptime: %s", err)
 
     async def _request_gateway_info(self) -> None:
         """Request gateway system info and uptime."""
-        topic_info = TOPIC_GET_SYSTEM_INFO.format(
-            base=TOPIC_BASE, eag_id=self.eag_id
-        )
+        topic_info = TOPIC_GET_SYSTEM_INFO.format(base=TOPIC_BASE, eag_id=self.eag_id)
         topic_uptime = TOPIC_GET_SYSTEM_UPTIME.format(
             base=TOPIC_BASE, eag_id=self.eag_id
         )
@@ -557,11 +635,10 @@ class OpusGreenNetCoordinator:
         )
 
     def _find_device_by_id(self, device_id: str) -> tuple[str, EnOceanDevice] | None:
-        """Find an existing device by EURID and return its coordinator key."""
-        for device_key, device in self.devices.items():
-            if device.device_id == device_id:
-                return device_key, device
-        return None
+        """Find an existing device by its stable EURID."""
+        if (device := self.devices.get(device_id)) is None:
+            return None
+        return device_id, device
 
     def _apply_known_device_state_property(
         self,
@@ -587,9 +664,10 @@ class OpusGreenNetCoordinator:
         if state_key not in KNOWN_STATE_KEYS:
             return False
 
-        device_key, device = device_entry
+        _, device = device_entry
         value = self._parse_value(payload)
         self._cancel_reconciliation_queries(device_id)
+        device.last_command_error = None
         device.update_from_telegram(
             {
                 "functions": [
@@ -601,7 +679,7 @@ class OpusGreenNetCoordinator:
             }
         )
 
-        signal = f"{SIGNAL_DEVICE_STATE_UPDATE}_{self.eag_id}_{device_key}"
+        signal = f"{SIGNAL_DEVICE_STATE_UPDATE}_{self.eag_id}_{device_id}"
         self._log_latency_finalized(
             "stream/devices", device_id, received_at, received_at or monotonic(), 1
         )
@@ -617,30 +695,54 @@ class OpusGreenNetCoordinator:
         async_dispatcher_send(self.hass, signal, device)
         return True
 
-    def _cancel_reconciliation_queries(self, device_id: str) -> None:
-        """Cancel delayed status queries for a device."""
-        for cancel in self._pending_reconciliation_queries.pop(device_id, []):
-            cancel()
+    def _cancel_reconciliation_queries(
+        self, device_id: str, channel_id: int | None = None
+    ) -> None:
+        """Cancel delayed status queries for one device or channel."""
+        keys = [
+            key
+            for key in self._pending_reconciliation_queries
+            if key[0] == device_id and (channel_id is None or key[1] == channel_id)
+        ]
+        for key in keys:
+            for cancel in self._pending_reconciliation_queries.pop(key, []):
+                cancel()
 
-    def _schedule_reconciliation_queries(self, device_id: str) -> None:
+    def _schedule_reconciliation_queries(self, device_id: str, channel_id: int) -> None:
         """Schedule delayed status checks after an optimistic state update."""
-        self._cancel_reconciliation_queries(device_id)
-        self._pending_reconciliation_queries[device_id] = []
+        key = (device_id, channel_id)
+        self._cancel_reconciliation_queries(device_id, channel_id)
+        self._pending_reconciliation_queries[key] = []
 
         for delay in OUTBOUND_STATE_RECONCILIATION_DELAYS:
 
             @callback
-            def query_callback(_now, did=device_id, seconds=delay):
+            def query_callback(_now, did=device_id, channel=channel_id, seconds=delay):
                 _LOGGER.debug(
-                    "Querying OPUS status for %s %.0fs after outbound state command",
+                    "Querying OPUS status for %s channel %s %.0fs after command",
                     did,
+                    channel,
                     seconds,
                 )
-                self.hass.async_create_task(self.async_query_device_status(did))
+                self.hass.async_create_task(
+                    self.async_query_device_status(did, channel)
+                )
 
-            self._pending_reconciliation_queries[device_id].append(
+            self._pending_reconciliation_queries[key].append(
                 async_call_later(self.hass, delay, query_callback)
             )
+
+    @staticmethod
+    def _channel_from_functions(functions: list[dict[str, Any]]) -> int:
+        """Return the telegram channel selector, defaulting to channel zero."""
+        for function in functions:
+            if function.get("key") != KEY_CHANNEL:
+                continue
+            try:
+                return int(function.get("value", 0))
+            except TypeError, ValueError:
+                return 0
+        return 0
 
     def _set_nested_property(self, data: dict, path: str, value: str) -> None:
         """Set a nested property in a dict using a path like 'eeps/0/eep'."""
@@ -697,7 +799,9 @@ class OpusGreenNetCoordinator:
     @callback
     def _finalize_discovery(self, *args) -> None:
         """Finalize device discovery after receiving all properties."""
-        _LOGGER.info("Finalizing device discovery, found %d devices", len(self._device_data))
+        _LOGGER.info(
+            "Finalizing device discovery, found %d devices", len(self._device_data)
+        )
 
         for device_id, data in self._device_data.items():
             if device_id in self._pending_devices:
@@ -710,9 +814,7 @@ class OpusGreenNetCoordinator:
         """Create an EnOceanDevice from collected property data."""
         try:
             friendly_id = data.get("friendlyId", device_id)
-            device_key = friendly_id
             existing_entry = self._find_device_by_id(device_id)
-            existing_key = existing_entry[0] if existing_entry else None
             existing_device = existing_entry[1] if existing_entry else None
 
             # Build EEPs list
@@ -721,19 +823,17 @@ class OpusGreenNetCoordinator:
             if isinstance(eeps_data, list):
                 eeps = eeps_data
             elif isinstance(eeps_data, dict):
-                for idx in sorted(eeps_data.keys(), key=lambda x: int(x) if x.isdigit() else x):
+                for idx in sorted(
+                    eeps_data.keys(), key=lambda x: int(x) if x.isdigit() else x
+                ):
                     eep_entry = eeps_data[idx]
                     if isinstance(eep_entry, dict):
                         eeps.append(eep_entry)
                     elif isinstance(eep_entry, str):
                         eeps.append({"eep": eep_entry})
 
-            is_new = existing_entry is None and device_key not in self.devices
-            was_incomplete = (
-                existing_device is not None and not existing_device.eeps
-            ) or (
-                device_key in self.devices and not self.devices[device_key].eeps
-            )
+            is_new = existing_device is None
+            was_incomplete = existing_device is not None and not existing_device.eeps
 
             device = EnOceanDevice(
                 device_id=device_id,
@@ -743,7 +843,7 @@ class OpusGreenNetCoordinator:
                 physical_device=data.get("physicalDevice", ""),
                 first_seen=str(data.get("firstSeen", "")),
                 last_seen=str(data.get("lastSeen", "")),
-                dbm=data.get("dbm", 0),
+                dbm=data.get("dbm"),
             )
 
             # Preserve existing channel state or apply initial state from discovery
@@ -760,32 +860,11 @@ class OpusGreenNetCoordinator:
                 device.last_update_dispatched_monotonic = (
                     existing_device.last_update_dispatched_monotonic
                 )
-                if existing_key and existing_key != device_key:
-                    _LOGGER.debug(
-                        "Re-keying device %s from %s to %s after discovery",
-                        device_id,
-                        existing_key,
-                        device_key,
-                    )
-                    self.devices.pop(existing_key, None)
-            elif device_key in self.devices:
-                previous_device = self.devices[device_key]
-                device.channels = previous_device.channels
-                device.profile = previous_device.profile
-                device.last_update_source = previous_device.last_update_source
-                device.last_update_received_monotonic = (
-                    previous_device.last_update_received_monotonic
-                )
-                device.last_update_finalized_monotonic = (
-                    previous_device.last_update_finalized_monotonic
-                )
-                device.last_update_dispatched_monotonic = (
-                    previous_device.last_update_dispatched_monotonic
-                )
+                device.last_command_error = existing_device.last_command_error
             else:
                 self._apply_initial_state(device, data)
 
-            self.devices[device_key] = device
+            self.devices[device_id] = device
 
             _LOGGER.info(
                 "Device %s: %s (%s) - EEPs: %s - Type: %s",
@@ -809,10 +888,16 @@ class OpusGreenNetCoordinator:
 
     def _apply_initial_state(self, device: EnOceanDevice, data: dict) -> None:
         """Apply initial state from device discovery data."""
-        _LOGGER.debug("INITIAL STATE: device=%s data_keys=%s", device.friendly_id, list(data.keys()))
+        _LOGGER.debug(
+            "INITIAL STATE: device=%s data_keys=%s",
+            device.friendly_id,
+            list(data.keys()),
+        )
         states = data.get("states", {})
         if not states or not isinstance(states, dict):
-            _LOGGER.debug("INITIAL STATE: No 'states' in data for %s", device.friendly_id)
+            _LOGGER.debug(
+                "INITIAL STATE: No 'states' in data for %s", device.friendly_id
+            )
             return
 
         # Build a telegram-like structure from states data using all known keys
@@ -859,11 +944,20 @@ class OpusGreenNetCoordinator:
             if device_id not in self._telegram_data:
                 self._telegram_data[device_id] = {"deviceId": device_id}
 
-            payload = msg.payload.decode() if isinstance(msg.payload, bytes) else str(msg.payload)
-            self._set_nested_property(self._telegram_data[device_id], property_path, payload)
+            payload = (
+                msg.payload.decode()
+                if isinstance(msg.payload, bytes)
+                else str(msg.payload)
+            )
+            self._set_nested_property(
+                self._telegram_data[device_id], property_path, payload
+            )
 
             # Reset telegram timer for this device - finalize after short delay
-            if device_id in self._pending_telegrams and self._pending_telegrams[device_id]:
+            if (
+                device_id in self._pending_telegrams
+                and self._pending_telegrams[device_id]
+            ):
                 self._pending_telegrams[device_id]()
 
             @callback
@@ -929,7 +1023,9 @@ class OpusGreenNetCoordinator:
         if isinstance(functions_data, list):
             functions = [f for f in functions_data if isinstance(f, dict)]
         elif isinstance(functions_data, dict):
-            for idx in sorted(functions_data.keys(), key=lambda x: int(x) if str(x).isdigit() else x):
+            for idx in sorted(
+                functions_data.keys(), key=lambda x: int(x) if str(x).isdigit() else x
+            ):
                 func_entry = functions_data[idx]
                 if isinstance(func_entry, dict):
                     functions.append(func_entry)
@@ -957,7 +1053,9 @@ class OpusGreenNetCoordinator:
 
         if is_outbound_command:
             state_functions = [
-                func for func in functions if func.get("key") in KNOWN_STATE_KEYS
+                func
+                for func in functions
+                if func.get("key") in KNOWN_STATE_KEYS or func.get("key") == KEY_CHANNEL
             ]
             ignored_count = len(functions) - len(state_functions)
             if ignored_count:
@@ -968,9 +1066,12 @@ class OpusGreenNetCoordinator:
                     [func for func in functions if func not in state_functions],
                 )
             functions = state_functions
-            if not functions:
+            if not any(
+                function.get("key") in KNOWN_STATE_KEYS for function in functions
+            ):
                 _LOGGER.debug(
-                    "Ignoring outbound telegram for %s because it has no state functions",
+                    "Ignoring outbound telegram for %s because it has no "
+                    "state functions",
                     device_id,
                 )
                 return
@@ -979,8 +1080,9 @@ class OpusGreenNetCoordinator:
                 device_id,
                 functions,
             )
-        else:
-            self._cancel_reconciliation_queries(device_id)
+        channel_id = self._channel_from_functions(functions)
+        if not is_outbound_command:
+            self._cancel_reconciliation_queries(device_id, channel_id)
 
         update_source = (
             "stream/telegram/to" if is_outbound_command else "stream/telegram/from"
@@ -994,28 +1096,22 @@ class OpusGreenNetCoordinator:
             "deviceId": device_id,
             "friendlyId": friendly_id,
             "functions": functions,
-            "timestamp": effective_data.get("timestamp") or telegram_data.get("timestamp"),
-            "telegramInfo": effective_data.get("telegramInfo") or telegram_data.get("telegramInfo", {}),
+            "timestamp": effective_data.get("timestamp")
+            or telegram_data.get("timestamp"),
+            "telegramInfo": effective_data.get("telegramInfo")
+            or telegram_data.get("telegramInfo", {}),
         }
 
-        # Find device by device_id (devices are keyed by friendly_id)
-        device = None
-        device_key = None
-        for key, dev in self.devices.items():
-            if dev.device_id == device_id:
-                device = dev
-                device_key = key
-                break
+        device = self.devices.get(device_id)
 
         if device is None:
             # Create a basic device entry if we haven't discovered it yet
-            device_key = friendly_id
             device = EnOceanDevice(
                 device_id=device_id,
                 friendly_id=friendly_id,
                 eeps=effective_data.get("eeps", []),
             )
-            self.devices[device_key] = device
+            self.devices[device_id] = device
             _LOGGER.info(
                 "Cached device from telegram before discovery: %s",
                 device_id,
@@ -1031,19 +1127,24 @@ class OpusGreenNetCoordinator:
         if functions:
             _LOGGER.debug(
                 "Telegram update for %s (%s): %d functions: %s",
-                friendly_id, device_id, len(functions), functions,
+                friendly_id,
+                device_id,
+                len(functions),
+                functions,
             )
         device.update_from_telegram(telegram)
+        if not is_outbound_command:
+            device.last_command_error = None
 
         # Notify listeners of state update
-        signal = f"{SIGNAL_DEVICE_STATE_UPDATE}_{self.eag_id}_{device_key}"
+        signal = f"{SIGNAL_DEVICE_STATE_UPDATE}_{self.eag_id}_{device_id}"
         self._mark_and_log_dispatch(
             device, update_source, signal, received_at, finalized_at
         )
         async_dispatcher_send(self.hass, signal, device)
 
         if is_outbound_command:
-            self._schedule_reconciliation_queries(device_id)
+            self._schedule_reconciliation_queries(device_id, channel_id)
 
     # ──────────────────────────────────────────────────────────────────────
     # Command sending
@@ -1068,17 +1169,19 @@ class OpusGreenNetCoordinator:
         payload = json.dumps(state_message)
         _LOGGER.debug("Sending command to %s: %s", topic, payload)
 
-        try:
-            await mqtt.async_publish(self.hass, topic, payload, qos=1)
-        except Exception as err:
-            _LOGGER.error("Failed to send command to %s: %s", device_id, err)
+        await mqtt.async_publish(self.hass, topic, payload, qos=1, retain=False)
 
-    def _add_channel_if_needed(
-        self, functions: list[dict[str, Any]], channel: int
-    ) -> None:
-        """Add channel to functions list for multi-channel devices."""
-        if channel > 0:
-            functions.append({"key": "channel", "value": str(channel)})
+    def _with_channel_if_needed(
+        self,
+        device_id: str,
+        functions: list[dict[str, Any]],
+        channel: int,
+    ) -> list[dict[str, Any]]:
+        """Prepend the mandatory selector for multi-channel actuator commands."""
+        device = self.get_device(device_id)
+        if channel > 0 or (device is not None and device.channel_count > 1):
+            return [{"key": KEY_CHANNEL, "value": str(channel)}, *functions]
+        return functions
 
     async def async_turn_on(
         self,
@@ -1096,7 +1199,7 @@ class OpusGreenNetCoordinator:
         else:
             functions = [{"key": "switch", "value": "on"}]
 
-        self._add_channel_if_needed(functions, channel)
+        functions = self._with_channel_if_needed(device_id, functions, channel)
         await self.async_send_command(device_id, functions)
 
     async def async_turn_off(
@@ -1111,7 +1214,7 @@ class OpusGreenNetCoordinator:
             functions = [{"key": "dimValue", "value": "0"}]
         else:
             functions = [{"key": "switch", "value": "off"}]
-        self._add_channel_if_needed(functions, channel)
+        functions = self._with_channel_if_needed(device_id, functions, channel)
         await self.async_send_command(device_id, functions)
 
     async def async_set_cover_position(
@@ -1122,7 +1225,7 @@ class OpusGreenNetCoordinator:
     ) -> None:
         """Set cover position (0 = closed, 100 = open)."""
         functions = [{"key": "position", "value": str(position)}]
-        self._add_channel_if_needed(functions, channel)
+        functions = self._with_channel_if_needed(device_id, functions, channel)
         await self.async_send_command(device_id, functions)
 
     async def async_set_cover_tilt(
@@ -1133,21 +1236,23 @@ class OpusGreenNetCoordinator:
     ) -> None:
         """Set cover tilt angle."""
         functions = [{"key": "angle", "value": str(tilt)}]
-        self._add_channel_if_needed(functions, channel)
+        functions = self._with_channel_if_needed(device_id, functions, channel)
         await self.async_send_command(device_id, functions)
 
     async def async_stop_cover(self, device_id: str, channel: int = 0) -> None:
         """Stop cover movement."""
         functions = [{"key": "position", "value": "stop"}]
-        self._add_channel_if_needed(functions, channel)
+        functions = self._with_channel_if_needed(device_id, functions, channel)
         await self.async_send_command(device_id, functions)
 
     async def async_query_device_status(
         self,
         device_id: str,
+        channel: int = 0,
     ) -> None:
         """Query the current device status."""
         functions = [{"key": "query", "value": "status"}]
+        functions = self._with_channel_if_needed(device_id, functions, channel)
         await self.async_send_command(device_id, functions)
 
     # ──────────────────────────────────────────────────────────────────────
@@ -1200,18 +1305,17 @@ class OpusGreenNetCoordinator:
                     payload = payload.decode()
                 data = json.loads(payload)
 
-                # Store profile on device
-                for dev in self.devices.values():
-                    if dev.device_id == device_id:
-                        dev.profile = data
-                        _LOGGER.info("Received profile for %s", device_id)
-                        break
-            except (json.JSONDecodeError, Exception) as err:
+                if (device := self.get_device(device_id)) is not None:
+                    device.profile = data
+                    _LOGGER.info("Received profile for %s", device_id)
+            except (json.JSONDecodeError, TypeError, UnicodeDecodeError) as err:
                 _LOGGER.debug("Could not parse device profile: %s", err)
 
-        unsub = await mqtt.async_subscribe(self.hass, answer_topic, handle_profile, qos=1)
-        # Auto-unsubscribe after 10 seconds
-        async_call_later(self.hass, 10, lambda _: unsub())
+        unsub = await mqtt.async_subscribe(
+            self.hass, answer_topic, handle_profile, qos=1
+        )
+        cancel_timer = async_call_later(self.hass, 10, lambda _: unsub())
+        self._temporary_cancellations.extend((cancel_timer, unsub))
 
         await mqtt.async_publish(self.hass, topic, "", qos=1)
 
@@ -1219,10 +1323,10 @@ class OpusGreenNetCoordinator:
     # Device configuration (ReCom API)
     # ──────────────────────────────────────────────────────────────────────
 
-    async def async_get_device_configuration(self, device_id: str) -> dict[str, Any] | None:
+    async def async_get_device_configuration(
+        self, device_id: str
+    ) -> dict[str, Any] | None:
         """Get device configuration via ReCom API."""
-        import asyncio
-
         topic = TOPIC_GET_DEVICE_CONFIGURATION.format(
             base=TOPIC_BASE, eag_id=self.eag_id, device_id=device_id
         )
@@ -1241,17 +1345,20 @@ class OpusGreenNetCoordinator:
                 if isinstance(payload, bytes):
                     payload = payload.decode()
                 result = json.loads(payload)
-            except (json.JSONDecodeError, Exception) as err:
+            except (json.JSONDecodeError, TypeError, UnicodeDecodeError) as err:
                 _LOGGER.debug("Could not parse device configuration: %s", err)
             event.set()
 
-        unsub = await mqtt.async_subscribe(self.hass, answer_topic, handle_response, qos=1)
-        await mqtt.async_publish(self.hass, topic, "", qos=1)
+        unsub = await mqtt.async_subscribe(
+            self.hass, answer_topic, handle_response, qos=1
+        )
 
         try:
-            await asyncio.wait_for(event.wait(), timeout=10.0)
-        except asyncio.TimeoutError:
-            _LOGGER.warning("Timeout getting configuration for %s", device_id)
+            await mqtt.async_publish(self.hass, topic, "", qos=1)
+            try:
+                await asyncio.wait_for(event.wait(), timeout=10.0)
+            except TimeoutError:
+                _LOGGER.warning("Timeout getting configuration for %s", device_id)
         finally:
             unsub()
 
@@ -1259,27 +1366,24 @@ class OpusGreenNetCoordinator:
 
     async def async_set_device_configuration(
         self, device_id: str, config: dict[str, Any]
-    ) -> bool:
+    ) -> None:
         """Set device configuration via ReCom API."""
         topic = TOPIC_PUT_DEVICE_CONFIGURATION.format(
             base=TOPIC_BASE, eag_id=self.eag_id, device_id=device_id
         )
         payload = json.dumps(config)
-        try:
-            await mqtt.async_publish(self.hass, topic, payload, qos=1)
-            return True
-        except Exception as err:
-            _LOGGER.error("Failed to set configuration for %s: %s", device_id, err)
-            return False
+        await mqtt.async_publish(self.hass, topic, payload, qos=1, retain=False)
 
-    async def async_get_device_parameters(self, device_id: str) -> dict[str, Any] | None:
+    async def async_get_device_parameters(
+        self, device_id: str
+    ) -> dict[str, Any] | None:
         """Get device DDF parameters via ReCom API."""
-        import asyncio
-
         topic = TOPIC_GET_DEVICE_PARAMETERS.format(
             base=TOPIC_BASE, eag_id=self.eag_id, device_id=device_id
         )
-        answer_topic = f"EnOcean/{self.eag_id}/getAnswer/devices/{device_id}/parameters"
+        answer_topic = TOPIC_GET_ANSWER_DEVICE_PARAMETERS.format(
+            base=TOPIC_BASE, eag_id=self.eag_id, device_id=device_id
+        )
 
         result: dict[str, Any] | None = None
         event = asyncio.Event()
@@ -1292,17 +1396,20 @@ class OpusGreenNetCoordinator:
                 if isinstance(payload, bytes):
                     payload = payload.decode()
                 result = json.loads(payload)
-            except (json.JSONDecodeError, Exception) as err:
+            except (json.JSONDecodeError, TypeError, UnicodeDecodeError) as err:
                 _LOGGER.debug("Could not parse device parameters: %s", err)
             event.set()
 
-        unsub = await mqtt.async_subscribe(self.hass, answer_topic, handle_response, qos=1)
-        await mqtt.async_publish(self.hass, topic, "", qos=1)
+        unsub = await mqtt.async_subscribe(
+            self.hass, answer_topic, handle_response, qos=1
+        )
 
         try:
-            await asyncio.wait_for(event.wait(), timeout=10.0)
-        except asyncio.TimeoutError:
-            _LOGGER.warning("Timeout getting parameters for %s", device_id)
+            await mqtt.async_publish(self.hass, topic, "", qos=1)
+            try:
+                await asyncio.wait_for(event.wait(), timeout=10.0)
+            except TimeoutError:
+                _LOGGER.warning("Timeout getting parameters for %s", device_id)
         finally:
             unsub()
 

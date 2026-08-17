@@ -1,4 +1,5 @@
 """EnOcean device representation for Opus GreenNet Bridge."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -93,7 +94,8 @@ class EnOceanDevice:
     last_update_dispatched_monotonic: float | None = field(
         default=None, repr=False, compare=False
     )
-    dbm: int = 0
+    dbm: int | None = None
+    last_command_error: str | None = None
     channels: dict[int, EnOceanChannel] = field(default_factory=dict)
     profile: dict[str, Any] | None = None
 
@@ -212,10 +214,10 @@ class EnOceanDevice:
         """Parse a channel id from a telegram value."""
         try:
             return int(value)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             try:
                 return int(float(value))
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 return DEFAULT_CHANNEL
 
     def update_from_telegram(self, telegram: dict[str, Any]) -> None:
@@ -241,9 +243,7 @@ class EnOceanDevice:
                 continue
 
             value = func.get("value")
-            channel_id = self._parse_channel_id(
-                func.get("channel", default_channel_id)
-            )
+            channel_id = self._parse_channel_id(func.get("channel", default_channel_id))
             channel = self.get_or_create_channel(channel_id)
 
             # Reset transient rocker fields so they only reflect the current
@@ -264,19 +264,19 @@ class EnOceanDevice:
                 try:
                     channel.brightness = int(value)
                     channel.is_on = channel.brightness > 0
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     pass
 
             elif key == KEY_POSITION:
                 try:
                     channel.position = int(value)
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     pass
 
             elif key == KEY_ANGLE:
                 try:
                     channel.angle = int(value)
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     pass
 
             elif key == KEY_LOCAL_CONTROL:
@@ -285,13 +285,13 @@ class EnOceanDevice:
             elif key == KEY_ENERGY:
                 try:
                     channel.energy = float(value)
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     pass
 
             elif key == KEY_POWER:
                 try:
                     channel.power = float(value)
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     pass
 
             # Climate keys
@@ -299,14 +299,14 @@ class EnOceanDevice:
                 if value != "notAvailable":
                     try:
                         channel.temperature = float(value)
-                    except (ValueError, TypeError):
+                    except ValueError, TypeError:
                         pass
 
             elif key == KEY_TEMPERATURE_SETPOINT:
                 if value != "notAvailable":
                     try:
                         channel.temperature_setpoint = float(value)
-                    except (ValueError, TypeError):
+                    except ValueError, TypeError:
                         pass
 
             elif key == KEY_HEATER_MODE:
@@ -316,7 +316,7 @@ class EnOceanDevice:
                 if value != "notAvailable":
                     try:
                         channel.humidity = float(value)
-                    except (ValueError, TypeError):
+                    except ValueError, TypeError:
                         pass
 
             elif key == KEY_WINDOW_OPEN:
@@ -329,7 +329,7 @@ class EnOceanDevice:
                 if value != "notAvailable":
                     try:
                         channel.feed_temperature = float(value)
-                    except (ValueError, TypeError):
+                    except ValueError, TypeError:
                         pass
 
             elif key == KEY_THERMAL_MODE:
@@ -339,7 +339,7 @@ class EnOceanDevice:
                 if value != "notAvailable":
                     try:
                         channel.energy_consumption = float(value)
-                    except (ValueError, TypeError):
+                    except ValueError, TypeError:
                         pass
 
             elif key == KEY_POWER_STATE:
@@ -385,15 +385,5 @@ class EnOceanDevice:
             physical_device=device.get("physicalDevice", ""),
             first_seen=device.get("firstSeen", ""),
             last_seen=device.get("lastSeen", ""),
-            dbm=device.get("dbm", 0),
+            dbm=device.get("dbm"),
         )
-
-    def to_device_info(self, eag_id: str) -> dict[str, Any]:
-        """Convert to Home Assistant device info dictionary."""
-        return {
-            "identifiers": {("opus_greennet", f"{eag_id}_{self.device_id}")},
-            "name": self.friendly_id or self.device_id,
-            "manufacturer": self.manufacturer or "EnOcean",
-            "model": self.primary_eep or "Unknown",
-            "via_device": ("opus_greennet", eag_id),
-        }

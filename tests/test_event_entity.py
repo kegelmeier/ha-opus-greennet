@@ -1,4 +1,5 @@
 """Tests for the OpusGreenNetEvent entity (rocker switch events)."""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock
@@ -24,6 +25,7 @@ def event_entity(rocker_device):
     entity = OpusGreenNetEvent(
         coordinator=MagicMock(),
         eag_id="AABB0011",
+        gateway_device_id="gateway-device-id",
         device=rocker_device,
     )
     entity._trigger_event = MagicMock()
@@ -48,7 +50,9 @@ def test_event_types_cover_all_button_action_combinations():
         ("multipleButtons", "pressed"),
     ],
 )
-def test_fires_event_for_each_button_action(event_entity, rocker_device, button, action):
+def test_fires_event_for_each_button_action(
+    event_entity, rocker_device, button, action
+):
     rocker_device.channels[0] = EnOceanChannel(
         channel_id=0,
         last_button=button,

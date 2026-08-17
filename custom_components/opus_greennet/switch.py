@@ -1,35 +1,32 @@
 """Switch platform for Opus GreenNet Bridge integration."""
+
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 from homeassistant.components.switch import SwitchEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import CONF_EAG_ID, DEFAULT_CHANNEL, DOMAIN
+from . import OpusGreenNetConfigEntry
+from .const import CONF_EAG_ID, DEFAULT_CHANNEL
 from .coordinator import (
     SIGNAL_DEVICE_DISCOVERED,
-    SIGNAL_DEVICE_STATE_UPDATE,
     OpusGreenNetCoordinator,
 )
-from .diagnostics import device_diagnostic_attributes, log_entity_state_write
 from .enocean_device import EnOceanDevice
-
-_LOGGER = logging.getLogger(__name__)
+from .entity import OpusGreenNetEntity
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: OpusGreenNetConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Opus GreenNet switches from a config entry."""
-    coordinator: OpusGreenNetCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data.coordinator
+    gateway_device_id = entry.runtime_data.gateway_device_id
     eag_id = entry.data[CONF_EAG_ID]
 
     @callback
@@ -38,12 +35,6 @@ async def async_setup_entry(
         if device.entity_type != "switch":
             return
 
-        _LOGGER.debug(
-            "Adding switch entity for device: %s (%s)",
-            device.friendly_id,
-            device.device_id,
-        )
-
         # Create entity for each channel
         entities = []
         for channel_id in range(device.channel_count):
@@ -51,6 +42,7 @@ async def async_setup_entry(
                 OpusGreenNetSwitch(
                     coordinator=coordinator,
                     eag_id=eag_id,
+                    gateway_device_id=gateway_device_id,
                     device=device,
                     channel_id=channel_id,
                 )
@@ -72,7 +64,7 @@ async def async_setup_entry(
         async_add_switch(device)
 
 
-class OpusGreenNetSwitch(SwitchEntity):
+class OpusGreenNetSwitch(OpusGreenNetEntity, SwitchEntity):
     """Representation of an Opus GreenNet switch."""
 
     _attr_has_entity_name = True
@@ -82,35 +74,22 @@ class OpusGreenNetSwitch(SwitchEntity):
         self,
         coordinator: OpusGreenNetCoordinator,
         eag_id: str,
+        gateway_device_id: str,
         device: EnOceanDevice,
         channel_id: int = DEFAULT_CHANNEL,
     ) -> None:
         """Initialize the switch."""
-        self._coordinator = coordinator
-        self._eag_id = eag_id
-        self._device = device
-        self._channel_id = channel_id
-        self._device_key = device.friendly_id or device.device_id
+        super().__init__(coordinator, eag_id, gateway_device_id, device, channel_id)
 
         # Entity attributes
         channel_suffix = f"_ch{channel_id}" if device.channel_count > 1 else ""
         self._attr_unique_id = f"{eag_id}_{device.device_id}{channel_suffix}"
 
         if device.channel_count > 1:
-            self._attr_name = f"Channel {channel_id}"
+            self._attr_translation_key = "channel"
+            self._attr_translation_placeholders = {"channel": str(channel_id)}
         else:
             self._attr_name = None  # Use device name
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return device info."""
-        return DeviceInfo(
-            identifiers={(DOMAIN, f"{self._eag_id}_{self._device.device_id}")},
-            name=self._device.friendly_id or self._device.device_id,
-            manufacturer=self._device.manufacturer or "EnOcean",
-            model=self._device.primary_eep or "Unknown",
-            via_device=(DOMAIN, self._eag_id),
-        )
 
     @property
     def is_on(self) -> bool:
@@ -118,52 +97,16 @@ class OpusGreenNetSwitch(SwitchEntity):
         channel = self._device.channels.get(self._channel_id)
         return channel.is_on if channel else False
 
-    @property
-    def available(self) -> bool:
-        """Return if entity is available."""
-        return True
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        """Return diagnostic state attributes."""
-        return device_diagnostic_attributes(self._device)
-
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the switch on."""
-        # Optimistic state update - update immediately before sending MQTT
+        await self._coordinator.async_turn_on(self._device.device_id, self._channel_id)
         channel = self._device.get_or_create_channel(self._channel_id)
         channel.is_on = True
         self.async_write_ha_state()
 
-        await self._coordinator.async_turn_on(self._device.device_id, self._channel_id)
-
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the switch off."""
-        # Optimistic state update - update immediately before sending MQTT
+        await self._coordinator.async_turn_off(self._device.device_id, self._channel_id)
         channel = self._device.get_or_create_channel(self._channel_id)
         channel.is_on = False
-        self.async_write_ha_state()
-
-        await self._coordinator.async_turn_off(self._device.device_id, self._channel_id)
-
-    async def async_added_to_hass(self) -> None:
-        """Register callbacks when entity is added."""
-        self.async_on_remove(
-            async_dispatcher_connect(
-                self.hass,
-                f"{SIGNAL_DEVICE_STATE_UPDATE}_{self._eag_id}_{self._device_key}",
-                self._handle_state_update,
-            )
-        )
-
-    @callback
-    def _handle_state_update(self, device: EnOceanDevice) -> None:
-        """Handle state update from coordinator."""
-        self._device = device
-        log_entity_state_write(
-            _LOGGER,
-            self.entity_id or self._attr_unique_id,
-            self._device,
-            self._channel_id,
-        )
         self.async_write_ha_state()

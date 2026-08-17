@@ -1,30 +1,28 @@
 """Event platform for Opus GreenNet Bridge integration."""
+
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from homeassistant.components.event import EventEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from . import OpusGreenNetConfigEntry
 from .const import (
     BUTTON_KEYS,
     BUTTON_VALUE_PRESSED,
     BUTTON_VALUE_RELEASED,
     CONF_EAG_ID,
-    DOMAIN,
 )
 from .coordinator import (
     SIGNAL_DEVICE_DISCOVERED,
-    SIGNAL_DEVICE_STATE_UPDATE,
     OpusGreenNetCoordinator,
 )
-from .diagnostics import device_diagnostic_attributes, log_entity_state_write
+from .diagnostics import log_entity_state_write
 from .enocean_device import EnOceanDevice
+from .entity import OpusGreenNetEntity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,11 +36,12 @@ EVENT_TYPES: list[str] = [
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: OpusGreenNetConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Opus GreenNet event entities from a config entry."""
-    coordinator: OpusGreenNetCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data.coordinator
+    gateway_device_id = entry.runtime_data.gateway_device_id
     eag_id = entry.data[CONF_EAG_ID]
 
     @callback
@@ -61,6 +60,7 @@ async def async_setup_entry(
             OpusGreenNetEvent(
                 coordinator=coordinator,
                 eag_id=eag_id,
+                gateway_device_id=gateway_device_id,
                 device=device,
             )
         ]
@@ -80,7 +80,7 @@ async def async_setup_entry(
         async_add_event(device)
 
 
-class OpusGreenNetEvent(EventEntity):
+class OpusGreenNetEvent(OpusGreenNetEntity, EventEntity):
     """Representation of an Opus GreenNet rocker switch event."""
 
     _attr_has_entity_name = True
@@ -90,42 +90,14 @@ class OpusGreenNetEvent(EventEntity):
         self,
         coordinator: OpusGreenNetCoordinator,
         eag_id: str,
+        gateway_device_id: str,
         device: EnOceanDevice,
     ) -> None:
         """Initialize the event entity."""
-        self._coordinator = coordinator
-        self._eag_id = eag_id
-        self._device = device
-        self._device_key = device.friendly_id or device.device_id
+        super().__init__(coordinator, eag_id, gateway_device_id, device)
 
         self._attr_unique_id = f"{eag_id}_{device.device_id}"
         self._attr_name = None  # Use device name
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return device info."""
-        return DeviceInfo(
-            identifiers={(DOMAIN, f"{self._eag_id}_{self._device.device_id}")},
-            name=self._device.friendly_id or self._device.device_id,
-            manufacturer=self._device.manufacturer or "EnOcean",
-            model=self._device.primary_eep or "Unknown",
-            via_device=(DOMAIN, self._eag_id),
-        )
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        """Return diagnostic state attributes."""
-        return device_diagnostic_attributes(self._device)
-
-    async def async_added_to_hass(self) -> None:
-        """Register callbacks when entity is added."""
-        self.async_on_remove(
-            async_dispatcher_connect(
-                self.hass,
-                f"{SIGNAL_DEVICE_STATE_UPDATE}_{self._eag_id}_{self._device_key}",
-                self._handle_state_update,
-            )
-        )
 
     @callback
     def _handle_state_update(self, device: EnOceanDevice) -> None:
@@ -146,7 +118,7 @@ class OpusGreenNetEvent(EventEntity):
             _LOGGER.debug(
                 "Ignoring unknown rocker event %s for device %s",
                 event_type,
-                self._device_key,
+                self._device.device_id,
             )
             return
 
