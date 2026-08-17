@@ -9,7 +9,11 @@ from homeassistant.components.light import (
     ColorMode,
     LightEntity,
 )
+from homeassistant.components.light import (
+    DOMAIN as LIGHT_DOMAIN,
+)
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -20,7 +24,7 @@ from .coordinator import (
     OpusGreenNetCoordinator,
 )
 from .enocean_device import EnOceanDevice
-from .entity import OpusGreenNetEntity
+from .entity import OpusGreenNetEntity, migrate_legacy_multichannel_entity
 
 
 async def async_setup_entry(
@@ -32,12 +36,20 @@ async def async_setup_entry(
     coordinator = entry.runtime_data.coordinator
     gateway_device_id = entry.runtime_data.gateway_device_id
     eag_id = entry.data[CONF_EAG_ID]
+    entity_registry = er.async_get(hass)
 
     @callback
     def async_add_light(device: EnOceanDevice) -> None:
         """Add a light entity for a discovered device."""
         if device.entity_type != "light":
             return
+
+        migrate_legacy_multichannel_entity(
+            entity_registry,
+            LIGHT_DOMAIN,
+            eag_id,
+            device,
+        )
 
         # Create entity for each channel
         entities = []

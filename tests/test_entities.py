@@ -35,6 +35,9 @@ from custom_components.opus_greennet.enocean_device import (
     EnOceanChannel,
     EnOceanDevice,
 )
+from custom_components.opus_greennet.entity import (
+    migrate_legacy_multichannel_entity,
+)
 from custom_components.opus_greennet.event import (
     async_setup_entry as async_setup_events,
 )
@@ -270,6 +273,57 @@ def test_binary_sensor_values() -> None:
     assert window.is_on is True
     assert problem.is_on is True
     assert battery.is_on is False
+
+
+def test_removes_obsolete_aggregate_when_channel_zero_exists() -> None:
+    registry = MagicMock()
+    registry.async_get_entity_id.side_effect = [
+        "switch.test_device",
+        "switch.test_device_channel_0",
+    ]
+
+    migrate_legacy_multichannel_entity(
+        registry,
+        "switch",
+        EAG_ID,
+        _device("D2-01-11"),
+    )
+
+    registry.async_remove.assert_called_once_with("switch.test_device")
+    registry.async_update_entity.assert_not_called()
+
+
+def test_migrates_legacy_entity_when_channel_zero_is_missing() -> None:
+    registry = MagicMock()
+    registry.async_get_entity_id.side_effect = ["switch.test_device", None]
+
+    migrate_legacy_multichannel_entity(
+        registry,
+        "switch",
+        EAG_ID,
+        _device("D2-01-11"),
+    )
+
+    registry.async_update_entity.assert_called_once_with(
+        "switch.test_device",
+        new_unique_id=f"{EAG_ID}_DEV1_ch0",
+    )
+    registry.async_remove.assert_not_called()
+
+
+def test_keeps_single_channel_registry_entity() -> None:
+    registry = MagicMock()
+
+    migrate_legacy_multichannel_entity(
+        registry,
+        "switch",
+        EAG_ID,
+        _device("D2-01-01"),
+    )
+
+    registry.async_get_entity_id.assert_not_called()
+    registry.async_remove.assert_not_called()
+    registry.async_update_entity.assert_not_called()
 
 
 @pytest.mark.asyncio
