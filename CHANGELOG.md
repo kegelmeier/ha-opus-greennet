@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0b0] - 2026-08-17
+
+### Added
+- **Downloadable diagnostics**: Home Assistant diagnostics now include redacted gateway details, discovered devices, channel state, update sources, and the latest bridge command error.
+- **Update latency tracing**: Debug logs identify MQTT receipt, message finalization, dispatcher notification, and entity state-write timing.
+
+### Fixed
+- **Multi-channel actuator control** (#20): Commands now put the mandatory `channel` selector first and include channel `0` for multi-channel devices. Outbound echoes retain the selector and reconciliation is isolated per channel.
+- **Home Assistant device-registry compatibility** (#21): The integration creates a gateway device and links children through `via_device_id`, removing the deprecated `via_device` path scheduled for removal in Home Assistant 2027.8.
+- **Command failure reporting**: MQTT publish failures are raised to Home Assistant and asynchronous gateway errors are recorded instead of leaving a false successful state.
+- **Stable device discovery**: Devices are keyed by their EnOcean ID, wrapped discovery responses are accepted, and friendly-name changes no longer break entity updates.
+- **Lifecycle cleanup**: MQTT subscriptions, debounce timers, delayed reconciliation queries, and temporary callbacks are cleaned up on unload or failed setup.
+
+### Changed
+- **Minimum Home Assistant version**: Home Assistant 2026.8 or newer is now required.
+- **Power sensor classification**: The D1-4B-07 kW sensor is now correctly named and classified as power consumption; its existing unique ID is preserved.
+- **Service actions**: ReCom actions are administrator-only, validate the selected gateway and device, and return response data for read operations.
+- **Entity diagnostics**: Signal-strength entities are disabled by default, and volatile diagnostic values moved from entity attributes into downloadable diagnostics.
+- **Quality gates**: CI now tests Home Assistant 2026.8.2 on Python 3.14 and enforces Ruff, Hassfest, and at least 75% test coverage.
+
 ## [0.2.1] - 2026-06-26
 
 ### Added
