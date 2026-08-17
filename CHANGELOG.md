@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0b1] - 2026-08-17
+
+### Fixed
+- **Gateway command acknowledgements**: Successful OPUS `putAnswer` responses with HTTP status 200 or 201 are no longer reported as command failures. Real error responses remain visible in diagnostics, while accepted commands continue waiting for confirmed device state.
+- **Legacy multi-channel entities**: Obsolete aggregate switch and light registry entries are migrated to channel 0 when possible or removed when the channel-0 entity already exists, eliminating stale unavailable duplicates after restart.
+
 ## [0.3.0b0] - 2026-08-17
 
 ### Added
