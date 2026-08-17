@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -16,7 +18,7 @@ from .coordinator import (
     OpusGreenNetCoordinator,
 )
 from .enocean_device import EnOceanDevice
-from .entity import OpusGreenNetEntity
+from .entity import OpusGreenNetEntity, migrate_legacy_multichannel_entity
 
 
 async def async_setup_entry(
@@ -28,12 +30,20 @@ async def async_setup_entry(
     coordinator = entry.runtime_data.coordinator
     gateway_device_id = entry.runtime_data.gateway_device_id
     eag_id = entry.data[CONF_EAG_ID]
+    entity_registry = er.async_get(hass)
 
     @callback
     def async_add_switch(device: EnOceanDevice) -> None:
         """Add a switch entity for a discovered device."""
         if device.entity_type != "switch":
             return
+
+        migrate_legacy_multichannel_entity(
+            entity_registry,
+            SWITCH_DOMAIN,
+            eag_id,
+            device,
+        )
 
         # Create entity for each channel
         entities = []

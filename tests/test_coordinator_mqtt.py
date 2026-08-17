@@ -364,6 +364,57 @@ class TestAnswerMessages:
         assert coord._device_data["DEV1"]["friendlyId"] == "Wrapped switch"
         assert "DEV1" in coord._pending_devices
 
+    @pytest.mark.parametrize("status", [200, 201])
+    def test_put_answer_accepts_success_status(self, coord, status):
+        """Successful acknowledgements clear errors without stopping retries."""
+        cancel = MagicMock()
+        coord.devices["DEV1"] = EnOceanDevice(
+            device_id="DEV1",
+            friendly_id="Switch",
+            eeps=[{"eep": "D2-01-00"}],
+        )
+        coord.devices["DEV1"].last_command_error = "previous failure"
+        coord._pending_reconciliation_queries[("DEV1", 0)] = [cancel]
+        msg = SimpleNamespace(
+            topic="EnOcean/AABB0011/putAnswer/devices/DEV1/state",
+            payload=json.dumps({"header": {"httpStatus": status}}).encode(),
+        )
+
+        with (
+            patch(
+                "custom_components.opus_greennet.coordinator.async_dispatcher_send"
+            ) as mock_dispatch,
+            patch(
+                "custom_components.opus_greennet.coordinator._LOGGER.warning"
+            ) as mock_warning,
+        ):
+            coord._handle_put_answer_state(msg)
+
+        assert coord.devices["DEV1"].last_command_error is None
+        cancel.assert_not_called()
+        assert ("DEV1", 0) in coord._pending_reconciliation_queries
+        mock_dispatch.assert_called_once()
+        mock_warning.assert_not_called()
+
+    def test_put_answer_records_structured_error_status(self, coord):
+        """A non-success status remains visible as a command failure."""
+        coord.devices["DEV1"] = EnOceanDevice(
+            device_id="DEV1",
+            friendly_id="Switch",
+            eeps=[{"eep": "D2-01-00"}],
+        )
+        payload = json.dumps(
+            {"header": {"httpStatus": 400}, "error": "invalid command"}
+        )
+        msg = SimpleNamespace(
+            topic="EnOcean/AABB0011/putAnswer/devices/DEV1/state",
+            payload=payload.encode(),
+        )
+
+        coord._handle_put_answer_state(msg)
+
+        assert coord.devices["DEV1"].last_command_error == payload
+
     def test_put_answer_records_error_and_cancels_reconciliation(self, coord):
         """A gateway command error is exposed in diagnostics and stops retries."""
         cancel = MagicMock()

@@ -472,7 +472,7 @@ class OpusGreenNetCoordinator:
 
     @callback
     def _handle_put_answer_state(self, msg: ReceiveMessage) -> None:
-        """Handle the protocol's asynchronous command-error response."""
+        """Handle the protocol's asynchronous command acknowledgement."""
         match = PUT_ANSWER_STATE_TOPIC_PATTERN.fullmatch(msg.topic)
         if not match or match.group(1) != self.eag_id:
             return
@@ -483,10 +483,34 @@ class OpusGreenNetCoordinator:
             if isinstance(msg.payload, bytes)
             else str(msg.payload)
         )
+
+        status: int | None = None
+        try:
+            response = json.loads(payload)
+            if isinstance(response, dict):
+                header = response.get("header")
+                if isinstance(header, dict):
+                    status = int(header["httpStatus"])
+        except json.JSONDecodeError, KeyError, TypeError, ValueError:
+            pass
+
+        device = self.get_device(device_id)
+        if status is not None and 200 <= status < 300:
+            _LOGGER.debug(
+                "OPUS command accepted for %s with HTTP status %d",
+                device_id,
+                status,
+            )
+            if device is not None and device.last_command_error is not None:
+                device.last_command_error = None
+                signal = f"{SIGNAL_DEVICE_STATE_UPDATE}_{self.eag_id}_{device_id}"
+                async_dispatcher_send(self.hass, signal, device)
+            return
+
         error = payload or "Gateway rejected the state command"
         _LOGGER.warning("OPUS command failed for %s: %s", device_id, error)
 
-        if (device := self.get_device(device_id)) is None:
+        if device is None:
             return
 
         device.last_command_error = error
