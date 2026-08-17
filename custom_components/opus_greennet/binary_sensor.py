@@ -1,36 +1,34 @@
 """Binary sensor platform for Opus GreenNet Bridge integration."""
-from __future__ import annotations
 
-import logging
+from __future__ import annotations
 
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.helpers.entity import DeviceInfo, EntityCategory
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import CONF_EAG_ID, DEFAULT_CHANNEL, DOMAIN
+from . import OpusGreenNetConfigEntry
+from .const import CONF_EAG_ID, DEFAULT_CHANNEL
 from .coordinator import (
     SIGNAL_DEVICE_DISCOVERED,
-    SIGNAL_DEVICE_STATE_UPDATE,
     OpusGreenNetCoordinator,
 )
 from .enocean_device import EnOceanDevice
-
-_LOGGER = logging.getLogger(__name__)
+from .entity import OpusGreenNetEntity
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: OpusGreenNetConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Opus GreenNet binary sensors from a config entry."""
-    coordinator: OpusGreenNetCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data.coordinator
+    gateway_device_id = entry.runtime_data.gateway_device_id
     eag_id = entry.data[CONF_EAG_ID]
 
     @callback
@@ -46,6 +44,7 @@ async def async_setup_entry(
             OpusGreenNetWindowSensor(
                 coordinator=coordinator,
                 eag_id=eag_id,
+                gateway_device_id=gateway_device_id,
                 device=device,
             )
         )
@@ -55,9 +54,10 @@ async def async_setup_entry(
             OpusGreenNetProblemSensor(
                 coordinator=coordinator,
                 eag_id=eag_id,
+                gateway_device_id=gateway_device_id,
                 device=device,
                 suffix="actuator_not_responding",
-                name="Actuator not responding",
+                translation_key="actuator_not_responding",
                 attr_name="actuator_not_responding",
             )
         )
@@ -67,9 +67,10 @@ async def async_setup_entry(
             OpusGreenNetProblemSensor(
                 coordinator=coordinator,
                 eag_id=eag_id,
+                gateway_device_id=gateway_device_id,
                 device=device,
                 suffix="missing_temperature",
-                name="Missing temperature",
+                translation_key="missing_temperature",
                 attr_name="missing_temperature",
             )
         )
@@ -80,6 +81,7 @@ async def async_setup_entry(
                 OpusGreenNetBatterySensor(
                     coordinator=coordinator,
                     eag_id=eag_id,
+                    gateway_device_id=gateway_device_id,
                     device=device,
                 )
             )
@@ -89,9 +91,10 @@ async def async_setup_entry(
                 OpusGreenNetProblemSensor(
                     coordinator=coordinator,
                     eag_id=eag_id,
+                    gateway_device_id=gateway_device_id,
                     device=device,
                     suffix="actuator_deactivated",
-                    name="Actuator deactivated",
+                    translation_key="actuator_deactivated",
                     attr_name="actuator_deactivated",
                 )
             )
@@ -102,9 +105,10 @@ async def async_setup_entry(
                 OpusGreenNetProblemSensor(
                     coordinator=coordinator,
                     eag_id=eag_id,
+                    gateway_device_id=gateway_device_id,
                     device=device,
                     suffix="circuit_in_use",
-                    name="Circuit in use",
+                    translation_key="circuit_in_use",
                     attr_name="circuit_in_use",
                 )
             )
@@ -125,7 +129,7 @@ async def async_setup_entry(
         async_add_binary_sensors(device)
 
 
-class OpusGreenNetBaseBinarySensor(BinarySensorEntity):
+class OpusGreenNetBaseBinarySensor(OpusGreenNetEntity, BinarySensorEntity):
     """Base class for Opus GreenNet binary sensors."""
 
     _attr_has_entity_name = True
@@ -134,49 +138,15 @@ class OpusGreenNetBaseBinarySensor(BinarySensorEntity):
         self,
         coordinator: OpusGreenNetCoordinator,
         eag_id: str,
+        gateway_device_id: str,
         device: EnOceanDevice,
         suffix: str,
-        name: str,
+        translation_key: str,
     ) -> None:
         """Initialize the binary sensor."""
-        self._coordinator = coordinator
-        self._eag_id = eag_id
-        self._device = device
-        self._device_key = device.friendly_id or device.device_id
+        super().__init__(coordinator, eag_id, gateway_device_id, device)
         self._attr_unique_id = f"{eag_id}_{device.device_id}_{suffix}"
-        self._attr_name = name
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return device info."""
-        return DeviceInfo(
-            identifiers={(DOMAIN, f"{self._eag_id}_{self._device.device_id}")},
-            name=self._device.friendly_id or self._device.device_id,
-            manufacturer=self._device.manufacturer or "EnOcean",
-            model=self._device.primary_eep or "Unknown",
-            via_device=(DOMAIN, self._eag_id),
-        )
-
-    @property
-    def available(self) -> bool:
-        """Return if entity is available."""
-        return True
-
-    async def async_added_to_hass(self) -> None:
-        """Register callbacks when entity is added."""
-        self.async_on_remove(
-            async_dispatcher_connect(
-                self.hass,
-                f"{SIGNAL_DEVICE_STATE_UPDATE}_{self._eag_id}_{self._device_key}",
-                self._handle_state_update,
-            )
-        )
-
-    @callback
-    def _handle_state_update(self, device: EnOceanDevice) -> None:
-        """Handle state update from coordinator."""
-        self._device = device
-        self.async_write_ha_state()
+        self._attr_translation_key = translation_key
 
 
 class OpusGreenNetWindowSensor(OpusGreenNetBaseBinarySensor):
@@ -188,10 +158,13 @@ class OpusGreenNetWindowSensor(OpusGreenNetBaseBinarySensor):
         self,
         coordinator: OpusGreenNetCoordinator,
         eag_id: str,
+        gateway_device_id: str,
         device: EnOceanDevice,
     ) -> None:
         """Initialize the window sensor."""
-        super().__init__(coordinator, eag_id, device, "window_open", "Window")
+        super().__init__(
+            coordinator, eag_id, gateway_device_id, device, "window_open", "window"
+        )
 
     @property
     def is_on(self) -> bool | None:
@@ -212,13 +185,16 @@ class OpusGreenNetProblemSensor(OpusGreenNetBaseBinarySensor):
         self,
         coordinator: OpusGreenNetCoordinator,
         eag_id: str,
+        gateway_device_id: str,
         device: EnOceanDevice,
         suffix: str,
-        name: str,
+        translation_key: str,
         attr_name: str,
     ) -> None:
         """Initialize the problem sensor."""
-        super().__init__(coordinator, eag_id, device, suffix, name)
+        super().__init__(
+            coordinator, eag_id, gateway_device_id, device, suffix, translation_key
+        )
         self._attr_name_key = attr_name
 
     @property
@@ -244,11 +220,17 @@ class OpusGreenNetBatterySensor(OpusGreenNetBaseBinarySensor):
         self,
         coordinator: OpusGreenNetCoordinator,
         eag_id: str,
+        gateway_device_id: str,
         device: EnOceanDevice,
     ) -> None:
         """Initialize the battery sensor."""
         super().__init__(
-            coordinator, eag_id, device, "actuator_low_battery", "Actuator battery"
+            coordinator,
+            eag_id,
+            gateway_device_id,
+            device,
+            "actuator_low_battery",
+            "actuator_battery",
         )
 
     @property

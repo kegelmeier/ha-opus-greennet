@@ -1,4 +1,5 @@
 """Config flow for Opus GreenNet Bridge integration."""
+
 from __future__ import annotations
 
 import logging
@@ -6,7 +7,6 @@ import re
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant.components import mqtt
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.core import HomeAssistant
@@ -17,7 +17,7 @@ from .const import CONF_EAG_ID, DOMAIN
 _LOGGER = logging.getLogger(__name__)
 
 # Regex pattern for EAG ID (8 hex characters)
-EAG_ID_PATTERN = re.compile(r"^[0-9A-Fa-f]{8}$")
+EAG_ID_PATTERN = re.compile(r"[0-9A-Fa-f]{8}")
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
@@ -34,7 +34,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     eag_id = data[CONF_EAG_ID].upper()
 
     # Validate EAG ID format
-    if not EAG_ID_PATTERN.match(eag_id):
+    if not EAG_ID_PATTERN.fullmatch(eag_id):
         raise InvalidEagId
 
     # Check if MQTT is available

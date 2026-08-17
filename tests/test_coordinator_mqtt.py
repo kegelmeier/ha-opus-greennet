@@ -1,4 +1,5 @@
 """Tests for coordinator MQTT message handling and finalization."""
+
 from __future__ import annotations
 
 import json
@@ -9,8 +10,8 @@ import pytest
 
 from custom_components.opus_greennet.coordinator import (
     OUTBOUND_STATE_RECONCILIATION_DELAYS,
-    OpusGreenNetCoordinator,
     TELEGRAM_FINALIZE_DELAY,
+    OpusGreenNetCoordinator,
 )
 from custom_components.opus_greennet.enocean_device import EnOceanDevice
 
@@ -43,14 +44,16 @@ class TestFinalizeTelegram:
         }
 
         # Pre-create the device so finalize can find it
-        coord.devices["My Light"] = EnOceanDevice(
+        coord.devices["DEV1"] = EnOceanDevice(
             device_id="DEV1", friendly_id="My Light", eeps=[{"eep": "D2-01-02"}]
         )
 
         coord._finalize_telegram("DEV1")
 
-        device = coord.devices["My Light"]
+        device = coord.devices["DEV1"]
         assert device.channels[0].is_on is True
+        assert device.last_update_source == "stream/telegram/from"
+        assert device.last_update_dispatched_monotonic is not None
 
     def test_applies_to_only_state_command(self, coord):
         """Outbound command telegrams are used as optimistic state updates."""
@@ -60,7 +63,7 @@ class TestFinalizeTelegram:
                 "functions": [{"key": "switch", "value": "on"}],
             },
         }
-        coord.devices["Light"] = EnOceanDevice(
+        coord.devices["DEV1"] = EnOceanDevice(
             device_id="DEV1", friendly_id="Light", eeps=[{"eep": "D2-01-02"}]
         )
 
@@ -72,11 +75,12 @@ class TestFinalizeTelegram:
         ) as mock_call_later:
             coord._finalize_telegram("DEV1")
 
-        assert coord.devices["Light"].channels[0].is_on is True
+        assert coord.devices["DEV1"].channels[0].is_on is True
+        assert coord.devices["DEV1"].last_update_source == "stream/telegram/to"
         assert [call.args[1] for call in mock_call_later.call_args_list] == list(
             OUTBOUND_STATE_RECONCILIATION_DELAYS
         )
-        assert coord._pending_reconciliation_queries["DEV1"] == [
+        assert coord._pending_reconciliation_queries[("DEV1", 0)] == [
             cancel_early,
             cancel_late,
         ]
@@ -88,7 +92,7 @@ class TestFinalizeTelegram:
             "direction": "to",
             "functions": [{"key": "switch", "value": "on"}],
         }
-        coord.devices["Light"] = EnOceanDevice(
+        coord.devices["DEV1"] = EnOceanDevice(
             device_id="DEV1", friendly_id="Light", eeps=[{"eep": "D2-01-02"}]
         )
 
@@ -98,14 +102,44 @@ class TestFinalizeTelegram:
         ) as mock_call_later:
             coord._finalize_telegram("DEV1")
 
-        assert coord.devices["Light"].channels[0].is_on is True
+        assert coord.devices["DEV1"].channels[0].is_on is True
+        assert coord.devices["DEV1"].last_update_source == "stream/telegram/to"
         assert mock_call_later.call_count == len(OUTBOUND_STATE_RECONCILIATION_DELAYS)
+
+    def test_outbound_command_updates_selected_channel(self, coord):
+        """The selector is preserved so an echo updates only its target channel."""
+        coord._telegram_data["DEV1"] = {
+            "deviceId": "DEV1",
+            "direction": "to",
+            "functions": [
+                {"key": "channel", "value": "1"},
+                {"key": "switch", "value": "on"},
+            ],
+        }
+        coord.devices["DEV1"] = EnOceanDevice(
+            device_id="DEV1",
+            friendly_id="Two-channel switch",
+            eeps=[{"eep": "D2-01-11"}],
+        )
+
+        with patch(
+            "custom_components.opus_greennet.coordinator.async_call_later",
+            return_value=MagicMock(),
+        ):
+            coord._finalize_telegram("DEV1")
+
+        assert 0 not in coord.devices["DEV1"].channels
+        assert coord.devices["DEV1"].channels[1].is_on is True
+        assert ("DEV1", 1) in coord._pending_reconciliation_queries
 
     def test_confirmed_from_cancels_pending_reconciliation(self, coord):
         """Confirmed device reports cancel delayed status checks."""
         cancel_early = MagicMock()
         cancel_late = MagicMock()
-        coord._pending_reconciliation_queries["DEV1"] = [cancel_early, cancel_late]
+        coord._pending_reconciliation_queries[("DEV1", 0)] = [
+            cancel_early,
+            cancel_late,
+        ]
         coord._telegram_data["DEV1"] = {
             "deviceId": "DEV1",
             "from": {
@@ -113,19 +147,19 @@ class TestFinalizeTelegram:
                 "functions": [{"key": "switch", "value": "off"}],
             },
         }
-        coord.devices["Light"] = EnOceanDevice(
+        coord.devices["DEV1"] = EnOceanDevice(
             device_id="DEV1", friendly_id="Light", eeps=[{"eep": "D2-01-02"}]
         )
-        coord.devices["Light"].update_from_telegram(
+        coord.devices["DEV1"].update_from_telegram(
             {"functions": [{"key": "switch", "value": "on"}]}
         )
 
         coord._finalize_telegram("DEV1")
 
-        assert coord.devices["Light"].channels[0].is_on is False
+        assert coord.devices["DEV1"].channels[0].is_on is False
         cancel_early.assert_called_once()
         cancel_late.assert_called_once()
-        assert "DEV1" not in coord._pending_reconciliation_queries
+        assert ("DEV1", 0) not in coord._pending_reconciliation_queries
 
     def test_skips_to_only_query_command(self, coord):
         """Outbound query telegrams do not change device state."""
@@ -134,7 +168,7 @@ class TestFinalizeTelegram:
             "direction": "to",
             "functions": [{"key": "query", "value": "status"}],
         }
-        coord.devices["Light"] = EnOceanDevice(
+        coord.devices["DEV1"] = EnOceanDevice(
             device_id="DEV1", friendly_id="Light", eeps=[{"eep": "D2-01-02"}]
         )
 
@@ -143,7 +177,7 @@ class TestFinalizeTelegram:
         ) as mock_dispatch:
             coord._finalize_telegram("DEV1")
 
-        assert 0 not in coord.devices["Light"].channels
+        assert 0 not in coord.devices["DEV1"].channels
         mock_dispatch.assert_not_called()
 
     def test_skips_direction_to(self, coord):
@@ -155,13 +189,16 @@ class TestFinalizeTelegram:
                 "functions": [{"key": "switch", "value": "on"}],
             },
         }
-        coord.devices["Light"] = EnOceanDevice(
+        coord.devices["DEV1"] = EnOceanDevice(
             device_id="DEV1", friendly_id="Light", eeps=[{"eep": "D2-01-02"}]
         )
 
         coord._finalize_telegram("DEV1")
 
-        assert 0 not in coord.devices["Light"].channels or coord.devices["Light"].channels[0].is_on is False
+        assert (
+            0 not in coord.devices["DEV1"].channels
+            or coord.devices["DEV1"].channels[0].is_on is False
+        )
 
     def test_auto_discovers_unknown_device(self, coord):
         """If device not yet discovered, finalize auto-creates it."""
@@ -175,8 +212,8 @@ class TestFinalizeTelegram:
 
         coord._finalize_telegram("NEW1")
 
-        assert "New Light" in coord.devices
-        device = coord.devices["New Light"]
+        assert "NEW1" in coord.devices
+        device = coord.devices["NEW1"]
         assert device.device_id == "NEW1"
         assert device.channels[0].is_on is True
 
@@ -195,8 +232,8 @@ class TestFinalizeTelegram:
         ) as mock_dispatch:
             coord._finalize_telegram("NEW1")
 
-        assert "New Light" in coord.devices
-        assert coord.devices["New Light"].channels[0].is_on is True
+        assert "NEW1" in coord.devices
+        assert coord.devices["NEW1"].channels[0].is_on is True
         mock_dispatch.assert_called_once()
         assert mock_dispatch.call_args[0][1].startswith(
             "opus_greennet_device_state_update_"
@@ -212,13 +249,13 @@ class TestFinalizeTelegram:
                 },
             },
         }
-        coord.devices["Light"] = EnOceanDevice(
+        coord.devices["DEV1"] = EnOceanDevice(
             device_id="DEV1", friendly_id="Light", eeps=[{"eep": "D2-01-02"}]
         )
 
         coord._finalize_telegram("DEV1")
 
-        assert coord.devices["Light"].channels[0].brightness == 75
+        assert coord.devices["DEV1"].channels[0].brightness == 75
 
     def test_ignores_incomplete_function_fragments(self, coord):
         """Partial flattened telegram functions do not dispatch stale updates."""
@@ -231,7 +268,7 @@ class TestFinalizeTelegram:
                 ],
             },
         }
-        coord.devices["Light"] = EnOceanDevice(
+        coord.devices["DEV1"] = EnOceanDevice(
             device_id="DEV1", friendly_id="Light", eeps=[{"eep": "D2-01-02"}]
         )
 
@@ -240,7 +277,7 @@ class TestFinalizeTelegram:
         ) as mock_dispatch:
             coord._finalize_telegram("DEV1")
 
-        assert 0 not in coord.devices["Light"].channels
+        assert 0 not in coord.devices["DEV1"].channels
         mock_dispatch.assert_not_called()
 
     def test_applies_only_complete_function_fragments(self, coord):
@@ -255,7 +292,7 @@ class TestFinalizeTelegram:
                 ],
             },
         }
-        coord.devices["Light"] = EnOceanDevice(
+        coord.devices["DEV1"] = EnOceanDevice(
             device_id="DEV1", friendly_id="Light", eeps=[{"eep": "D2-01-02"}]
         )
 
@@ -264,7 +301,7 @@ class TestFinalizeTelegram:
         ) as mock_dispatch:
             coord._finalize_telegram("DEV1")
 
-        assert coord.devices["Light"].channels[0].is_on is True
+        assert coord.devices["DEV1"].channels[0].is_on is True
         mock_dispatch.assert_called_once()
 
     def test_noop_when_no_data(self, coord):
@@ -296,6 +333,62 @@ class TestTelegramPropertyMessage:
         assert mock_call_later.call_args[0][1] == TELEGRAM_FINALIZE_DELAY
 
 
+class TestAnswerMessages:
+    """Tests for structured discovery and command error responses."""
+
+    def test_discovery_unwraps_device_objects(self, coord):
+        """getAnswer may wrap each device in a device property."""
+        msg = SimpleNamespace(
+            topic="EnOcean/AABB0011/getAnswer/devices",
+            payload=json.dumps(
+                {
+                    "devices": [
+                        {
+                            "device": {
+                                "deviceId": "DEV1",
+                                "friendlyId": "Wrapped switch",
+                                "eeps": [{"eep": "D2-01-11"}],
+                            }
+                        }
+                    ]
+                }
+            ).encode(),
+        )
+
+        with patch(
+            "custom_components.opus_greennet.coordinator.async_call_later",
+            return_value=MagicMock(),
+        ):
+            coord._handle_get_answer_devices(msg)
+
+        assert coord._device_data["DEV1"]["friendlyId"] == "Wrapped switch"
+        assert "DEV1" in coord._pending_devices
+
+    def test_put_answer_records_error_and_cancels_reconciliation(self, coord):
+        """A gateway command error is exposed in diagnostics and stops retries."""
+        cancel = MagicMock()
+        coord.devices["DEV1"] = EnOceanDevice(
+            device_id="DEV1",
+            friendly_id="Switch",
+            eeps=[{"eep": "D2-01-00"}],
+        )
+        coord._pending_reconciliation_queries[("DEV1", 0)] = [cancel]
+        msg = SimpleNamespace(
+            topic="EnOcean/AABB0011/putAnswer/devices/DEV1/state",
+            payload=b"channel selector missing",
+        )
+
+        with patch(
+            "custom_components.opus_greennet.coordinator.async_dispatcher_send"
+        ) as mock_dispatch:
+            coord._handle_put_answer_state(msg)
+
+        assert coord.devices["DEV1"].last_command_error == "channel selector missing"
+        cancel.assert_called_once()
+        assert not coord._pending_reconciliation_queries
+        mock_dispatch.assert_called_once()
+
+
 # ── _finalize_device_stream ───────────────────────────────────────────
 
 
@@ -305,10 +398,10 @@ class TestFinalizeDeviceStream:
     def test_state_functions_array_format(self, coord):
         """stream/device deltas use state.functions array format."""
         cancel_query = MagicMock()
-        coord.devices["Light"] = EnOceanDevice(
+        coord.devices["DEV1"] = EnOceanDevice(
             device_id="DEV1", friendly_id="Light", eeps=[{"eep": "D2-01-02"}]
         )
-        coord._pending_reconciliation_queries["DEV1"] = [cancel_query]
+        coord._pending_reconciliation_queries[("DEV1", 0)] = [cancel_query]
         coord._device_stream_data["DEV1"] = {
             "deviceId": "DEV1",
             "state": {
@@ -321,15 +414,16 @@ class TestFinalizeDeviceStream:
 
         coord._finalize_device_stream("DEV1")
 
-        ch = coord.devices["Light"].channels[0]
+        ch = coord.devices["DEV1"].channels[0]
         assert ch.is_on is True
         assert ch.brightness == 50
+        assert coord.devices["DEV1"].last_update_source == "stream/device"
         cancel_query.assert_called_once()
-        assert "DEV1" not in coord._pending_reconciliation_queries
+        assert ("DEV1", 0) not in coord._pending_reconciliation_queries
 
     def test_state_functions_dict_format(self, coord):
         """state.functions may arrive as a dict from _set_nested_property."""
-        coord.devices["Light"] = EnOceanDevice(
+        coord.devices["DEV1"] = EnOceanDevice(
             device_id="DEV1", friendly_id="Light", eeps=[{"eep": "D2-01-02"}]
         )
         coord._device_stream_data["DEV1"] = {
@@ -343,11 +437,11 @@ class TestFinalizeDeviceStream:
 
         coord._finalize_device_stream("DEV1")
 
-        assert coord.devices["Light"].channels[0].is_on is True
+        assert coord.devices["DEV1"].channels[0].is_on is True
 
     def test_states_flat_dict_format(self, coord):
         """Boot data uses states flat dict (key: value pairs)."""
-        coord.devices["Light"] = EnOceanDevice(
+        coord.devices["DEV1"] = EnOceanDevice(
             device_id="DEV1", friendly_id="Light", eeps=[{"eep": "D2-01-02"}]
         )
         coord._device_stream_data["DEV1"] = {
@@ -360,7 +454,7 @@ class TestFinalizeDeviceStream:
 
         coord._finalize_device_stream("DEV1")
 
-        ch = coord.devices["Light"].channels[0]
+        ch = coord.devices["DEV1"].channels[0]
         assert ch.is_on is True
         assert ch.brightness == 80
 
@@ -390,10 +484,10 @@ class TestDevicePropertyMessage:
     def test_known_device_state_updates_immediately(self, coord):
         """Known device state from stream/devices skips discovery debounce."""
         cancel_query = MagicMock()
-        coord.devices["Switch"] = EnOceanDevice(
+        coord.devices["DEV1"] = EnOceanDevice(
             device_id="DEV1", friendly_id="Switch", eeps=[{"eep": "D2-01-00"}]
         )
-        coord._pending_reconciliation_queries["DEV1"] = [cancel_query]
+        coord._pending_reconciliation_queries[("DEV1", 0)] = [cancel_query]
         msg = SimpleNamespace(
             topic="EnOcean/AABB0011/stream/devices/DEV1/states/switch",
             payload=b"on",
@@ -409,10 +503,12 @@ class TestDevicePropertyMessage:
         ):
             coord._handle_device_property_message(msg)
 
-        assert coord.devices["Switch"].channels[0].is_on is True
+        assert coord.devices["DEV1"].channels[0].is_on is True
+        assert coord.devices["DEV1"].last_update_source == "stream/devices"
+        assert coord.devices["DEV1"].last_update_received_monotonic is not None
         assert "DEV1" not in coord._pending_devices
         cancel_query.assert_called_once()
-        assert "DEV1" not in coord._pending_reconciliation_queries
+        assert ("DEV1", 0) not in coord._pending_reconciliation_queries
         mock_call_later.assert_not_called()
         mock_dispatch.assert_called_once()
 
@@ -449,9 +545,7 @@ class TestAsyncSendCommand:
             "custom_components.opus_greennet.coordinator.mqtt.async_publish",
             new_callable=AsyncMock,
         ) as mock_publish:
-            await coord.async_send_command(
-                "DEV1", [{"key": "switch", "value": "on"}]
-            )
+            await coord.async_send_command("DEV1", [{"key": "switch", "value": "on"}])
 
             mock_publish.assert_called_once()
             call_args = mock_publish.call_args
@@ -465,6 +559,22 @@ class TestAsyncSendCommand:
                     "functions": [{"key": "switch", "value": "on"}],
                 }
             }
+            assert call_args.kwargs == {"qos": 1, "retain": False}
+
+    @pytest.mark.asyncio
+    async def test_publish_error_is_propagated(self):
+        """Home Assistant sees MQTT publish failures instead of a false success."""
+        coord = OpusGreenNetCoordinator(MagicMock(), "AABB0011")
+
+        with (
+            patch(
+                "custom_components.opus_greennet.coordinator.mqtt.async_publish",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("MQTT disconnected"),
+            ),
+            pytest.raises(RuntimeError, match="MQTT disconnected"),
+        ):
+            await coord.async_send_command("DEV1", [{"key": "switch", "value": "on"}])
 
     @pytest.mark.asyncio
     async def test_publishes_with_qos_1(self):
@@ -476,13 +586,16 @@ class TestAsyncSendCommand:
             "custom_components.opus_greennet.coordinator.mqtt.async_publish",
             new_callable=AsyncMock,
         ) as mock_publish:
-            await coord.async_send_command(
-                "DEV1", [{"key": "dimValue", "value": "50"}]
-            )
+            await coord.async_send_command("DEV1", [{"key": "dimValue", "value": "50"}])
 
             call_kwargs = mock_publish.call_args
             # qos is passed as keyword or positional
-            assert call_kwargs[1].get("qos", call_kwargs[0][3] if len(call_kwargs[0]) > 3 else None) == 1
+            assert (
+                call_kwargs[1].get(
+                    "qos", call_kwargs[0][3] if len(call_kwargs[0]) > 3 else None
+                )
+                == 1
+            )
 
     @pytest.mark.asyncio
     async def test_query_device_status(self):
@@ -522,8 +635,8 @@ class TestFinalizeDiscovery:
 
         coord._finalize_discovery()
 
-        assert "Living Room" in coord.devices
-        dev = coord.devices["Living Room"]
+        assert "DEV1" in coord.devices
+        dev = coord.devices["DEV1"]
         assert dev.device_id == "DEV1"
         assert dev.primary_eep == "D2-01-02"
         assert dev.manufacturer == "OPUS"
@@ -543,7 +656,7 @@ class TestFinalizeDiscovery:
 
         coord._finalize_discovery()
 
-        dev = coord.devices["Dimmer"]
+        dev = coord.devices["DEV1"]
         ch = dev.channels[0]
         assert ch.is_on is True
         assert ch.brightness == 60
@@ -561,14 +674,14 @@ class TestFinalizeDiscovery:
 
         coord._finalize_discovery()
 
-        dev = coord.devices["Switch"]
+        dev = coord.devices["DEV1"]
         assert dev.primary_eep == "D2-01-00"
 
     def test_discovery_rekeys_cached_telegram_device_by_device_id(self, coord):
         """Discovery metadata merges with an earlier telegram-only device."""
         cached = EnOceanDevice(device_id="DEV1", friendly_id="Temporary Name")
         cached.update_from_telegram({"functions": [{"key": "switch", "value": "on"}]})
-        coord.devices["Temporary Name"] = cached
+        coord.devices["DEV1"] = cached
         coord._device_data["DEV1"] = {
             "deviceId": "DEV1",
             "friendlyId": "Final Name",
@@ -581,7 +694,7 @@ class TestFinalizeDiscovery:
         ) as mock_dispatch:
             coord._finalize_discovery()
 
-        assert "Temporary Name" not in coord.devices
-        assert "Final Name" in coord.devices
-        assert coord.devices["Final Name"].channels[0].is_on is True
+        assert list(coord.devices) == ["DEV1"]
+        assert coord.devices["DEV1"].friendly_id == "Final Name"
+        assert coord.devices["DEV1"].channels[0].is_on is True
         mock_dispatch.assert_called_once()

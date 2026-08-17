@@ -22,10 +22,10 @@ A custom Home Assistant integration for the Opus GreenNet Bridge, enabling contr
 
 - **Auto-discovery**: Automatically discovers EnOcean devices connected to your Opus GreenNet Bridge
 - **Real-time updates**: Receives state changes via MQTT push notifications, including device deltas, local-control telegrams, and bridge-originated command telegrams
-- **State reconciliation**: Optimistic command updates are followed by delayed status checks so later confirmed bridge state can correct failed commands
+- **State reconciliation**: Optimistic command updates are followed by channel-specific status checks, and bridge command errors are retained in downloadable diagnostics
 - **Bidirectional control**: Send commands to actuators (lights, switches, covers, thermostats)
 - **Climate control**: HeatArea thermostat support for Valve, CosiTherm, and Electro Heating areas
-- **Sensors**: Humidity, temperature, energy consumption, and signal strength monitoring
+- **Sensors**: Humidity, temperature, power consumption, and signal strength monitoring
 - **Binary sensors**: Window open detection, actuator error states, battery monitoring
 - **Events**: Per-button rocker switch press/release events (`buttonA0`, `buttonAI`, `buttonB0`, `buttonBI`, `multipleButtons`)
 - **Device services**: ReCom API access for advanced device configuration and diagnostics
@@ -39,7 +39,7 @@ A custom Home Assistant integration for the Opus GreenNet Bridge, enabling contr
 | **Switch** | D2-01-00, D2-01-01, D2-01-04, D2-01-05, D2-01-08, D2-01-09, D2-01-0C, D2-01-0D, D2-01-0E, D2-01-11 | On/Off switches and actuators |
 | **Cover** | D2-05-00, D2-05-01, D2-05-02 | Blinds, shades, and shutters |
 | **Climate** | D1-4B-05, D1-4B-06, D1-4B-07 | OPUS HeatArea thermostats (Valve, CosiTherm, Electro Heating) |
-| **Sensor** | _(from climate devices)_ | Humidity, feed temperature, energy consumption, signal strength |
+| **Sensor** | _(from climate devices)_ | Humidity, feed temperature, power consumption, signal strength |
 | **Binary Sensor** | _(from climate devices)_ | Window open, actuator errors, battery low |
 | **Event** | F6-02-01, F6-02-02, F6-02-03, F6-03-01, F6-03-02 | Rocker switch press/release events, per button (`buttonA0_pressed`, `buttonA0_released`, …, `multipleButtons_released`) with `button` and `action` event attributes |
 
@@ -118,6 +118,9 @@ If you see messages when triggering EnOcean devices, the bridge is working.
    `https://github.com/kegelmeier/ha-opus-greennet`, choose **Integration**, and add it.
 3. Search for **Opus GreenNet Bridge**, install, and **restart Home Assistant**.
 
+Home Assistant 2026.8 or newer is required. To test a beta, enable pre-release
+versions for this repository in HACS before selecting the beta version.
+
 ### Manual Installation
 
 1. Copy the `custom_components/opus_greennet` folder to your Home Assistant's `custom_components` directory
@@ -136,7 +139,8 @@ After installing, add the integration:
 
 ## Services
 
-The integration exposes the following services for advanced device management, accessible via **Developer Tools** → **Services**:
+The integration exposes the following administrator-only actions for advanced
+device management, accessible via **Developer Tools** → **Actions**:
 
 | Service | Parameters | Description |
 |---------|-----------|-------------|
@@ -145,7 +149,9 @@ The integration exposes the following services for advanced device management, a
 | `opus_greennet.get_device_parameters` | `device_id` | Retrieve DDF parameters for an EnOcean device via ReCom API |
 | `opus_greennet.reload_entry` | _(optional)_ `config_entry_id` | Re-run integration setup/teardown without restarting HA |
 
-The `device_id` is the EURID of the target device (e.g., `01A02F6C`). An optional `config_entry_id` parameter is available if you have multiple gateways.
+The `device_id` is the EURID of the target device (e.g., `01A02F6C`). Select a
+gateway when more than one Opus GreenNet config entry is loaded. The two read
+actions return their response data directly in Home Assistant.
 
 ## MQTT Topic Structure
 
@@ -201,6 +207,27 @@ logger:
     custom_components.opus_greennet: debug
 ```
 
+### Debug update lag
+
+When debug logging is enabled, state updates include latency markers for the
+main handoff points:
+
+- `OPUS update latency received`: MQTT message reached the integration
+- `OPUS update latency finalized`: debounced MQTT fragments were converted into state functions
+- `OPUS update latency dispatch`: the coordinator notified Home Assistant entities
+- `OPUS update latency entity_write`: the entity wrote its Home Assistant state
+
+Download a redacted diagnostic report from **Settings → Devices & services →
+Opus GreenNet Bridge → three-dot menu → Download diagnostics**. It includes the
+gateway status, discovered devices, channel state, last update source, and the
+latest bridge command error without adding volatile diagnostic fields to every
+entity state.
+
+For local switch tests, press the physical control and compare the time between
+`received`, `dispatch`, and `entity_write`. If `received` is already delayed, the
+lag is before this integration. If `received` is fast but `entity_write` is slow,
+the lag is inside Home Assistant or this integration.
+
 ## Development
 
 ### Project Structure
@@ -213,6 +240,8 @@ custom_components/opus_greennet/
 ├── const.py              # Constants, EEP mappings, and MQTT topics
 ├── coordinator.py        # MQTT communication, discovery, and commands
 ├── enocean_device.py     # Device and channel data model
+├── entity.py             # Shared entity and device-registry behavior
+├── diagnostics.py        # Redacted integration diagnostics
 ├── light.py              # Light entity platform
 ├── switch.py             # Switch entity platform
 ├── cover.py              # Cover entity platform
@@ -221,7 +250,6 @@ custom_components/opus_greennet/
 ├── binary_sensor.py      # Binary sensor entity platform
 ├── event.py              # Event entity platform (rocker switches)
 ├── services.yaml         # HA service definitions
-├── strings.json          # UI strings
 └── translations/
     └── en.json           # English translations
 tests/
@@ -236,11 +264,16 @@ tests/
 ### Testing
 
 ```bash
-pip install -r requirements_test.txt
-pytest -v
+python -m pip install -r requirements_test.txt
+ruff check .
+ruff format --check .
+pytest -v --cov
 ```
 
-187 tests run in under 2s, covering device properties, telegram parsing, command building, MQTT finalization, rocker switch events, and config flow validation.
+Tests cover device properties, telegram parsing, ordered multi-channel command
+building, MQTT finalization, gateway errors, entity behavior, rocker switch
+events, diagnostics, and config flow validation. CI validates against the latest
+supported Home Assistant release and also runs Hassfest.
 
 ## References
 
@@ -259,7 +292,7 @@ Released under the [MIT License](LICENSE).
 [release-shield]: https://img.shields.io/github/v/release/kegelmeier/ha-opus-greennet?style=for-the-badge
 [license]: https://github.com/kegelmeier/ha-opus-greennet/blob/main/LICENSE
 [license-shield]: https://img.shields.io/github/license/kegelmeier/ha-opus-greennet?style=for-the-badge
-[ha-shield]: https://img.shields.io/badge/Home%20Assistant-2023.1%2B-41BDF5.svg?style=for-the-badge&logo=home-assistant&logoColor=white
+[ha-shield]: https://img.shields.io/badge/Home%20Assistant-2026.8%2B-41BDF5.svg?style=for-the-badge&logo=home-assistant&logoColor=white
 [hacs-repo]: https://my.home-assistant.io/redirect/hacs_repository/?owner=kegelmeier&repository=ha-opus-greennet&category=integration
 [hacs-repo-badge]: https://my.home-assistant.io/badges/hacs_repository.svg
 [config-flow]: https://my.home-assistant.io/redirect/config_flow_start/?domain=opus_greennet

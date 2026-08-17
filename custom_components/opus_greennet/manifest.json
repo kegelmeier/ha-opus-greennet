@@ -1,13 +1,13 @@
 {
   "domain": "opus_greennet",
   "name": "Opus GreenNet Bridge",
-  "version": "0.2.1",
-  "config_flow": true,
-  "documentation": "https://github.com/kegelmeier/ha-opus-greennet",
-  "issue_tracker": "https://github.com/kegelmeier/ha-opus-greennet/issues",
   "codeowners": ["@kegelmeier"],
+  "config_flow": true,
   "dependencies": ["mqtt"],
-  "requirements": [],
+  "documentation": "https://github.com/kegelmeier/ha-opus-greennet",
+  "integration_type": "hub",
   "iot_class": "local_push",
-  "integration_type": "hub"
+  "issue_tracker": "https://github.com/kegelmeier/ha-opus-greennet/issues",
+  "requirements": [],
+  "version": "0.2.1"
 }

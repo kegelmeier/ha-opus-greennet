@@ -3,85 +3,155 @@
     "step": {
       "user": {
         "title": "Opus GreenNet Bridge",
-        "description": "Configure your Opus GreenNet Bridge connection. The bridge must be connected to your MQTT broker.",
+        "description": "Configure the bridge connected to your MQTT broker.",
         "data": {
-          "eag_id": "EAG Identifier (Bridge ID)"
+          "eag_id": "EAG identifier"
         },
         "data_description": {
-          "eag_id": "The unique identifier of your Opus GreenNet Bridge (e.g., 050B4DFA). This is used in the MQTT topic structure."
+          "eag_id": "The eight-character bridge identifier used in MQTT topics, for example 050B4DFA."
         }
       }
     },
     "error": {
-      "cannot_connect": "Failed to connect to MQTT broker",
-      "invalid_eag_id": "Invalid EAG Identifier format",
-      "already_configured": "This bridge is already configured"
+      "cannot_connect": "Failed to connect to the MQTT broker",
+      "invalid_eag_id": "The EAG identifier must contain exactly eight hexadecimal characters",
+      "unknown": "Unexpected error"
     },
     "abort": {
       "already_configured": "This bridge is already configured",
-      "mqtt_not_configured": "MQTT integration is not configured. Please set up MQTT first."
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Opus GreenNet Options",
-        "data": {
-          "scan_interval": "Device scan interval (seconds)"
-        }
-      }
+      "mqtt_not_configured": "Set up and connect the MQTT integration before adding this bridge"
     }
   },
   "entity": {
-    "light": {
-      "opus_light": {
-        "name": "Light"
-      }
-    },
-    "switch": {
-      "opus_switch": {
-        "name": "Switch"
+    "binary_sensor": {
+      "actuator_battery": {
+        "name": "Actuator battery"
+      },
+      "actuator_deactivated": {
+        "name": "Actuator deactivated"
+      },
+      "actuator_not_responding": {
+        "name": "Actuator not responding"
+      },
+      "circuit_in_use": {
+        "name": "Circuit in use"
+      },
+      "missing_temperature": {
+        "name": "Missing temperature"
+      },
+      "window": {
+        "name": "Window"
       }
     },
     "cover": {
-      "opus_cover": {
-        "name": "Cover"
+      "channel": {
+        "name": "Channel {channel}"
       }
     },
-    "climate": {
-      "opus_climate": {
-        "name": "Climate"
+    "light": {
+      "channel": {
+        "name": "Channel {channel}"
       }
     },
     "sensor": {
-      "opus_humidity": {
+      "feed_temperature": {
+        "name": "Feed temperature"
+      },
+      "humidity": {
         "name": "Humidity"
       },
-      "opus_feed_temperature": {
-        "name": "Feed Temperature"
+      "power_consumption": {
+        "name": "Power consumption"
       },
-      "opus_energy_consumption": {
-        "name": "Energy Consumption"
-      },
-      "opus_signal_strength": {
-        "name": "Signal Strength"
+      "signal_strength": {
+        "name": "Signal strength"
       }
     },
-    "binary_sensor": {
-      "opus_window": {
-        "name": "Window"
-      },
-      "opus_problem": {
-        "name": "Problem"
-      },
-      "opus_battery": {
-        "name": "Battery"
+    "switch": {
+      "channel": {
+        "name": "Channel {channel}"
       }
+    }
+  },
+  "exceptions": {
+    "config_entry_not_found": {
+      "message": "No Opus GreenNet config entry exists with ID {config_entry_id}."
     },
-    "event": {
-      "opus_event": {
-        "name": "Rocker Switch"
-      }
+    "config_entry_not_loaded": {
+      "message": "The Opus GreenNet config entry {config_entry_id} is not loaded."
+    },
+    "config_entry_required": {
+      "message": "Select a gateway because more than one Opus GreenNet config entry is loaded."
+    },
+    "device_not_found": {
+      "message": "Device {device_id} was not discovered on the selected gateway."
+    },
+    "device_request_timeout": {
+      "message": "The gateway did not answer the request for device {device_id}."
+    },
+    "mqtt_setup_failed": {
+      "message": "Could not subscribe to or publish on MQTT."
+    },
+    "no_loaded_config_entry": {
+      "message": "No Opus GreenNet gateway is loaded."
+    }
+  },
+  "services": {
+    "get_device_configuration": {
+      "description": "Retrieves the stored configuration for an EnOcean device through the ReCom API.",
+      "fields": {
+        "config_entry_id": {
+          "description": "Gateway to use. Select one when more than one gateway is loaded.",
+          "name": "Gateway"
+        },
+        "device_id": {
+          "description": "EURID of the EnOcean device.",
+          "name": "Device ID"
+        }
+      },
+      "name": "Get device configuration"
+    },
+    "get_device_parameters": {
+      "description": "Retrieves DDF parameters for an EnOcean device through the ReCom API.",
+      "fields": {
+        "config_entry_id": {
+          "description": "Gateway to use. Select one when more than one gateway is loaded.",
+          "name": "Gateway"
+        },
+        "device_id": {
+          "description": "EURID of the EnOcean device.",
+          "name": "Device ID"
+        }
+      },
+      "name": "Get device parameters"
+    },
+    "reload_entry": {
+      "description": "Reloads one gateway, or every loaded Opus GreenNet gateway when none is selected.",
+      "fields": {
+        "config_entry_id": {
+          "description": "Gateway to reload. Leave empty to reload all gateways.",
+          "name": "Gateway"
+        }
+      },
+      "name": "Reload integration"
+    },
+    "set_device_configuration": {
+      "description": "Writes configuration to an EnOcean device through the ReCom API.",
+      "fields": {
+        "config_entry_id": {
+          "description": "Gateway to use. Select one when more than one gateway is loaded.",
+          "name": "Gateway"
+        },
+        "configuration": {
+          "description": "Configuration object to write to the device.",
+          "name": "Configuration"
+        },
+        "device_id": {
+          "description": "EURID of the EnOcean device.",
+          "name": "Device ID"
+        }
+      },
+      "name": "Set device configuration"
     }
   }
 }

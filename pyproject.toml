@@ -1,5 +1,25 @@
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 pythonpath = ["."]
 norecursedirs = [".git", "custom_components"]
+
+[tool.coverage.run]
+branch = true
+source = ["custom_components.opus_greennet"]
+
+[tool.coverage.report]
+exclude_also = [
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+]
+show_missing = true
+fail_under = 75
+
+[tool.ruff]
+target-version = "py314"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]

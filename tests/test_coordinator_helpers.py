@@ -1,10 +1,11 @@
 """Tests for coordinator pure helper functions and command building."""
+
 from __future__ import annotations
 
 import pytest
 
 from custom_components.opus_greennet.coordinator import OpusGreenNetCoordinator
-
+from custom_components.opus_greennet.enocean_device import EnOceanDevice
 
 # ── _parse_value ───────────────────────────────────────────────────────
 
@@ -106,7 +107,7 @@ class TestSetNestedProperty:
         self.coord._set_nested_property(data, "state/functions/0/key", "switch")
         self.coord._set_nested_property(data, "state/functions/0/value", "on")
         assert data["state"]["functions"][0]["key"] == "switch"
-        # "on" stays as string (not parsed to bool) because _parse_value treats it as string
+        # "on" stays a string because _parse_value only recognizes true/false.
         assert data["state"]["functions"][0]["value"] == "on"
 
     def test_deeply_nested(self):
@@ -143,7 +144,9 @@ class TestCommandBuilding:
 
     @pytest.mark.asyncio
     async def test_turn_on_dimmer_with_brightness(self, coordinator):
-        await coordinator.async_turn_on("DEV1", channel=0, brightness=50, is_dimmable=True)
+        await coordinator.async_turn_on(
+            "DEV1", channel=0, brightness=50, is_dimmable=True
+        )
         coordinator.async_send_command.assert_called_once_with(
             "DEV1", [{"key": "dimValue", "value": "50"}]
         )
@@ -167,16 +170,23 @@ class TestCommandBuilding:
         await coordinator.async_turn_on("DEV1", channel=2)
         coordinator.async_send_command.assert_called_once_with(
             "DEV1",
-            [{"key": "switch", "value": "on"}, {"key": "channel", "value": "2"}],
+            [{"key": "channel", "value": "2"}, {"key": "switch", "value": "on"}],
         )
 
     @pytest.mark.asyncio
-    async def test_turn_on_channel_zero_no_channel_key(self, coordinator):
+    async def test_turn_on_channel_zero_includes_selector_for_multi_channel_device(
+        self, coordinator
+    ):
+        coordinator.devices["DEV1"] = EnOceanDevice(
+            device_id="DEV1",
+            friendly_id="Two-channel switch",
+            eeps=[{"eep": "D2-01-11"}],
+        )
         await coordinator.async_turn_on("DEV1", channel=0)
-        args = coordinator.async_send_command.call_args[0]
-        functions = args[1]
-        keys = [f["key"] for f in functions]
-        assert "channel" not in keys
+        coordinator.async_send_command.assert_called_once_with(
+            "DEV1",
+            [{"key": "channel", "value": "0"}, {"key": "switch", "value": "on"}],
+        )
 
     @pytest.mark.asyncio
     async def test_set_cover_position(self, coordinator):

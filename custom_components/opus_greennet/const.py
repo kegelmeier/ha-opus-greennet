@@ -1,4 +1,5 @@
 """Constants for the Opus GreenNet Bridge integration."""
+
 from __future__ import annotations
 
 from typing import Final
@@ -14,6 +15,7 @@ TOPIC_STREAM_TELEGRAM: Final = "{base}/{eag_id}/stream/telegram/{device_id}/from
 TOPIC_STREAM_TELEGRAM_TO: Final = "{base}/{eag_id}/stream/telegram/{device_id}/to"
 TOPIC_STREAM_DEVICE: Final = "{base}/{eag_id}/stream/device/{device_id}"
 TOPIC_PUT_STATE: Final = "{base}/{eag_id}/put/devices/{device_id}/state"
+TOPIC_SUB_PUT_ANSWER_STATE: Final = "{base}/{eag_id}/putAnswer/devices/+/state"
 TOPIC_GET_DEVICES: Final = "{base}/{eag_id}/get/devices"
 TOPIC_GET_ANSWER_DEVICES: Final = "{base}/{eag_id}/getAnswer/devices/#"
 TOPIC_GET_DEVICE_PROFILE: Final = "{base}/{eag_id}/get/devices/{device_id}/profile"
@@ -53,9 +55,7 @@ TOPIC_PUT_ANSWER_LINK_TABLES: Final = (
 TOPIC_GET_SYSTEM_INFO: Final = "{base}/{eag_id}/get/config/system/info"
 TOPIC_GET_ANSWER_SYSTEM_INFO: Final = "{base}/{eag_id}/getAnswer/config/system/info"
 TOPIC_GET_SYSTEM_UPTIME: Final = "{base}/{eag_id}/get/config/system/uptime"
-TOPIC_GET_ANSWER_SYSTEM_UPTIME: Final = (
-    "{base}/{eag_id}/getAnswer/config/system/uptime"
-)
+TOPIC_GET_ANSWER_SYSTEM_UPTIME: Final = "{base}/{eag_id}/getAnswer/config/system/uptime"
 
 # Subscription patterns (with wildcards)
 TOPIC_SUB_TELEGRAM_FROM: Final = "{base}/{eag_id}/stream/telegram/+/from"
@@ -118,17 +118,6 @@ ENTITY_PLATFORMS: Final = {
     "climate": "climate",
     "event": "event",
 }
-
-# Supported platforms for this integration
-PLATFORMS: Final = [
-    "light",
-    "switch",
-    "cover",
-    "climate",
-    "sensor",
-    "binary_sensor",
-    "event",
-]
 
 # Function keys used in EnOcean telegrams
 KEY_SWITCH: Final = "switch"
@@ -193,29 +182,31 @@ HEATER_MODE_ERROR: Final = "error"
 DEFAULT_CHANNEL: Final = 0
 
 # All known state keys for initial state application
-KNOWN_STATE_KEYS: Final = frozenset({
-    "switch",
-    "dimValue",
-    "position",
-    "angle",
-    "localControl",
-    "energy",
-    "power",
-    "temperature",
-    "temperatureSetpoint",
-    "heaterMode",
-    "humidity",
-    "windowOpen",
-    "summerMode",
-    "feedTemperature",
-    "thermalMode",
-    "energyConsumption",
-    "powerState",
-    "temperatureOrigin",
-    "actuatorDeactivated",
-    "actuatorLowBattery",
-    "actuatorNotResponding",
-    "missingTemperature",
-    "circuitInUse",
-    *BUTTON_KEYS,
-})
+KNOWN_STATE_KEYS: Final = frozenset(
+    {
+        "switch",
+        "dimValue",
+        "position",
+        "angle",
+        "localControl",
+        "energy",
+        "power",
+        "temperature",
+        "temperatureSetpoint",
+        "heaterMode",
+        "humidity",
+        "windowOpen",
+        "summerMode",
+        "feedTemperature",
+        "thermalMode",
+        "energyConsumption",
+        "powerState",
+        "temperatureOrigin",
+        "actuatorDeactivated",
+        "actuatorLowBattery",
+        "actuatorNotResponding",
+        "missingTemperature",
+        "circuitInUse",
+        *BUTTON_KEYS,
+    }
+)

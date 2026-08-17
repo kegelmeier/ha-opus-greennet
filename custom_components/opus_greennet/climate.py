@@ -1,7 +1,7 @@
 """Climate platform for Opus GreenNet Bridge integration."""
+
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 from homeassistant.components.climate import (
@@ -10,31 +10,29 @@ from homeassistant.components.climate import (
     HVACAction,
     HVACMode,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import CONF_EAG_ID, DEFAULT_CHANNEL, DOMAIN
+from . import OpusGreenNetConfigEntry
+from .const import CONF_EAG_ID, DEFAULT_CHANNEL
 from .coordinator import (
     SIGNAL_DEVICE_DISCOVERED,
-    SIGNAL_DEVICE_STATE_UPDATE,
     OpusGreenNetCoordinator,
 )
 from .enocean_device import EnOceanDevice
-
-_LOGGER = logging.getLogger(__name__)
+from .entity import OpusGreenNetEntity
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: OpusGreenNetConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Opus GreenNet climate entities from a config entry."""
-    coordinator: OpusGreenNetCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data.coordinator
+    gateway_device_id = entry.runtime_data.gateway_device_id
     eag_id = entry.data[CONF_EAG_ID]
 
     @callback
@@ -43,16 +41,11 @@ async def async_setup_entry(
         if device.entity_type != "climate":
             return
 
-        _LOGGER.debug(
-            "Adding climate entity for device: %s (%s)",
-            device.friendly_id,
-            device.device_id,
-        )
-
         entities = [
             OpusGreenNetClimate(
                 coordinator=coordinator,
                 eag_id=eag_id,
+                gateway_device_id=gateway_device_id,
                 device=device,
             )
         ]
@@ -72,7 +65,7 @@ async def async_setup_entry(
         async_add_climate(device)
 
 
-class OpusGreenNetClimate(ClimateEntity):
+class OpusGreenNetClimate(OpusGreenNetEntity, ClimateEntity):
     """Representation of an Opus GreenNet HeatArea climate device."""
 
     _attr_has_entity_name = True
@@ -80,19 +73,16 @@ class OpusGreenNetClimate(ClimateEntity):
     _attr_min_temp = 0
     _attr_max_temp = 40
     _attr_supported_features = ClimateEntityFeature.TARGET_TEMPERATURE
-    _enable_turn_on_off_backwards_compat = False
 
     def __init__(
         self,
         coordinator: OpusGreenNetCoordinator,
         eag_id: str,
+        gateway_device_id: str,
         device: EnOceanDevice,
     ) -> None:
         """Initialize the climate entity."""
-        self._coordinator = coordinator
-        self._eag_id = eag_id
-        self._device = device
-        self._device_key = device.friendly_id or device.device_id
+        super().__init__(coordinator, eag_id, gateway_device_id, device)
 
         self._attr_unique_id = f"{eag_id}_{device.device_id}"
         self._attr_name = None  # Use device name
@@ -107,17 +97,6 @@ class OpusGreenNetClimate(ClimateEntity):
         else:
             # D1-4B-05 (Valve) and D1-4B-07 (Electro) are heat-only
             self._attr_hvac_modes = [HVACMode.HEAT, HVACMode.OFF]
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return device info."""
-        return DeviceInfo(
-            identifiers={(DOMAIN, f"{self._eag_id}_{self._device.device_id}")},
-            name=self._device.friendly_id or self._device.device_id,
-            manufacturer=self._device.manufacturer or "OPUS / EnOcean",
-            model=self._device.primary_eep or "Unknown",
-            via_device=(DOMAIN, self._eag_id),
-        )
 
     @property
     def current_temperature(self) -> float | None:
@@ -140,7 +119,7 @@ class OpusGreenNetClimate(ClimateEntity):
         return None
 
     @property
-    def hvac_mode(self) -> HVACMode:
+    def hvac_mode(self) -> HVACMode | None:
         """Return the current HVAC mode."""
         channel = self._device.channels.get(DEFAULT_CHANNEL)
         if not channel or not channel.heater_mode:
@@ -175,53 +154,6 @@ class OpusGreenNetClimate(ClimateEntity):
             return HVACAction.OFF
         return None
 
-    @property
-    def available(self) -> bool:
-        """Return if entity is available."""
-        return True
-
-    @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        """Return extra state attributes."""
-        channel = self._device.channels.get(DEFAULT_CHANNEL)
-        attrs: dict[str, Any] = {}
-        if not channel:
-            return attrs
-
-        if channel.window_open is not None:
-            attrs["window_open"] = channel.window_open
-        if channel.summer_mode is not None:
-            attrs["summer_mode"] = channel.summer_mode
-        if channel.feed_temperature is not None:
-            attrs["feed_temperature"] = channel.feed_temperature
-        if channel.thermal_mode is not None:
-            attrs["thermal_mode"] = channel.thermal_mode
-        if channel.energy_consumption is not None:
-            attrs["energy_consumption"] = channel.energy_consumption
-        if channel.power_state is not None:
-            attrs["power_state"] = channel.power_state
-        if channel.temperature_origin is not None:
-            attrs["temperature_origin"] = channel.temperature_origin
-        if channel.heater_mode is not None:
-            attrs["heater_mode"] = channel.heater_mode
-
-        # Error states (only show active errors, not "reset")
-        if channel.actuator_deactivated and channel.actuator_deactivated != "reset":
-            attrs["actuator_deactivated"] = channel.actuator_deactivated
-        if channel.actuator_low_battery and channel.actuator_low_battery != "reset":
-            attrs["actuator_low_battery"] = channel.actuator_low_battery
-        if (
-            channel.actuator_not_responding
-            and channel.actuator_not_responding != "reset"
-        ):
-            attrs["actuator_not_responding"] = channel.actuator_not_responding
-        if channel.missing_temperature and channel.missing_temperature != "reset":
-            attrs["missing_temperature"] = channel.missing_temperature
-        if channel.circuit_in_use and channel.circuit_in_use != "reset":
-            attrs["circuit_in_use"] = channel.circuit_in_use
-
-        return attrs
-
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set new target temperature."""
         temperature = kwargs.get(ATTR_TEMPERATURE)
@@ -245,19 +177,3 @@ class OpusGreenNetClimate(ClimateEntity):
             await self._coordinator.async_set_climate_mode(
                 self._device.device_id, mode_value
             )
-
-    async def async_added_to_hass(self) -> None:
-        """Register callbacks when entity is added."""
-        self.async_on_remove(
-            async_dispatcher_connect(
-                self.hass,
-                f"{SIGNAL_DEVICE_STATE_UPDATE}_{self._eag_id}_{self._device_key}",
-                self._handle_state_update,
-            )
-        )
-
-    @callback
-    def _handle_state_update(self, device: EnOceanDevice) -> None:
-        """Handle state update from coordinator."""
-        self._device = device
-        self.async_write_ha_state()
