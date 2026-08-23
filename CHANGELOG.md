@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2026-08-23
+
+### Added
+- **Downloadable diagnostics**: Home Assistant diagnostics now include redacted gateway details, discovered devices, channel state, update sources, and the latest bridge command error.
+- **Update latency tracing**: Debug logs identify MQTT receipt, message finalization, dispatcher notification, and entity state-write timing.
+
+### Fixed
+- **Multi-channel actuator control** (#20): Commands include the mandatory channel selector, including channel 0, and state reconciliation remains isolated per channel.
+- **Home Assistant device-registry compatibility** (#21): Child devices link to the gateway through `via_device_id`, replacing the API scheduled for removal in Home Assistant 2027.8.
+- **Gateway command acknowledgements**: Successful OPUS responses with HTTP status 200 or 201 are accepted, while real errors remain visible in diagnostics.
+- **Legacy multi-channel entities**: Obsolete aggregate switch and light registry entries are migrated or removed after restart.
+- **Discovery and lifecycle reliability**: Device identity, wrapped discovery responses, MQTT failures, subscriptions, timers, and temporary callbacks are handled consistently.
+
+### Changed
+- **Minimum Home Assistant version**: Home Assistant 2026.8 or newer is now required.
+- **Quality gates**: CI tests Home Assistant 2026.8.2 on Python 3.14 and enforces Ruff, Hassfest, and at least 75% test coverage.
+
 ## [0.3.0b1] - 2026-08-17
 
 ### Fixed
