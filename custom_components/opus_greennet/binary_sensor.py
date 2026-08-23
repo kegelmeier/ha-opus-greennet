@@ -34,10 +34,22 @@ async def async_setup_entry(
     @callback
     def async_add_binary_sensors(device: EnOceanDevice) -> None:
         """Add binary sensor entities for a discovered device."""
-        if not device.is_climate:
-            return
-
         entities: list[BinarySensorEntity] = []
+
+        if device.primary_eep == "F6-05-01":
+            entities.append(
+                OpusGreenNetMoistureSensor(
+                    coordinator=coordinator,
+                    eag_id=eag_id,
+                    gateway_device_id=gateway_device_id,
+                    device=device,
+                )
+            )
+
+        if not device.is_climate:
+            if entities:
+                async_add_entities(entities)
+            return
 
         # Window open (all HeatArea types)
         entities.append(
@@ -172,6 +184,37 @@ class OpusGreenNetWindowSensor(OpusGreenNetBaseBinarySensor):
         channel = self._device.channels.get(DEFAULT_CHANNEL)
         if channel:
             return channel.window_open
+        return None
+
+
+class OpusGreenNetMoistureSensor(OpusGreenNetBaseBinarySensor):
+    """Water leak binary sensor for F6-05-01 devices."""
+
+    _attr_device_class = BinarySensorDeviceClass.MOISTURE
+
+    def __init__(
+        self,
+        coordinator: OpusGreenNetCoordinator,
+        eag_id: str,
+        gateway_device_id: str,
+        device: EnOceanDevice,
+    ) -> None:
+        """Initialize the moisture sensor."""
+        super().__init__(
+            coordinator,
+            eag_id,
+            gateway_device_id,
+            device,
+            "liquid_detected",
+            "water_leak",
+        )
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return true when liquid is detected."""
+        channel = self._device.channels.get(DEFAULT_CHANNEL)
+        if channel:
+            return channel.liquid_detected
         return None
 
 

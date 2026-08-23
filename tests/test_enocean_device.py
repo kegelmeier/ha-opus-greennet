@@ -45,6 +45,7 @@ class TestDeviceProperties:
             ("F6-02-01", "event"),
             ("F6-02-02", "event"),
             ("F6-03-01", "event"),
+            ("F6-05-01", "binary_sensor"),
         ],
     )
     def test_entity_type(self, make_device, eep, expected):
@@ -295,6 +296,37 @@ class TestUpdateFromTelegram:
         )
         assert dev.channels[0].energy == 1234.5
         assert dev.channels[0].power == 56.7
+
+    @pytest.mark.parametrize("value", [True, "true", " TRUE "])
+    def test_liquid_detected(self, make_telegram, value):
+        dev = self._device()
+        dev.update_from_telegram(
+            make_telegram([{"key": "liquidDetected", "value": value}])
+        )
+        assert dev.channels[0].liquid_detected is True
+
+    @pytest.mark.parametrize("value", [False, "false", " FALSE "])
+    def test_liquid_cleared(self, make_telegram, value):
+        dev = self._device()
+        dev.update_from_telegram(
+            make_telegram([{"key": "liquidDetected", "value": value}])
+        )
+        assert dev.channels[0].liquid_detected is False
+
+    def test_invalid_liquid_value_preserves_last_valid_state(self, make_telegram):
+        dev = self._device()
+        dev.update_from_telegram(
+            make_telegram([{"key": "liquidDetected", "value": True}])
+        )
+        dev.update_from_telegram(
+            make_telegram([{"key": "liquidDetected", "value": "unknown"}])
+        )
+        assert dev.channels[0].liquid_detected is True
+
+    def test_invalid_initial_liquid_value_remains_unknown(self, make_telegram):
+        dev = self._device()
+        dev.update_from_telegram(make_telegram([{"key": "liquidDetected", "value": 1}]))
+        assert dev.channels[0].liquid_detected is None
 
     def test_multi_channel_routing(self, make_telegram):
         dev = self._device()

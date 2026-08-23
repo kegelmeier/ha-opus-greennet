@@ -39,6 +39,9 @@
       "missing_temperature": {
         "name": "Missing temperature"
       },
+      "water_leak": {
+        "name": "Water leak"
+      },
       "window": {
         "name": "Window"
       }

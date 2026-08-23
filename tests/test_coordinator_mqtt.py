@@ -55,6 +55,27 @@ class TestFinalizeTelegram:
         assert device.last_update_source == "stream/telegram/from"
         assert device.last_update_dispatched_monotonic is not None
 
+    def test_applies_liquid_detection_from_from_subkey(self, coord):
+        """F6-05-01 telegrams update the moisture state through the live path."""
+        coord._telegram_data["LEAK1"] = {
+            "deviceId": "LEAK1",
+            "from": {
+                "friendlyId": "Utility room leak sensor",
+                "functions": [{"key": "liquidDetected", "value": True}],
+            },
+        }
+        coord.devices["LEAK1"] = EnOceanDevice(
+            device_id="LEAK1",
+            friendly_id="Utility room leak sensor",
+            eeps=[{"eep": "F6-05-01"}],
+        )
+
+        coord._finalize_telegram("LEAK1")
+
+        device = coord.devices["LEAK1"]
+        assert device.channels[0].liquid_detected is True
+        assert device.last_update_source == "stream/telegram/from"
+
     def test_applies_to_only_state_command(self, coord):
         """Outbound command telegrams are used as optimistic state updates."""
         coord._telegram_data["DEV1"] = {
@@ -711,6 +732,22 @@ class TestFinalizeDiscovery:
         ch = dev.channels[0]
         assert ch.is_on is True
         assert ch.brightness == 60
+
+    def test_applies_initial_liquid_state(self, coord):
+        """Discovery restores a valid retained F6-05-01 state."""
+        coord._device_data["LEAK1"] = {
+            "deviceId": "LEAK1",
+            "friendlyId": "Utility room leak sensor",
+            "eeps": [{"eep": "F6-05-01"}],
+            "states": {"liquidDetected": False},
+        }
+        coord._pending_devices.add("LEAK1")
+
+        coord._finalize_discovery()
+
+        device = coord.devices["LEAK1"]
+        assert device.channels[0].liquid_detected is False
+        assert device.last_update_source == "discovery"
 
     def test_eeps_as_dict_from_flattened_mqtt(self, coord):
         """EEPs may arrive as a dict (from _set_nested_property indexing)."""
