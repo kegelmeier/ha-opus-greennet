@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.1b0] - 2026-08-23
+
+### Added
+- **F6-05-01 liquid leakage sensors** (#24): OPUS water sensors now expose a native Home Assistant moisture binary sensor from the EnOcean `liquidDetected` state. The entity remains unknown until the bridge reports an explicit valid wet or clear value, and malformed updates do not overwrite the last valid state.
+
 ## [0.3.0] - 2026-08-23
 
 ### Added
