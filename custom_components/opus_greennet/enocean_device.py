@@ -21,6 +21,7 @@ from .const import (
     KEY_FEED_TEMPERATURE,
     KEY_HEATER_MODE,
     KEY_HUMIDITY,
+    KEY_LIQUID_DETECTED,
     KEY_LOCAL_CONTROL,
     KEY_MISSING_TEMPERATURE,
     KEY_POSITION,
@@ -49,6 +50,7 @@ class EnOceanChannel:
     local_control: bool = False
     energy: float | None = None
     power: float | None = None
+    liquid_detected: bool | None = None
     # Climate fields
     temperature: float | None = None
     temperature_setpoint: float | None = None
@@ -220,6 +222,19 @@ class EnOceanDevice:
             except ValueError, TypeError:
                 return DEFAULT_CHANNEL
 
+    @staticmethod
+    def _parse_boolean(value: Any) -> bool | None:
+        """Parse an explicit boolean without guessing from malformed values."""
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized == "true":
+                return True
+            if normalized == "false":
+                return False
+        return None
+
     def update_from_telegram(self, telegram: dict[str, Any]) -> None:
         """Update device state from a telegram message."""
         functions = telegram.get("functions", [])
@@ -293,6 +308,11 @@ class EnOceanDevice:
                     channel.power = float(value)
                 except ValueError, TypeError:
                     pass
+
+            elif key == KEY_LIQUID_DETECTED:
+                liquid_detected = self._parse_boolean(value)
+                if liquid_detected is not None:
+                    channel.liquid_detected = liquid_detected
 
             # Climate keys
             elif key == KEY_TEMPERATURE:

@@ -242,3 +242,11 @@ class TestKnownStateKeys:
 
         for key in BUTTON_KEYS:
             assert key in KNOWN_STATE_KEYS, f"{key} missing from KNOWN_STATE_KEYS"
+
+    def test_includes_liquid_detected(self):
+        from custom_components.opus_greennet.const import (
+            KEY_LIQUID_DETECTED,
+            KNOWN_STATE_KEYS,
+        )
+
+        assert KEY_LIQUID_DETECTED in KNOWN_STATE_KEYS

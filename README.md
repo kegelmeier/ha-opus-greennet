@@ -26,7 +26,7 @@ A custom Home Assistant integration for the Opus GreenNet Bridge, enabling contr
 - **Bidirectional control**: Send commands to actuators (lights, switches, covers, thermostats)
 - **Climate control**: HeatArea thermostat support for Valve, CosiTherm, and Electro Heating areas
 - **Sensors**: Humidity, temperature, power consumption, and signal strength monitoring
-- **Binary sensors**: Window open detection, actuator error states, battery monitoring
+- **Binary sensors**: Water leak detection, window open detection, actuator error states, battery monitoring
 - **Events**: Per-button rocker switch press/release events (`buttonA0`, `buttonAI`, `buttonB0`, `buttonBI`, `multipleButtons`)
 - **Device services**: ReCom API access for advanced device configuration and diagnostics
 - **UI Configuration**: Set up via Home Assistant's Integrations page
@@ -40,7 +40,7 @@ A custom Home Assistant integration for the Opus GreenNet Bridge, enabling contr
 | **Cover** | D2-05-00, D2-05-01, D2-05-02 | Blinds, shades, and shutters |
 | **Climate** | D1-4B-05, D1-4B-06, D1-4B-07 | OPUS HeatArea thermostats (Valve, CosiTherm, Electro Heating) |
 | **Sensor** | _(from climate devices)_ | Humidity, feed temperature, power consumption, signal strength |
-| **Binary Sensor** | _(from climate devices)_ | Window open, actuator errors, battery low |
+| **Binary Sensor** | F6-05-01, _(from climate devices)_ | Water leak detection, window open, actuator errors, battery low |
 | **Event** | F6-02-01, F6-02-02, F6-02-03, F6-03-01, F6-03-02 | Rocker switch press/release events, per button (`buttonA0_pressed`, `buttonA0_released`, …, `multipleButtons_released`) with `button` and `action` event attributes |
 
 ## Prerequisites

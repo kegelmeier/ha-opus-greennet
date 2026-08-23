@@ -108,6 +108,8 @@ EEP_MAPPINGS: Final = {
     # 4-Button Switch (F6-03-xx)
     "F6-03-01": ("event", "Rocker Switch, 4 Rocker"),
     "F6-03-02": ("event", "Rocker Switch, 4 Rocker"),
+    # Liquid Leakage Sensor (F6-05-01)
+    "F6-05-01": ("binary_sensor", "Liquid Leakage Sensor"),
 }
 
 # Entity type to platform mapping
@@ -116,6 +118,7 @@ ENTITY_PLATFORMS: Final = {
     "switch": "switch",
     "cover": "cover",
     "climate": "climate",
+    "binary_sensor": "binary_sensor",
     "event": "event",
 }
 
@@ -128,6 +131,7 @@ KEY_CHANNEL: Final = "channel"
 KEY_LOCAL_CONTROL: Final = "localControl"
 KEY_ENERGY: Final = "energy"
 KEY_POWER: Final = "power"
+KEY_LIQUID_DETECTED: Final = "liquidDetected"
 
 # Climate function keys
 KEY_TEMPERATURE: Final = "temperature"
@@ -191,6 +195,7 @@ KNOWN_STATE_KEYS: Final = frozenset(
         "localControl",
         "energy",
         "power",
+        "liquidDetected",
         "temperature",
         "temperatureSetpoint",
         "heaterMode",

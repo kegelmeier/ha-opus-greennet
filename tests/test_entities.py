@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from homeassistant.components.binary_sensor import BinarySensorDeviceClass
 from homeassistant.components.climate import HVACAction, HVACMode
 from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.const import UnitOfPower
@@ -13,6 +14,7 @@ from homeassistant.const import UnitOfPower
 from custom_components.opus_greennet import OpusGreenNetRuntimeData
 from custom_components.opus_greennet.binary_sensor import (
     OpusGreenNetBatterySensor,
+    OpusGreenNetMoistureSensor,
     OpusGreenNetProblemSensor,
     OpusGreenNetWindowSensor,
 )
@@ -275,6 +277,24 @@ def test_binary_sensor_values() -> None:
     assert battery.is_on is False
 
 
+def test_moisture_sensor_values_and_metadata() -> None:
+    coordinator = _coordinator()
+    device = _device("F6-05-01")
+    moisture = OpusGreenNetMoistureSensor(
+        coordinator, EAG_ID, GATEWAY_DEVICE_ID, device
+    )
+
+    assert moisture.is_on is None
+    assert moisture.device_class is BinarySensorDeviceClass.MOISTURE
+    assert moisture.unique_id == f"{EAG_ID}_DEV1_liquid_detected"
+
+    device.channels[0] = EnOceanChannel(channel_id=0, liquid_detected=True)
+    assert moisture.is_on is True
+
+    device.channels[0].liquid_detected = False
+    assert moisture.is_on is False
+
+
 def test_removes_obsolete_aggregate_when_channel_zero_exists() -> None:
     registry = MagicMock()
     registry.async_get_entity_id.side_effect = [
@@ -336,6 +356,7 @@ def test_keeps_single_channel_registry_entity() -> None:
         (async_setup_climate, "D1-4B-06", 1),
         (async_setup_sensors, "D1-4B-07", 3),
         (async_setup_binary_sensors, "D1-4B-05", 5),
+        (async_setup_binary_sensors, "F6-05-01", 1),
         (async_setup_events, "F6-02-01", 1),
     ],
 )
