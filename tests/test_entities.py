@@ -375,3 +375,51 @@ async def test_platform_setup_adds_expected_entities(
     entities = async_add_entities.call_args.args[0]
     assert len(entities) == expected_count
     entry.async_on_unload.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_sensor_setup_deduplicates_discovery_entities() -> None:
+    coordinator = _coordinator()
+    device = _device("D2-01-01")
+    coordinator.devices = {device.device_id: device}
+    entry = _entry(coordinator)
+    async_add_entities = MagicMock()
+
+    with patch(
+        "custom_components.opus_greennet.sensor.async_dispatcher_connect"
+    ) as connect:
+        await async_setup_sensors(MagicMock(), entry, async_add_entities)
+
+    discovery_callback = connect.call_args.args[2]
+    discovery_callback(device)
+
+    async_add_entities.assert_called_once()
+    initial_entities = async_add_entities.call_args.args[0]
+    assert [entity.unique_id for entity in initial_entities] == [
+        f"{EAG_ID}_DEV1_signal_strength"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_sensor_setup_adds_new_types_after_profile_discovery() -> None:
+    coordinator = _coordinator()
+    incomplete_device = _device("D2-01-01")
+    incomplete_device.eeps = []
+    coordinator.devices = {incomplete_device.device_id: incomplete_device}
+    entry = _entry(coordinator)
+    async_add_entities = MagicMock()
+
+    with patch(
+        "custom_components.opus_greennet.sensor.async_dispatcher_connect"
+    ) as connect:
+        await async_setup_sensors(MagicMock(), entry, async_add_entities)
+
+    discovery_callback = connect.call_args.args[2]
+    discovery_callback(_device("D1-4B-05"))
+
+    assert async_add_entities.call_count == 2
+    discovered_entities = async_add_entities.call_args_list[1].args[0]
+    assert {entity.unique_id for entity in discovered_entities} == {
+        f"{EAG_ID}_DEV1_humidity",
+        f"{EAG_ID}_DEV1_feed_temperature",
+    }
