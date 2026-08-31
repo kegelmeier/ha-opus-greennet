@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.2b0] - 2026-08-31
+
+### Fixed
+- **Duplicate signal-strength entities** (#26): Repeated device discovery no longer submits the same sensor unique ID more than once during startup, eliminating Home Assistant duplicate-entity errors while still allowing newly recognized sensor types to be added when device profiles are completed.
+
 ## [0.3.1] - 2026-08-24
 
 ### Added
