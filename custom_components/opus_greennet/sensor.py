@@ -37,6 +37,7 @@ async def async_setup_entry(
     coordinator = entry.runtime_data.coordinator
     gateway_device_id = entry.runtime_data.gateway_device_id
     eag_id = entry.data[CONF_EAG_ID]
+    added_unique_ids: set[str] = set()
 
     @callback
     def async_add_sensors(device: EnOceanDevice) -> None:
@@ -87,8 +88,17 @@ async def async_setup_entry(
             )
         )
 
-        if entities:
-            async_add_entities(entities)
+        new_entities = [
+            entity
+            for entity in entities
+            if entity.unique_id is None or entity.unique_id not in added_unique_ids
+        ]
+        added_unique_ids.update(
+            entity.unique_id for entity in new_entities if entity.unique_id is not None
+        )
+
+        if new_entities:
+            async_add_entities(new_entities)
 
     # Listen for new device discoveries
     entry.async_on_unload(
