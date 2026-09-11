@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.3b0] - 2026-09-11
+
+Beta release for physical-device testing. Existing entity IDs and rocker event names are preserved.
+
+### Fixed
+
+- Setup now verifies that the selected OPUS gateway responds. Broker and gateway outages mark entities unavailable, pending operations stop on disconnect or reload, and reconnection refreshes discovery and displayed state.
+- Commands wait for gateway acknowledgements and report rejection or timeout. Confirmed feedback received while waiting takes precedence over estimated state; accepted commands receive channel-specific status checks.
+- Fixed complete JSON telegram handling and separation of rapid flattened button telegrams. Late device metadata can complete discovery.
+- Unknown device readings remain unknown, explicitly unavailable measurements clear stale values, and invalid values are ignored. Very low nonzero brightness stays on. Climate activity no longer assumes that an enabled zone is actively heating; standard climate on/off/toggle actions are supported.
+- Push entities no longer poll, and reconnecting does not replay rocker events.
+- Diagnostics remove gateway/device identifiers, credentials, names, and identifiers embedded in error data.
+
+### Changed
+
+- README includes scoped, directional Mosquitto routes, an optional bridge-status notification topic, command-delivery limitations, and a physical beta-testing checklist.
+- All 509 automated tests pass on both Home Assistant 2026.8.2 and 2026.9.1, with 88.27% coverage. Tests exercise real Home Assistant configuration, registry, entity, service, reconnect, and unload paths.
+
 ## [0.3.2] - 2026-09-11
 
 ### Fixed
