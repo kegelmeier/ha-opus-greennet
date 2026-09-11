@@ -43,6 +43,11 @@ A custom Home Assistant integration for the Opus GreenNet Bridge, enabling contr
 | **Binary Sensor** | F6-05-01, _(from climate devices)_ | Water leak detection, window open, actuator errors, battery low |
 | **Event** | F6-02-01, F6-02-02, F6-02-03, F6-03-01, F6-03-02 | Rocker switch press/release events, per button (`buttonA0_pressed`, `buttonA0_released`, …, `multipleButtons_released`) with `button` and `action` event attributes |
 
+Cover tilt controls are hidden when the bridge reports `rotationTime` as `0` or
+`noRotation`, as used for plain roller shutters. The integration uses the existing
+device discovery and state updates, without extra configuration queries. When no
+valid rotation time is available, tilt support follows the device's EEP profile.
+
 ## Prerequisites
 
 1. **Home Assistant** with MQTT integration configured (e.g., Mosquitto add-on)

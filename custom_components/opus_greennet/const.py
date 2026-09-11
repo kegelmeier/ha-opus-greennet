@@ -127,6 +127,7 @@ KEY_SWITCH: Final = "switch"
 KEY_DIMMER: Final = "dimValue"
 KEY_POSITION: Final = "position"
 KEY_ANGLE: Final = "angle"
+KEY_ROTATION_TIME: Final = "rotationTime"
 KEY_CHANNEL: Final = "channel"
 KEY_LOCAL_CONTROL: Final = "localControl"
 KEY_ENERGY: Final = "energy"
@@ -192,6 +193,7 @@ KNOWN_STATE_KEYS: Final = frozenset(
         "dimValue",
         "position",
         "angle",
+        KEY_ROTATION_TIME,
         "localControl",
         "energy",
         "power",

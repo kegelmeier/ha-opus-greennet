@@ -7,12 +7,15 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from homeassistant.components.cover import CoverEntityFeature
 
 from custom_components.opus_greennet.coordinator import (
     OUTBOUND_STATE_RECONCILIATION_DELAYS,
+    SIGNAL_DEVICE_STATE_UPDATE,
     TELEGRAM_FINALIZE_DELAY,
     OpusGreenNetCoordinator,
 )
+from custom_components.opus_greennet.cover import OpusGreenNetCover
 from custom_components.opus_greennet.enocean_device import EnOceanDevice
 
 
@@ -786,3 +789,336 @@ class TestFinalizeDiscovery:
         assert coord.devices["DEV1"].friendly_id == "Final Name"
         assert coord.devices["DEV1"].channels[0].is_on is True
         mock_dispatch.assert_called_once()
+
+
+@pytest.fixture
+def cover_with_pending_movement(coord):
+    """A cover awaiting movement confirmation already has useful live state."""
+    device = EnOceanDevice(
+        device_id="DEV1", friendly_id="Shutter", eeps=[{"eep": "D2-05-00"}]
+    )
+    device.update_from_telegram(
+        {
+            "functions": [
+                {"key": "position", "value": 20},
+                {"key": "angle", "value": 45},
+            ]
+        }
+    )
+    device.last_command_error = "previous movement failed"
+    coord.devices["DEV1"] = device
+    cancel = MagicMock()
+    coord._pending_reconciliation_queries[("DEV1", 0)] = [cancel]
+    return device, cancel
+
+
+class TestCoverRotationMetadata:
+    """Reported rotation settings update covers without confirming movement."""
+
+    @pytest.mark.parametrize(
+        "state_data",
+        [
+            {"states": {"rotationTime": "0", "position": "20"}},
+            {
+                "state": {
+                    "functions": [
+                        {"key": "rotationTime", "value": "noRotation"},
+                        {"key": "position", "value": 20},
+                    ]
+                }
+            },
+            {
+                "state": {
+                    "functions": {
+                        "0": {"key": "rotationTime", "value": 0},
+                        "1": {"key": "position", "value": 20},
+                    }
+                }
+            },
+        ],
+        ids=["flat-states", "function-list", "indexed-functions"],
+    )
+    def test_initial_discovery_applies_rotation_setting(self, coord, state_data):
+        coord._device_data["DEV1"] = {
+            "deviceId": "DEV1",
+            "friendlyId": "Shutter",
+            "eeps": [{"eep": "D2-05-00"}],
+            **state_data,
+        }
+        coord._pending_devices.add("DEV1")
+
+        coord._finalize_discovery()
+
+        device = coord.devices["DEV1"]
+        assert device.channels[0].rotation_time == 0
+        assert device.channels[0].position == 20
+        assert device.supports_tilt is False
+
+    def test_early_live_metadata_survives_discovery(self, coord):
+        coord._device_stream_data["DEV1"] = {
+            "deviceId": "DEV1",
+            "friendlyId": "Shutter",
+            "eeps": [{"eep": "D2-05-00"}],
+            "state": {"functions": [{"key": "rotationTime", "value": "noRotation"}]},
+        }
+
+        with patch("custom_components.opus_greennet.coordinator.async_call_later"):
+            coord._finalize_device_stream("DEV1")
+        coord._finalize_discovery()
+
+        assert coord.devices["DEV1"].supports_tilt is False
+
+    def test_late_cached_setting_updates_existing_cover_without_movement_effects(
+        self, coord, cover_with_pending_movement
+    ):
+        device, cancel = cover_with_pending_movement
+        entity = OpusGreenNetCover(coord, "AABB0011", "gateway", device)
+        entity.async_write_ha_state = MagicMock()
+        tilt_feature = CoverEntityFeature.SET_TILT_POSITION
+        assert entity.supported_features & tilt_feature
+        assert entity.current_cover_tilt_position == 45
+
+        def deliver_state_update(_hass, signal, updated_device):
+            assert signal == f"{SIGNAL_DEVICE_STATE_UPDATE}_AABB0011_DEV1"
+            entity._handle_state_update(updated_device)
+
+        with (
+            patch(
+                "custom_components.opus_greennet.coordinator.async_dispatcher_send",
+                side_effect=deliver_state_update,
+            ) as dispatch,
+            patch(
+                "custom_components.opus_greennet.coordinator.async_call_later"
+            ) as later,
+        ):
+            coord._handle_device_property_message(
+                SimpleNamespace(
+                    topic="EnOcean/AABB0011/stream/devices/DEV1/states/rotationTime",
+                    payload=b"0",
+                )
+            )
+
+            assert not entity.supported_features & tilt_feature
+            assert entity.current_cover_tilt_position is None
+            assert entity.current_cover_position == 80
+            assert coord._device_data["DEV1"]["states"]["rotationTime"] == 0
+
+            coord._handle_device_property_message(
+                SimpleNamespace(
+                    topic="EnOcean/AABB0011/stream/devices/DEV1/states/rotationTime",
+                    payload=b"200",
+                )
+            )
+
+        assert entity.supported_features & tilt_feature
+        assert entity.current_cover_tilt_position == 45
+        assert device.last_command_error == "previous movement failed"
+        assert coord._pending_reconciliation_queries[("DEV1", 0)] == [cancel]
+        assert dispatch.call_count == 2
+        assert entity.async_write_ha_state.call_count == 2
+        cancel.assert_not_called()
+        later.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "state_data",
+        [
+            {"states": {"position": 100, "angle": 0, "rotationTime": 0}},
+            {
+                "state": {
+                    "functions": [
+                        {"key": "position", "value": 100},
+                        {"key": "angle", "value": 0},
+                        {"key": "rotationTime", "value": "noRotation"},
+                    ]
+                }
+            },
+        ],
+        ids=["flat-states", "function-list"],
+    )
+    def test_get_refresh_updates_existing_cover_preserving_live_position(
+        self, coord, cover_with_pending_movement, state_data
+    ):
+        original, cancel = cover_with_pending_movement
+        entity = OpusGreenNetCover(coord, "AABB0011", "gateway", original)
+        entity.async_write_ha_state = MagicMock()
+        payload = {
+            "device": {
+                "deviceId": "DEV1",
+                "friendlyId": "Shutter",
+                "eeps": [{"eep": "D2-05-00"}],
+                **state_data,
+            }
+        }
+
+        with (
+            patch("custom_components.opus_greennet.coordinator.async_call_later"),
+            patch(
+                "custom_components.opus_greennet.coordinator.async_dispatcher_send",
+                side_effect=lambda _hass, _signal, updated: entity._handle_state_update(
+                    updated
+                ),
+            ) as dispatch,
+        ):
+            coord._handle_get_answer_devices(
+                SimpleNamespace(
+                    topic="EnOcean/AABB0011/getAnswer/devices/DEV1",
+                    payload=json.dumps(payload).encode(),
+                )
+            )
+            coord._finalize_discovery()
+
+        updated = coord.devices["DEV1"]
+        assert updated is not original
+        assert entity._device is updated
+        assert updated.channels[0].position == 20
+        assert updated.channels[0].angle == 45
+        assert updated.channels[0].rotation_time == 0
+        assert not entity.supported_features & CoverEntityFeature.SET_TILT_POSITION
+        assert entity.current_cover_tilt_position is None
+        assert coord._device_data["DEV1"] == payload["device"]
+        assert updated.last_command_error == "previous movement failed"
+        assert coord._pending_reconciliation_queries[("DEV1", 0)] == [cancel]
+        cancel.assert_not_called()
+        dispatch.assert_called_once_with(
+            coord.hass, f"{SIGNAL_DEVICE_STATE_UPDATE}_AABB0011_DEV1", updated
+        )
+
+    @pytest.mark.parametrize("rotation_value", [None, "noChange", "invalid"])
+    def test_rediscovery_keeps_known_rotation_when_setting_is_unknown(
+        self, coord, cover_with_pending_movement, rotation_value
+    ):
+        original, _cancel = cover_with_pending_movement
+        original.channels[0].rotation_time = 0
+        data = {
+            "deviceId": "DEV1",
+            "eeps": [{"eep": "D2-05-00"}],
+            "states": {"position": 100},
+        }
+        if rotation_value is not None:
+            data["states"]["rotationTime"] = rotation_value
+
+        coord._create_device_from_data("DEV1", data)
+
+        assert coord.devices["DEV1"].channels[0].rotation_time == 0
+        assert coord.devices["DEV1"].channels[0].position == 20
+
+    @pytest.mark.parametrize(
+        "functions",
+        [
+            [
+                {"key": "channel", "value": "1"},
+                {"key": "rotationTime", "value": 0},
+            ],
+            [{"key": "rotationTime", "value": 0, "channel": 1}],
+        ],
+        ids=["channel-selector", "function-channel"],
+    )
+    def test_rediscovery_refreshes_only_the_reported_channel(
+        self, coord, cover_with_pending_movement, functions
+    ):
+        device, _cancel = cover_with_pending_movement
+        device.get_or_create_channel(1).rotation_time = 200
+        coord._create_device_from_data(
+            "DEV1",
+            {
+                "deviceId": "DEV1",
+                "eeps": [{"eep": "D2-05-00"}],
+                "state": {"functions": functions},
+            },
+        )
+
+        updated = coord.devices["DEV1"]
+        assert updated.supports_tilt_for_channel(0) is True
+        assert updated.supports_tilt_for_channel(1) is False
+        assert updated.channels[0].rotation_time is None
+
+    @pytest.mark.parametrize(
+        "state_data",
+        [
+            {"states": {"rotationTime": 0}},
+            {"state": {"functions": [{"key": "rotationTime", "value": 0}]}},
+        ],
+        ids=["flat-states", "function-list"],
+    )
+    def test_live_rotation_metadata_preserves_pending_movement(
+        self, coord, cover_with_pending_movement, state_data
+    ):
+        device, cancel = cover_with_pending_movement
+        coord._device_stream_data["DEV1"] = {"deviceId": "DEV1", **state_data}
+
+        with (
+            patch(
+                "custom_components.opus_greennet.coordinator.async_call_later"
+            ) as later,
+            patch(
+                "custom_components.opus_greennet.coordinator.async_dispatcher_send"
+            ) as dispatch,
+        ):
+            coord._finalize_device_stream("DEV1")
+
+        assert device.supports_tilt is False
+        assert device.channels[0].position == 20
+        assert device.last_command_error == "previous movement failed"
+        assert coord._pending_reconciliation_queries[("DEV1", 0)] == [cancel]
+        cancel.assert_not_called()
+        later.assert_not_called()
+        dispatch.assert_called_once()
+
+    @pytest.mark.parametrize("direction", ["from", "to"])
+    @pytest.mark.parametrize("rotation_value", ["noRotation", "noChange"])
+    def test_rotation_telegram_does_not_confirm_or_retry_movement(
+        self, coord, cover_with_pending_movement, direction, rotation_value
+    ):
+        device, cancel = cover_with_pending_movement
+        device.channels[0].rotation_time = 0
+        coord._telegram_data["DEV1"] = {
+            "deviceId": "DEV1",
+            direction: {
+                "functions": [{"key": "rotationTime", "value": rotation_value}]
+            },
+        }
+
+        with patch(
+            "custom_components.opus_greennet.coordinator.async_call_later"
+        ) as later:
+            coord._finalize_telegram("DEV1")
+
+        assert device.channels[0].rotation_time == 0
+        assert device.last_command_error == "previous movement failed"
+        assert coord._pending_reconciliation_queries[("DEV1", 0)] == [cancel]
+        cancel.assert_not_called()
+        later.assert_not_called()
+
+    @pytest.mark.parametrize("direction", ["from", "to"])
+    def test_mixed_rotation_and_position_telegram_still_reconciles_movement(
+        self, coord, cover_with_pending_movement, direction
+    ):
+        device, cancel = cover_with_pending_movement
+        coord._telegram_data["DEV1"] = {
+            "deviceId": "DEV1",
+            direction: {
+                "functions": [
+                    {"key": "rotationTime", "value": 0},
+                    {"key": "position", "value": 70},
+                ]
+            },
+        }
+
+        with patch(
+            "custom_components.opus_greennet.coordinator.async_call_later",
+            return_value=MagicMock(),
+        ) as later:
+            coord._finalize_telegram("DEV1")
+
+        assert device.channels[0].rotation_time == 0
+        assert device.channels[0].position == 70
+        cancel.assert_called_once()
+        if direction == "to":
+            assert [call.args[1] for call in later.call_args_list] == list(
+                OUTBOUND_STATE_RECONCILIATION_DELAYS
+            )
+            assert device.last_command_error == "previous movement failed"
+        else:
+            later.assert_not_called()
+            assert ("DEV1", 0) not in coord._pending_reconciliation_queries
+            assert device.last_command_error is None
