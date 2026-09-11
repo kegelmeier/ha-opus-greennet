@@ -20,6 +20,9 @@ from .coordinator import (
 from .enocean_device import EnOceanDevice
 from .entity import OpusGreenNetEntity, migrate_legacy_multichannel_entity
 
+# The coordinator serializes commands per device; entities receive pushed state.
+PARALLEL_UPDATES = 0
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -102,21 +105,27 @@ class OpusGreenNetSwitch(OpusGreenNetEntity, SwitchEntity):
             self._attr_name = None  # Use device name
 
     @property
-    def is_on(self) -> bool:
+    def is_on(self) -> bool | None:
         """Return true if switch is on."""
         channel = self._device.channels.get(self._channel_id)
-        return channel.is_on if channel else False
+        return channel.is_on if channel else None
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the switch on."""
+        snapshot = self._channel_state_snapshot()
         await self._coordinator.async_turn_on(self._device.device_id, self._channel_id)
+        if not self._channel_state_matches(snapshot):
+            return
         channel = self._device.get_or_create_channel(self._channel_id)
         channel.is_on = True
         self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the switch off."""
+        snapshot = self._channel_state_snapshot()
         await self._coordinator.async_turn_off(self._device.device_id, self._channel_id)
+        if not self._channel_state_matches(snapshot):
+            return
         channel = self._device.get_or_create_channel(self._channel_id)
         channel.is_on = False
         self.async_write_ha_state()

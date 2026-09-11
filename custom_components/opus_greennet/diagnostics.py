@@ -2,25 +2,109 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import re
+from dataclasses import asdict
 from time import monotonic
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.redact import async_redact_data
+from homeassistant.helpers.redact import REDACTED
 
 from .enocean_device import EnOceanDevice
 
 TO_REDACT = {
-    "device_id",
-    "eag_id",
-    "friendly_id",
+    "accesstoken",
+    "address",
+    "apikey",
+    "authorization",
+    "deviceid",
+    "eagid",
+    "eurid",
+    "friendlyid",
+    "host",
+    "hostname",
+    "ip",
+    "ipaddress",
+    "mac",
+    "macaddress",
+    "name",
     "password",
-    "serial_number",
+    "refreshtoken",
+    "serial",
+    "serialnumber",
+    "title",
     "token",
     "username",
 }
+
+
+def _redact_diagnostics(data: dict[str, Any], identifiers: set[str]) -> dict[str, Any]:
+    """Redact both structured fields and identifiers embedded in gateway errors."""
+
+    def sensitive_key(key: Any) -> bool:
+        return re.sub(r"[^a-z0-9]", "", str(key).casefold()) in TO_REDACT
+
+    def json_container(value: Any) -> dict | list | None:
+        if isinstance(value, str) and value.lstrip().startswith(("{", "[")):
+            try:
+                decoded = json.loads(value)
+            except ValueError:
+                return None
+            if isinstance(decoded, (dict, list)):
+                return decoded
+        return None
+
+    def collect(value: Any) -> None:
+        if isinstance(value, dict):
+            for key, item in value.items():
+                if sensitive_key(key) and isinstance(item, str) and item:
+                    identifiers.add(item)
+                collect(item)
+        elif isinstance(value, list):
+            for item in value:
+                collect(item)
+        elif (decoded := json_container(value)) is not None:
+            collect(decoded)
+
+    def identifier_pattern(values: set[str]) -> re.Pattern:
+        return re.compile(
+            "|".join(
+                re.escape(value)
+                for value in sorted(values, key=len, reverse=True)
+                if value
+            ),
+            re.IGNORECASE,
+        )
+
+    # Dictionary keys can contain device identifiers, but friendly names must not
+    # rename schema fields such as "power" or "channels".
+    key_pattern = identifier_pattern(identifiers)
+    collect(data)
+    pattern = identifier_pattern(identifiers)
+
+    def redact_key(key: Any) -> Any:
+        if isinstance(key, str) and key_pattern.pattern:
+            return key_pattern.sub(lambda _: REDACTED, key)
+        return key
+
+    def redact(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {
+                redact_key(key): REDACTED if sensitive_key(key) else redact(item)
+                for key, item in value.items()
+            }
+        if isinstance(value, list):
+            return [redact(item) for item in value]
+        if (decoded := json_container(value)) is not None:
+            return json.dumps(redact(decoded))
+        if isinstance(value, str) and pattern.pattern:
+            return pattern.sub(lambda _: REDACTED, value)
+        return value
+
+    return redact(data)
 
 
 def _duration_ms(start: float | None, end: float) -> str:
@@ -75,13 +159,13 @@ async def async_get_config_entry_diagnostics(
                 "dbm": device.dbm,
                 "last_command_error": device.last_command_error,
                 "channels": {
-                    channel_id: vars(channel)
+                    channel_id: asdict(channel)
                     for channel_id, channel in device.channels.items()
                 },
             }
         )
 
-    return async_redact_data(
+    return _redact_diagnostics(
         {
             "entry": {
                 "entry_id": entry.entry_id,
@@ -96,5 +180,8 @@ async def async_get_config_entry_diagnostics(
             },
             "devices": devices,
         },
-        TO_REDACT,
+        {
+            coordinator.eag_id,
+            *(device.device_id for device in coordinator.devices.values()),
+        },
     )

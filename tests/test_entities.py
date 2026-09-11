@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from homeassistant.components import climate
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
-from homeassistant.components.climate import HVACAction, HVACMode
+from homeassistant.components.climate import ClimateEntityFeature, HVACAction, HVACMode
 from homeassistant.components.cover import CoverEntityFeature
 from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.const import UnitOfPower
@@ -65,6 +68,7 @@ from custom_components.opus_greennet.switch import (
 from custom_components.opus_greennet.switch import (
     async_setup_entry as async_setup_switches,
 )
+from tests.ha_helpers import configure_bridge, wait_for_entity
 
 EAG_ID = "AABB0011"
 GATEWAY_DEVICE_ID = "gateway-registry-id"
@@ -114,7 +118,7 @@ async def test_light_properties_and_commands() -> None:
     entity.async_write_ha_state = MagicMock()
 
     assert entity.is_on is True
-    assert entity.brightness == 127
+    assert entity.brightness == 128
     assert entity.translation_placeholders == {"channel": "1"}
     assert entity.device_info["via_device_id"] == GATEWAY_DEVICE_ID
     assert entity.available is True
@@ -135,7 +139,7 @@ async def test_switch_properties_and_commands() -> None:
     )
     entity.async_write_ha_state = MagicMock()
 
-    assert entity.is_on is False
+    assert entity.is_on is None
     await entity.async_turn_on()
     assert entity.is_on is True
     await entity.async_turn_off()
@@ -290,7 +294,7 @@ async def test_climate_properties_and_commands() -> None:
     assert entity.target_temperature == 22.0
     assert entity.current_humidity == 53
     assert entity.hvac_mode is HVACMode.HEAT_COOL
-    assert entity.hvac_action is HVACAction.COOLING
+    assert entity.hvac_action is None
 
     await entity.async_set_temperature(temperature=23.5)
     await entity.async_set_hvac_mode(HVACMode.OFF)
@@ -513,3 +517,282 @@ async def test_sensor_setup_adds_new_types_after_profile_discovery() -> None:
         f"{EAG_ID}_DEV1_humidity",
         f"{EAG_ID}_DEV1_feed_temperature",
     }
+
+
+@pytest.mark.parametrize(
+    "entity_class,eep,domain",
+    [
+        (OpusGreenNetLight, "D2-01-02", "light"),
+        (OpusGreenNetSwitch, "D2-01-01", "switch"),
+        (OpusGreenNetClimate, "D1-4B-07", "climate"),
+    ],
+)
+async def test_unreported_state_is_unknown_in_home_assistant(
+    hass, mqtt_transport, entity_class, eep, domain
+):
+    mqtt_transport.devices = [
+        {"deviceId": "DEV1", "friendlyId": "Test", "eeps": [{"eep": eep}]}
+    ]
+    await configure_bridge(hass)
+    entity_id = await wait_for_entity(hass, domain, f"{EAG_ID}_DEV1")
+
+    assert hass.states.get(entity_id).state == "unknown"
+    entity = entity_class(_coordinator(), EAG_ID, GATEWAY_DEVICE_ID, _device(eep))
+    assert entity.should_poll is False
+
+
+@pytest.mark.parametrize("brightness,expected", [(1, 1), (2, 1), (128, 50), (255, 100)])
+async def test_light_nonzero_brightness_never_turns_off(brightness, expected):
+    coordinator = _coordinator()
+    entity = OpusGreenNetLight(
+        coordinator, EAG_ID, GATEWAY_DEVICE_ID, _device("D2-01-02")
+    )
+    entity.async_write_ha_state = MagicMock()
+
+    await entity.async_turn_on(brightness=brightness)
+
+    coordinator.async_turn_on.assert_awaited_once_with(
+        "DEV1", 0, expected, is_dimmable=True
+    )
+    assert entity.is_on is True
+    assert entity.brightness >= 1
+
+
+async def test_light_zero_brightness_uses_off_command():
+    coordinator = _coordinator()
+    entity = OpusGreenNetLight(
+        coordinator, EAG_ID, GATEWAY_DEVICE_ID, _device("D2-01-02")
+    )
+    entity.async_write_ha_state = MagicMock()
+
+    await entity.async_turn_on(brightness=0)
+
+    coordinator.async_turn_on.assert_not_awaited()
+    coordinator.async_turn_off.assert_awaited_once_with("DEV1", 0, is_dimmable=True)
+    assert entity.is_on is False
+
+
+@pytest.mark.parametrize(
+    "eep,enabled_mode,command_mode",
+    [
+        ("D1-4B-05", HVACMode.HEAT, "heating"),
+        ("D1-4B-06", HVACMode.HEAT_COOL, "on"),
+        ("D1-4B-07", HVACMode.HEAT, "heating"),
+    ],
+)
+async def test_climate_standard_actions_in_home_assistant(
+    hass, mqtt_transport, eep, enabled_mode, command_mode
+):
+    mqtt_transport.devices = [
+        {"deviceId": "DEV1", "friendlyId": "Test", "eeps": [{"eep": eep}]}
+    ]
+    result = await configure_bridge(hass)
+    entity_id = await wait_for_entity(hass, "climate", f"{EAG_ID}_DEV1")
+    coordinator = result["result"].runtime_data.coordinator
+    device = coordinator.get_device("DEV1")
+    channel = device.get_or_create_channel()
+    entity = hass.data[climate.DATA_COMPONENT].get_entity(entity_id)
+
+    assert entity.supported_features & ClimateEntityFeature.TURN_ON
+    assert entity.supported_features & ClimateEntityFeature.TURN_OFF
+    for action, reported_mode, expected_command in (
+        ("turn_on", "off", command_mode),
+        ("turn_off", command_mode, "off"),
+        ("toggle", "off", command_mode),
+        ("toggle", command_mode, "off"),
+    ):
+        channel.heater_mode = reported_mode
+        entity.async_write_ha_state()
+        await hass.services.async_call(
+            "climate", action, {"entity_id": entity.entity_id}, blocking=True
+        )
+        command_payloads = [
+            json.loads(payload)
+            for topic, payload in mqtt_transport.published
+            if topic.endswith("/put/devices/DEV1/state")
+        ]
+        assert command_payloads[-1]["state"]["functions"] == [
+            {"key": "heaterMode", "value": expected_command}
+        ]
+
+    channel.heater_mode = "autoOff"
+    entity.async_write_ha_state()
+    state = hass.states.get(entity.entity_id)
+    assert state.state == enabled_mode
+    assert state.attributes["hvac_action"] == HVACAction.IDLE
+
+
+@pytest.mark.parametrize(
+    "heater_mode,power_state,expected",
+    [
+        ("heating", "active", HVACAction.HEATING),
+        ("on", "inactive", HVACAction.IDLE),
+        ("heating", None, None),
+        ("autoOff", "active", HVACAction.IDLE),
+        ("off", "active", HVACAction.OFF),
+        ("configIncomplete", "active", None),
+        ("error", "active", None),
+    ],
+)
+def test_climate_action_uses_reported_actuator_activity(
+    heater_mode, power_state, expected
+):
+    device = _device("D1-4B-07")
+    device.channels[0] = EnOceanChannel(
+        channel_id=0, heater_mode=heater_mode, power_state=power_state
+    )
+    entity = OpusGreenNetClimate(_coordinator(), EAG_ID, GATEWAY_DEVICE_ID, device)
+    assert entity.hvac_action == expected
+
+
+@pytest.mark.parametrize("mode", [None, "error", "configIncomplete"])
+def test_climate_unknown_and_failed_modes_do_not_claim_off(mode):
+    device = _device("D1-4B-05")
+    device.channels[0] = EnOceanChannel(channel_id=0, heater_mode=mode)
+    entity = OpusGreenNetClimate(_coordinator(), EAG_ID, GATEWAY_DEVICE_ID, device)
+    assert entity.hvac_mode is None
+    assert entity.hvac_action is None
+
+
+@pytest.mark.parametrize("initial_channel", [False, True])
+@pytest.mark.parametrize(
+    "entity_class,eep,action,kwargs,coordinator_method,key,value,attribute,expected",
+    [
+        (
+            OpusGreenNetSwitch,
+            "D2-01-00",
+            "async_turn_on",
+            {},
+            "async_turn_on",
+            "switch",
+            "off",
+            "is_on",
+            False,
+        ),
+        (
+            OpusGreenNetSwitch,
+            "D2-01-00",
+            "async_turn_off",
+            {},
+            "async_turn_off",
+            "switch",
+            "on",
+            "is_on",
+            True,
+        ),
+        (
+            OpusGreenNetLight,
+            "D2-01-02",
+            "async_turn_on",
+            {"brightness": 200},
+            "async_turn_on",
+            "dimValue",
+            30,
+            "brightness",
+            30,
+        ),
+        (
+            OpusGreenNetLight,
+            "D2-01-02",
+            "async_turn_off",
+            {},
+            "async_turn_off",
+            "dimValue",
+            70,
+            "brightness",
+            70,
+        ),
+        (
+            OpusGreenNetCover,
+            "D2-05-00",
+            "async_open_cover",
+            {},
+            "async_set_cover_position",
+            "position",
+            50,
+            "position",
+            50,
+        ),
+        (
+            OpusGreenNetCover,
+            "D2-05-00",
+            "async_close_cover",
+            {},
+            "async_set_cover_position",
+            "position",
+            50,
+            "position",
+            50,
+        ),
+        (
+            OpusGreenNetCover,
+            "D2-05-00",
+            "async_set_cover_position",
+            {"position": 65},
+            "async_set_cover_position",
+            "position",
+            30,
+            "position",
+            30,
+        ),
+        (
+            OpusGreenNetCover,
+            "D2-05-00",
+            "async_set_cover_tilt_position",
+            {"tilt_position": 75},
+            "async_set_cover_tilt",
+            "angle",
+            20,
+            "angle",
+            20,
+        ),
+    ],
+)
+async def test_feedback_during_command_ack_wins_over_optimistic_state(
+    initial_channel,
+    entity_class,
+    eep,
+    action,
+    kwargs,
+    coordinator_method,
+    key,
+    value,
+    attribute,
+    expected,
+):
+    coordinator = _coordinator()
+    device = _device(eep)
+    if initial_channel:
+        device.get_or_create_channel()
+    entity = entity_class(coordinator, EAG_ID, GATEWAY_DEVICE_ID, device)
+    entity.async_write_ha_state = MagicMock()
+
+    async def receive_feedback_before_ack(*args, **kwargs):
+        await asyncio.sleep(0)
+        device.update_from_telegram({"functions": [{"key": key, "value": value}]})
+        entity._handle_state_update(device)
+
+    getattr(coordinator, coordinator_method).side_effect = receive_feedback_before_ack
+    await getattr(entity, action)(**kwargs)
+
+    assert getattr(device.channels[0], attribute) == expected
+    entity.async_write_ha_state.assert_called_once()
+
+
+async def test_other_channel_feedback_does_not_block_optimistic_state():
+    coordinator = _coordinator()
+    device = _device("D2-01-04")
+    device.channels[0] = EnOceanChannel(channel_id=0, is_on=False)
+    entity = OpusGreenNetSwitch(coordinator, EAG_ID, GATEWAY_DEVICE_ID, device)
+    entity.async_write_ha_state = MagicMock()
+
+    async def receive_other_channel_feedback(*args):
+        device.update_from_telegram(
+            {"functions": [{"key": "switch", "value": "off", "channel": 1}]}
+        )
+
+    coordinator.async_turn_on.side_effect = receive_other_channel_feedback
+    await entity.async_turn_on()
+
+    assert device.channels[0].is_on is True
+    assert device.channels[1].is_on is False

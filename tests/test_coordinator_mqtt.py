@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from homeassistant.components.cover import CoverEntityFeature
@@ -437,7 +437,10 @@ class TestAnswerMessages:
 
         coord._handle_put_answer_state(msg)
 
-        assert coord.devices["DEV1"].last_command_error == payload
+        assert (
+            coord.devices["DEV1"].last_command_error
+            == "The gateway returned status 400"
+        )
 
     def test_put_answer_records_error_and_cancels_reconciliation(self, coord):
         """A gateway command error is exposed in diagnostics and stops retries."""
@@ -458,7 +461,10 @@ class TestAnswerMessages:
         ) as mock_dispatch:
             coord._handle_put_answer_state(msg)
 
-        assert coord.devices["DEV1"].last_command_error == "channel selector missing"
+        assert (
+            coord.devices["DEV1"].last_command_error
+            == "The gateway returned invalid JSON"
+        )
         cancel.assert_called_once()
         assert not coord._pending_reconciliation_queries
         mock_dispatch.assert_called_once()
@@ -602,94 +608,6 @@ class TestDevicePropertyMessage:
         assert coord._device_data["DEV1"]["states"]["switch"] == "on"
         assert "DEV1" in coord._pending_devices
         mock_call_later.assert_called_once()
-
-
-# ── async_send_command ────────────────────────────────────────────────
-
-
-class TestAsyncSendCommand:
-    """Tests for async_send_command MQTT publishing."""
-
-    @pytest.mark.asyncio
-    async def test_publishes_correct_json(self):
-        """async_send_command publishes correct JSON to put/devices/{id}/state."""
-        hass = MagicMock()
-        coord = OpusGreenNetCoordinator(hass, "AABB0011")
-
-        with patch(
-            "custom_components.opus_greennet.coordinator.mqtt.async_publish",
-            new_callable=AsyncMock,
-        ) as mock_publish:
-            await coord.async_send_command("DEV1", [{"key": "switch", "value": "on"}])
-
-            mock_publish.assert_called_once()
-            call_args = mock_publish.call_args
-            topic = call_args[0][1]  # positional: hass, topic, payload, ...
-            payload_str = call_args[0][2]
-            payload = json.loads(payload_str)
-
-            assert topic == "EnOcean/AABB0011/put/devices/DEV1/state"
-            assert payload == {
-                "state": {
-                    "functions": [{"key": "switch", "value": "on"}],
-                }
-            }
-            assert call_args.kwargs == {"qos": 1, "retain": False}
-
-    @pytest.mark.asyncio
-    async def test_publish_error_is_propagated(self):
-        """Home Assistant sees MQTT publish failures instead of a false success."""
-        coord = OpusGreenNetCoordinator(MagicMock(), "AABB0011")
-
-        with (
-            patch(
-                "custom_components.opus_greennet.coordinator.mqtt.async_publish",
-                new_callable=AsyncMock,
-                side_effect=RuntimeError("MQTT disconnected"),
-            ),
-            pytest.raises(RuntimeError, match="MQTT disconnected"),
-        ):
-            await coord.async_send_command("DEV1", [{"key": "switch", "value": "on"}])
-
-    @pytest.mark.asyncio
-    async def test_publishes_with_qos_1(self):
-        """Commands are published with QoS 1."""
-        hass = MagicMock()
-        coord = OpusGreenNetCoordinator(hass, "AABB0011")
-
-        with patch(
-            "custom_components.opus_greennet.coordinator.mqtt.async_publish",
-            new_callable=AsyncMock,
-        ) as mock_publish:
-            await coord.async_send_command("DEV1", [{"key": "dimValue", "value": "50"}])
-
-            call_kwargs = mock_publish.call_args
-            # qos is passed as keyword or positional
-            assert (
-                call_kwargs[1].get(
-                    "qos", call_kwargs[0][3] if len(call_kwargs[0]) > 3 else None
-                )
-                == 1
-            )
-
-    @pytest.mark.asyncio
-    async def test_query_device_status(self):
-        """Device status queries use the OPUS query=status function."""
-        hass = MagicMock()
-        coord = OpusGreenNetCoordinator(hass, "AABB0011")
-
-        with patch(
-            "custom_components.opus_greennet.coordinator.mqtt.async_publish",
-            new_callable=AsyncMock,
-        ) as mock_publish:
-            await coord.async_query_device_status("DEV1")
-
-        payload = json.loads(mock_publish.call_args[0][2])
-        assert payload == {
-            "state": {
-                "functions": [{"key": "query", "value": "status"}],
-            }
-        }
 
 
 # ── _finalize_discovery ──────────────────────────────────────────────

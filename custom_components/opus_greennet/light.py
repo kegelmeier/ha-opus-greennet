@@ -16,6 +16,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.util.color import brightness_to_value, value_to_brightness
 
 from . import OpusGreenNetConfigEntry
 from .const import CONF_EAG_ID, DEFAULT_CHANNEL
@@ -25,6 +26,9 @@ from .coordinator import (
 )
 from .enocean_device import EnOceanDevice
 from .entity import OpusGreenNetEntity, migrate_legacy_multichannel_entity
+
+# The coordinator serializes commands per device; entities receive pushed state.
+PARALLEL_UPDATES = 0
 
 
 async def async_setup_entry(
@@ -116,10 +120,10 @@ class OpusGreenNetLight(OpusGreenNetEntity, LightEntity):
             self._attr_supported_color_modes = {ColorMode.ONOFF}
 
     @property
-    def is_on(self) -> bool:
+    def is_on(self) -> bool | None:
         """Return true if light is on."""
         channel = self._device.channels.get(self._channel_id)
-        return channel.is_on if channel else False
+        return channel.is_on if channel else None
 
     @property
     def brightness(self) -> int | None:
@@ -128,17 +132,21 @@ class OpusGreenNetLight(OpusGreenNetEntity, LightEntity):
             return None
         channel = self._device.channels.get(self._channel_id)
         if channel and channel.brightness is not None:
-            # Convert 0-100 to 0-255
-            return int(channel.brightness * 255 / 100)
+            if channel.brightness == 0:
+                return 0
+            return value_to_brightness((1, 100), channel.brightness)
         return None
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the light on."""
         brightness = kwargs.get(ATTR_BRIGHTNESS)
+        if brightness == 0 and self._device.is_dimmable:
+            await self.async_turn_off()
+            return
+        snapshot = self._channel_state_snapshot()
 
         if brightness is not None and self._device.is_dimmable:
-            # Convert 0-255 to 0-100
-            brightness_pct = int(brightness * 100 / 255)
+            brightness_pct = max(1, round(brightness_to_value((1, 100), brightness)))
             await self._coordinator.async_turn_on(
                 self._device.device_id,
                 self._channel_id,
@@ -152,9 +160,10 @@ class OpusGreenNetLight(OpusGreenNetEntity, LightEntity):
                 is_dimmable=self._device.is_dimmable,
             )
 
+        if not self._channel_state_matches(snapshot):
+            return
         channel = self._device.get_or_create_channel(self._channel_id)
         if brightness is not None and self._device.is_dimmable:
-            brightness_pct = int(brightness * 100 / 255)
             channel.brightness = brightness_pct
             channel.is_on = brightness_pct > 0
         else:
@@ -165,11 +174,14 @@ class OpusGreenNetLight(OpusGreenNetEntity, LightEntity):
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the light off."""
+        snapshot = self._channel_state_snapshot()
         await self._coordinator.async_turn_off(
             self._device.device_id,
             self._channel_id,
             is_dimmable=self._device.is_dimmable,
         )
+        if not self._channel_state_matches(snapshot):
+            return
         channel = self._device.get_or_create_channel(self._channel_id)
         channel.is_on = False
         if self._device.is_dimmable:

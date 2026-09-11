@@ -7,7 +7,7 @@ Repository: https://github.com/kegelmeier/ha-opus-greennet
 
 ## Tech Stack
 
-- Python 3.11+
+- Python 3.14 (Home Assistant 2026.8+)
 - Home Assistant custom component architecture
 - MQTT (EnOcean over IP protocol)
 - HACS compatible

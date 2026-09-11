@@ -22,7 +22,8 @@ A custom Home Assistant integration for the Opus GreenNet Bridge, enabling contr
 
 - **Auto-discovery**: Automatically discovers EnOcean devices connected to your Opus GreenNet Bridge
 - **Real-time updates**: Receives state changes via MQTT push notifications, including device deltas, local-control telegrams, and bridge-originated command telegrams
-- **State reconciliation**: Optimistic command updates are followed by channel-specific status checks, and bridge command errors are retained in downloadable diagnostics
+- **Connection recovery**: Checks that the gateway responds, marks entities unavailable during outages, and refreshes discovery and state after reconnection
+- **Command feedback**: Waits for gateway acknowledgements, reports rejected or timed-out commands, and follows accepted commands with channel-specific status checks
 - **Bidirectional control**: Send commands to actuators (lights, switches, covers, thermostats)
 - **Climate control**: HeatArea thermostat support for Valve, CosiTherm, and Electro Heating areas
 - **Sensors**: Humidity, temperature, power consumption, and signal strength monitoring
@@ -35,7 +36,7 @@ A custom Home Assistant integration for the Opus GreenNet Bridge, enabling contr
 
 | Entity Type | EEP Profiles | Description |
 |-------------|--------------|-------------|
-| **Light** | D2-01-02, D2-01-03, D2-01-06, D2-01-07, D2-01-0A, D2-01-0B, D2-01-0F, D2-01-10, D2-01-12, A5-38-08 | Dimmable lights |
+| **Light** | D2-01-02, D2-01-03, D2-01-06, D2-01-07, D2-01-0A, D2-01-0B, D2-01-0F, D2-01-10, D2-01-12, A5-38-08, A5-38-09 | Dimmable lights and gateway switching |
 | **Switch** | D2-01-00, D2-01-01, D2-01-04, D2-01-05, D2-01-08, D2-01-09, D2-01-0C, D2-01-0D, D2-01-0E, D2-01-11 | On/Off switches and actuators |
 | **Cover** | D2-05-00, D2-05-01, D2-05-02 | Blinds, shades, and shutters |
 | **Climate** | D1-4B-05, D1-4B-06, D1-4B-07 | OPUS HeatArea thermostats (Valve, CosiTherm, Electro Heating) |
@@ -68,15 +69,29 @@ The Opus GreenNet Bridge runs its own MQTT broker. To connect it to Home Assista
    Create a file `/share/mosquitto/opus_bridge.conf` with:
 
    ```
-   connection opus_greennet
+   connection opus_greennet_<EAG-ID>
    address <OPUS_BRIDGE_IP>:1883
-   topic EnOcean/# both 1
+   bridge_protocol_version mqttv311
    remote_username <username>
    remote_password <password>
+   cleansession true
+   keepalive_interval 15
+   restart_timeout 5 30
+   bridge_outgoing_retain false
+   notifications true
+   notifications_local_only true
+   notification_topic opus_greennet/<EAG-ID>/bridge/status
+
+   topic EnOcean/<EAG-ID>/stream/# in 1
+   topic EnOcean/<EAG-ID>/getAnswer/# in 1
+   topic EnOcean/<EAG-ID>/putAnswer/# in 1
+   topic EnOcean/<EAG-ID>/get/# out 0
+   topic EnOcean/<EAG-ID>/put/# out 0
    ```
 
    Replace:
    - `<OPUS_BRIDGE_IP>` with your Opus GreenNet Bridge's IP address
+   - `<EAG-ID>` with its eight-character uppercase identifier, in every occurrence
    - `<username>`: `admin`
    - `<password>`: Your gateway's EURID in uppercase (e.g., `050B4DFA`)
 
@@ -92,14 +107,29 @@ The Opus GreenNet Bridge runs its own MQTT broker. To connect it to Home Assista
 
 ### For Standalone Mosquitto
 
-Add to your `mosquitto.conf`:
+Use the same connection block above in your `mosquitto.conf`, including the
+credentials, topic directions, and notification topic.
 
-```
-connection opus_greennet
-address <OPUS_BRIDGE_IP>:1883
-topic EnOcean/# both 1
-bridge_protocol_version mqttv311
-```
+### Updating an existing MQTT bridge
+
+Replace the old `topic EnOcean/# both 1` rule with the scoped rules above; do not
+leave both configurations enabled. Each gateway needs its own connection name
+and topic identifier.
+
+`in` carries OPUS updates to your local broker; `out` carries requests to OPUS.
+Outbound QoS 0 avoids building a persistent command backlog with Mosquitto's
+default `queue_qos0_messages false`. A lost request produces an action timeout;
+commands are not automatically retried. Keep that broker default when using this
+configuration. `retain=False` alone does not prevent queued QoS 1 commands.
+Previously retained commands or an existing queue are not purged by changing
+these rules; inspect and clear any obsolete command messages separately before
+reconnecting the bridge.
+
+The optional notification topic reports `1` for a connected bridge and `0` for a
+disconnected bridge. The integration listens to it for prompt availability
+updates. Existing configurations without this topic continue to use periodic
+gateway health checks. See the [Mosquitto bridge documentation](https://mosquitto.org/man/mosquitto-conf-5.html)
+for connection, notification, and queue settings.
 
 ### Verify the Bridge
 
@@ -141,6 +171,35 @@ After installing, add the integration:
 
 1. Enter your **EAG Identifier** (Bridge ID, e.g., `050B4DFA`)
 2. Click **Submit**
+
+Setup waits for a response from that specific gateway. A connected Home Assistant
+MQTT broker alone is insufficient. If setup fails, check the identifier, gateway
+power, bridge credentials, and the directional topic rules above. Existing
+entries automatically retry when the gateway is unavailable during startup.
+
+## Availability and command behavior
+
+The integration uses push updates, with a gateway health check approximately
+every 60 seconds. MQTT disconnects and the optional bridge-status topic update
+availability immediately; a failed health check also marks entities unavailable.
+Batteryless EnOcean devices are not marked offline just because they are quiet.
+On reconnection, the integration requests a fresh device list and gateway data.
+
+Commands wait for the gateway's acknowledgement. Status `200` means the gateway
+sent the telegram; `201` means it accepted deferred delivery. Neither confirms
+that the physical actuator has completed the operation. Device reports and
+subsequent channel-specific status queries reconcile the state. Requests fail
+when the gateway is known to be unavailable and are cancelled during reload.
+
+OPUS acknowledgement topics do not include request identifiers. Requests to the
+same endpoint are serialized, but a late reply after a timeout or a simultaneous
+command from another MQTT client can remain ambiguous. Check the physical state
+before retrying a timed-out command.
+
+Measurements explicitly reported as `notAvailable` become unknown. Lights and
+switches remain unknown until their state is reported or a command is accepted.
+Climate activity uses actuator feedback where available; enabling a heating
+zone does not by itself prove that it is currently heating.
 
 ## Services
 
@@ -244,6 +303,7 @@ custom_components/opus_greennet/
 ├── config_flow.py        # UI configuration
 ├── const.py              # Constants, EEP mappings, and MQTT topics
 ├── coordinator.py        # MQTT communication, discovery, and commands
+├── mqtt_transport.py     # Confirmed subscriptions, requests, and gateway probing
 ├── enocean_device.py     # Device and channel data model
 ├── entity.py             # Shared entity and device-registry behavior
 ├── diagnostics.py        # Redacted integration diagnostics
@@ -255,14 +315,22 @@ custom_components/opus_greennet/
 ├── binary_sensor.py      # Binary sensor entity platform
 ├── event.py              # Event entity platform (rocker switches)
 ├── services.yaml         # HA service definitions
+├── strings.json          # UI, service, and exception translation source
 └── translations/
     └── en.json           # English translations
 tests/
 ├── conftest.py                  # Shared fixtures
+├── ha_helpers.py                # Simulated MQTT boundary for real HA tests
 ├── test_enocean_device.py       # Device model tests
 ├── test_coordinator_helpers.py  # Pure helper and command tests
 ├── test_coordinator_mqtt.py     # MQTT finalization tests
+├── test_coordinator_parsing.py  # JSON telegrams, fragments, and late discovery
+├── test_coordinator_transport.py # Subscription, request, and recovery tests
 ├── test_event_entity.py         # Rocker switch event entity tests
+├── test_entities.py             # Entity state and Home Assistant service tests
+├── test_init.py                 # Entry setup, unloading, and service routing
+├── test_diagnostics.py          # Diagnostic redaction tests
+├── test_ha_lifecycle.py          # Real Home Assistant lifecycle and config flows
 └── test_config_flow.py          # Config flow validation tests
 ```
 
@@ -275,10 +343,22 @@ ruff format --check .
 pytest -v --cov
 ```
 
-Tests cover device properties, telegram parsing, ordered multi-channel command
-building, MQTT finalization, gateway errors, entity behavior, rocker switch
-events, diagnostics, and config flow validation. CI validates against the latest
-supported Home Assistant release and also runs Hassfest.
+Use Python 3.14 for development. Tests cover device properties, telegram parsing,
+ordered multi-channel commands, gateway errors, entity behavior, rocker events,
+diagnostic redaction, and real Home Assistant configuration and lifecycle paths.
+CI resolves dependencies separately for Home Assistant 2026.8.2 and 2026.9.1 and
+also runs Ruff and Hassfest. MQTT transport is simulated in automated tests;
+physical-device verification remains part of beta testing.
+
+### Beta testing
+
+Enable pre-release versions for this repository in HACS, select the beta, and
+restart Home Assistant. Existing entity IDs and rocker event names are preserved.
+Check physical controls, low brightness, both actuator channels, cover position
+and tilt, climate activity, and rapid rocker presses. Also test a gateway outage
+and reconnection, then reload the integration during a pending request. Report
+your gateway firmware, device EEP, and the observed result with redacted
+diagnostics. REST/HTTP streaming is a separate future investigation.
 
 ## References
 
