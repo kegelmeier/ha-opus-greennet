@@ -135,6 +135,105 @@ class TestDeviceProperties:
 # ── update_from_telegram ───────────────────────────────────────────────
 
 
+class TestCoverTiltCapability:
+    """Cover parameters refine the EEP capability without affecting other channels."""
+
+    @pytest.mark.parametrize("eep", ["D2-05-00", "D2-05-01", "D2-05-02"])
+    @pytest.mark.parametrize(
+        "value,expected",
+        [
+            (0, 0.0),
+            (0.0, 0.0),
+            ("0", 0.0),
+            ("0.0", 0.0),
+            ("noRotation", 0.0),
+            (" noRotation ", 0.0),
+            (3, 3.0),
+            (0.25, 0.25),
+            ("1.5", 1.5),
+        ],
+    )
+    def test_rotation_time_refines_eep_capability(
+        self, make_device, make_telegram, eep, value, expected
+    ):
+        dev = make_device(eep)
+        dev.update_from_telegram(
+            make_telegram([{"key": "rotationTime", "value": value}])
+        )
+
+        assert dev.channels[0].rotation_time == expected
+        expected_tilt = eep != "D2-05-01" and expected > 0
+        assert dev.supports_tilt is expected_tilt
+        assert dev.supports_tilt_for_channel(0) is expected_tilt
+
+    @pytest.mark.parametrize("previous", [None, 0.0, 1.5])
+    @pytest.mark.parametrize(
+        "value",
+        [
+            None,
+            True,
+            False,
+            "",
+            "invalid",
+            "NoRotation",
+            [],
+            {},
+            -1,
+            "-0.5",
+            float("nan"),
+            float("inf"),
+            "NaN",
+            "Infinity",
+            "-Infinity",
+        ],
+    )
+    def test_invalid_rotation_time_preserves_last_state(
+        self, make_device, make_telegram, previous, value
+    ):
+        dev = make_device("D2-05-00")
+        dev.channels[0] = EnOceanChannel(channel_id=0, rotation_time=previous)
+        dev.update_from_telegram(
+            make_telegram([{"key": "rotationTime", "value": value}])
+        )
+
+        assert dev.channels[0].rotation_time == previous
+        assert dev.supports_tilt is (previous != 0)
+
+    @pytest.mark.parametrize("previous", [None, 0.0, 1.5])
+    def test_no_change_preserves_rotation_time(
+        self, make_device, make_telegram, previous
+    ):
+        dev = make_device("D2-05-02")
+        dev.channels[0] = EnOceanChannel(channel_id=0, rotation_time=previous)
+        dev.update_from_telegram(
+            make_telegram([{"key": "rotationTime", "value": "noChange"}])
+        )
+
+        assert dev.channels[0].rotation_time == previous
+        assert dev.supports_tilt is (previous != 0)
+
+    @pytest.mark.parametrize("embedded_channel", [False, True])
+    def test_rotation_time_is_specific_to_reported_channel(
+        self, make_device, make_telegram, embedded_channel
+    ):
+        dev = make_device("D2-05-00")
+        dev.channels[0] = EnOceanChannel(channel_id=0, rotation_time=1.5)
+        if embedded_channel:
+            functions = [{"key": "rotationTime", "value": "0", "channel": 1}]
+        else:
+            functions = [
+                {"key": "rotationTime", "value": "0"},
+                {"key": "channel", "value": "1"},
+            ]
+        dev.update_from_telegram(make_telegram(functions))
+
+        assert dev.channels[0].rotation_time == 1.5
+        assert dev.channels[1].rotation_time == 0.0
+        assert dev.supports_tilt is True
+        assert dev.supports_tilt_for_channel(1) is False
+        assert dev.supports_tilt_for_channel(2) is True
+
+
 class TestUpdateFromTelegram:
     """Tests for EnOceanDevice.update_from_telegram."""
 

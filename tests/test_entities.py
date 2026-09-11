@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
 from homeassistant.components.climate import HVACAction, HVACMode
+from homeassistant.components.cover import CoverEntityFeature
 from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.const import UnitOfPower
 
@@ -180,6 +181,95 @@ async def test_cover_properties_and_commands() -> None:
     )
     coordinator.async_set_cover_tilt.assert_awaited_once_with("DEV1", 70, 0)
     coordinator.async_stop_cover.assert_awaited_once_with("DEV1", 0)
+
+
+@pytest.mark.parametrize("eep", ["D2-05-00", "D2-05-01", "D2-05-02"])
+def test_cover_tilt_features_follow_late_parameter_updates(eep, make_telegram):
+    device = _device(eep)
+    device.channels[0] = EnOceanChannel(channel_id=0, position=20, angle=45)
+    entity = OpusGreenNetCover(_coordinator(), EAG_ID, GATEWAY_DEVICE_ID, device)
+    position_features = (
+        CoverEntityFeature.OPEN
+        | CoverEntityFeature.CLOSE
+        | CoverEntityFeature.STOP
+        | CoverEntityFeature.SET_POSITION
+    )
+    expected_features = position_features
+    if eep != "D2-05-01":
+        expected_features |= CoverEntityFeature.SET_TILT_POSITION
+
+    assert entity.supported_features == expected_features
+    assert entity.current_cover_tilt_position == (45 if eep != "D2-05-01" else None)
+
+    device.update_from_telegram(
+        make_telegram([{"key": "rotationTime", "value": "noRotation"}])
+    )
+    assert entity.supported_features == position_features
+    assert entity.current_cover_tilt_position is None
+    assert entity.current_cover_position == 80
+
+    device.update_from_telegram(
+        make_telegram([{"key": "rotationTime", "value": "1.5"}])
+    )
+    assert entity.supported_features == expected_features
+    assert entity.current_cover_tilt_position == (45 if eep != "D2-05-01" else None)
+
+
+def test_cover_tilt_capability_is_specific_to_entity_channel(make_telegram):
+    device = _device("D2-05-00")
+    device.channels[0] = EnOceanChannel(channel_id=0, angle=30)
+    device.channels[1] = EnOceanChannel(channel_id=1, angle=60)
+    default_entity = OpusGreenNetCover(
+        _coordinator(), EAG_ID, GATEWAY_DEVICE_ID, device
+    )
+    second_entity = OpusGreenNetCover(
+        _coordinator(), EAG_ID, GATEWAY_DEVICE_ID, device, channel_id=1
+    )
+    device.update_from_telegram(
+        make_telegram([{"key": "rotationTime", "value": 0, "channel": 1}])
+    )
+
+    assert default_entity.supported_features & CoverEntityFeature.SET_TILT_POSITION
+    assert default_entity.current_cover_tilt_position == 30
+    assert not second_entity.supported_features & CoverEntityFeature.SET_TILT_POSITION
+    assert second_entity.current_cover_tilt_position is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("eep", ["D2-05-00", "D2-05-01", "D2-05-02"])
+async def test_cover_without_tilt_retains_position_commands(eep, make_telegram):
+    coordinator = _coordinator()
+    device = _device(eep)
+    device.channels[1] = EnOceanChannel(channel_id=1, angle=45)
+    entity = OpusGreenNetCover(
+        coordinator, EAG_ID, GATEWAY_DEVICE_ID, device, channel_id=1
+    )
+    entity.async_write_ha_state = MagicMock()
+    device.update_from_telegram(
+        make_telegram([{"key": "rotationTime", "value": "0", "channel": 1}])
+    )
+
+    await entity.async_set_cover_tilt_position(tilt_position=70)
+    coordinator.async_set_cover_tilt.assert_not_awaited()
+    assert device.channels[1].angle == 45
+    entity.async_write_ha_state.assert_not_called()
+
+    await entity.async_open_cover()
+    assert entity.current_cover_position == 100
+    await entity.async_close_cover()
+    assert entity.current_cover_position == 0
+    await entity.async_set_cover_position(position=35)
+    assert entity.current_cover_position == 35
+    await entity.async_stop_cover()
+
+    assert [
+        call.args for call in coordinator.async_set_cover_position.await_args_list
+    ] == [
+        ("DEV1", 0, 1),
+        ("DEV1", 100, 1),
+        ("DEV1", 65, 1),
+    ]
+    coordinator.async_stop_cover.assert_awaited_once_with("DEV1", 1)
 
 
 @pytest.mark.asyncio

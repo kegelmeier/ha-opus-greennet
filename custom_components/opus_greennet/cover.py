@@ -98,7 +98,9 @@ class OpusGreenNetCover(OpusGreenNetEntity, CoverEntity):
         else:
             self._attr_name = None  # Use device name
 
-        # Determine supported features
+    @property
+    def supported_features(self) -> CoverEntityFeature:
+        """Return features from the latest cached cover configuration."""
         features = (
             CoverEntityFeature.OPEN
             | CoverEntityFeature.CLOSE
@@ -106,10 +108,10 @@ class OpusGreenNetCover(OpusGreenNetEntity, CoverEntity):
             | CoverEntityFeature.SET_POSITION
         )
 
-        if device.supports_tilt:
+        if self._device.supports_tilt_for_channel(self._channel_id):
             features |= CoverEntityFeature.SET_TILT_POSITION
 
-        self._attr_supported_features = features
+        return features
 
     @property
     def current_cover_position(self) -> int | None:
@@ -126,7 +128,7 @@ class OpusGreenNetCover(OpusGreenNetEntity, CoverEntity):
     @property
     def current_cover_tilt_position(self) -> int | None:
         """Return current tilt position of cover."""
-        if not self._device.supports_tilt:
+        if not self._device.supports_tilt_for_channel(self._channel_id):
             return None
         channel = self._device.channels.get(self._channel_id)
         return channel.angle if channel else None
@@ -188,6 +190,8 @@ class OpusGreenNetCover(OpusGreenNetEntity, CoverEntity):
 
     async def async_set_cover_tilt_position(self, **kwargs: Any) -> None:
         """Set the cover tilt position."""
+        if not self._device.supports_tilt_for_channel(self._channel_id):
+            return
         tilt = kwargs.get(ATTR_TILT_POSITION)
         if tilt is not None:
             await self._coordinator.async_set_cover_tilt(

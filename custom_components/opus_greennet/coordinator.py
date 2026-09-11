@@ -19,6 +19,7 @@ from homeassistant.helpers.event import async_call_later
 from .const import (
     DOMAIN,
     KEY_CHANNEL,
+    KEY_ROTATION_TIME,
     KNOWN_STATE_KEYS,
     TOPIC_BASE,
     TOPIC_GET_ANSWER_DEVICE_CONFIGURATION,
@@ -370,44 +371,18 @@ class OpusGreenNetCoordinator:
                 )
             return
 
-        # Build functions from the delta data.
-        # stream/device topics use "state/functions/N/key|value" (singular "state",
-        # functions array) while stream/devices boot data uses "states/<key>" (plural
-        # "states", flat dict). We must handle both formats.
-        functions = []
-
-        # Format 1: state.functions array (from stream/device deltas)
-        state_obj = stream_data.get("state", {})
-        if isinstance(state_obj, dict):
-            functions_data = state_obj.get("functions", [])
-            if isinstance(functions_data, list):
-                functions = [f for f in functions_data if isinstance(f, dict)]
-            elif isinstance(functions_data, dict):
-                for idx in sorted(
-                    functions_data.keys(),
-                    key=lambda x: int(x) if str(x).isdigit() else x,
-                ):
-                    func_entry = functions_data[idx]
-                    if isinstance(func_entry, dict):
-                        functions.append(func_entry)
-
-        # Format 2: states flat dict (from stream/devices boot data, if routed here)
-        if not functions:
-            states = stream_data.get("states", {})
-            if states and isinstance(states, dict):
-                for key, value in states.items():
-                    if key in KNOWN_STATE_KEYS:
-                        functions.append({"key": key, "value": value})
+        functions = self._device_state_functions(stream_data)
 
         if functions:
             self._log_latency_finalized(
                 "stream/device", device_id, received_at, finalized_at, len(functions)
             )
             channel_id = self._channel_from_functions(functions)
-            self._cancel_reconciliation_queries(device_id, channel_id)
+            if self._has_operational_state(functions):
+                self._cancel_reconciliation_queries(device_id, channel_id)
+                device.last_command_error = None
             telegram = {"functions": functions}
             device.update_from_telegram(telegram)
-            device.last_command_error = None
 
             signal = f"{SIGNAL_DEVICE_STATE_UPDATE}_{self.eag_id}_{device_id}"
             self._mark_and_log_dispatch(
@@ -690,8 +665,9 @@ class OpusGreenNetCoordinator:
 
         _, device = device_entry
         value = self._parse_value(payload)
-        self._cancel_reconciliation_queries(device_id)
-        device.last_command_error = None
+        if state_key != KEY_ROTATION_TIME:
+            self._cancel_reconciliation_queries(device_id)
+            device.last_command_error = None
         device.update_from_telegram(
             {
                 "functions": [
@@ -871,6 +847,7 @@ class OpusGreenNetCoordinator:
             )
 
             # Preserve existing channel state or apply initial state from discovery
+            rotation_functions = []
             if existing_device is not None:
                 device.channels = existing_device.channels
                 device.profile = existing_device.profile
@@ -885,6 +862,15 @@ class OpusGreenNetCoordinator:
                     existing_device.last_update_dispatched_monotonic
                 )
                 device.last_command_error = existing_device.last_command_error
+                # Refresh configuration without replacing newer position/state
+                # values with a potentially stale discovery snapshot.
+                rotation_functions = [
+                    function
+                    for function in self._device_state_functions(data)
+                    if function.get("key") in (KEY_CHANNEL, KEY_ROTATION_TIME)
+                ]
+                if any(f.get("key") == KEY_ROTATION_TIME for f in rotation_functions):
+                    device.update_from_telegram({"functions": rotation_functions})
             else:
                 self._apply_initial_state(device, data)
 
@@ -906,9 +892,56 @@ class OpusGreenNetCoordinator:
                     f"{SIGNAL_DEVICE_DISCOVERED}_{self.eag_id}",
                     device,
                 )
+            elif rotation_functions:
+                async_dispatcher_send(
+                    self.hass,
+                    f"{SIGNAL_DEVICE_STATE_UPDATE}_{self.eag_id}_{device_id}",
+                    device,
+                )
 
         except Exception as err:
             _LOGGER.exception("Error creating device from data: %s", err)
+
+    @staticmethod
+    def _device_state_functions(data: dict) -> list[dict[str, Any]]:
+        """Read cached state from function arrays or OPUS's flat states map."""
+        state = data.get("state", {})
+        if isinstance(state, dict):
+            functions = state.get("functions", [])
+            if isinstance(functions, dict):
+                functions = [
+                    functions[index]
+                    for index in sorted(
+                        functions, key=lambda x: int(x) if str(x).isdigit() else x
+                    )
+                ]
+            if isinstance(functions, list):
+                complete = [
+                    function
+                    for function in functions
+                    if isinstance(function, dict)
+                    and "key" in function
+                    and "value" in function
+                ]
+                if complete:
+                    return complete
+        states = data.get("states", {})
+        if isinstance(states, dict):
+            return [
+                {"key": key, "value": value}
+                for key, value in states.items()
+                if key in KNOWN_STATE_KEYS
+            ]
+        return []
+
+    @staticmethod
+    def _has_operational_state(functions: list[dict[str, Any]]) -> bool:
+        """Exclude rotation metadata from movement/status reconciliation."""
+        return any(
+            function.get("key") in KNOWN_STATE_KEYS
+            and function.get("key") != KEY_ROTATION_TIME
+            for function in functions
+        )
 
     def _apply_initial_state(self, device: EnOceanDevice, data: dict) -> None:
         """Apply initial state from device discovery data."""
@@ -917,18 +950,7 @@ class OpusGreenNetCoordinator:
             device.friendly_id,
             list(data.keys()),
         )
-        states = data.get("states", {})
-        if not states or not isinstance(states, dict):
-            _LOGGER.debug(
-                "INITIAL STATE: No 'states' in data for %s", device.friendly_id
-            )
-            return
-
-        # Build a telegram-like structure from states data using all known keys
-        functions = []
-        for key, value in states.items():
-            if key in KNOWN_STATE_KEYS:
-                functions.append({"key": key, "value": value})
+        functions = self._device_state_functions(data)
 
         if functions:
             telegram = {"functions": functions}
@@ -1105,7 +1127,7 @@ class OpusGreenNetCoordinator:
                 functions,
             )
         channel_id = self._channel_from_functions(functions)
-        if not is_outbound_command:
+        if not is_outbound_command and self._has_operational_state(functions):
             self._cancel_reconciliation_queries(device_id, channel_id)
 
         update_source = (
@@ -1157,7 +1179,7 @@ class OpusGreenNetCoordinator:
                 functions,
             )
         device.update_from_telegram(telegram)
-        if not is_outbound_command:
+        if not is_outbound_command and self._has_operational_state(functions):
             device.last_command_error = None
 
         # Notify listeners of state update
@@ -1167,7 +1189,7 @@ class OpusGreenNetCoordinator:
         )
         async_dispatcher_send(self.hass, signal, device)
 
-        if is_outbound_command:
+        if is_outbound_command and self._has_operational_state(functions):
             self._schedule_reconciliation_queries(device_id, channel_id)
 
     # ──────────────────────────────────────────────────────────────────────

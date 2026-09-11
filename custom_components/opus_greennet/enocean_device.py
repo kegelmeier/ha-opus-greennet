@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from math import isfinite
 from typing import Any
 
 from .const import (
@@ -27,6 +28,7 @@ from .const import (
     KEY_POSITION,
     KEY_POWER,
     KEY_POWER_STATE,
+    KEY_ROTATION_TIME,
     KEY_SUMMER_MODE,
     KEY_SWITCH,
     KEY_TEMPERATURE,
@@ -47,6 +49,7 @@ class EnOceanChannel:
     brightness: int | None = None  # 0-100 for dimmers
     position: int | None = None  # 0-100 for covers
     angle: int | None = None  # Tilt angle for blinds
+    rotation_time: float | None = None  # Zero means the cover has no slat rotation
     local_control: bool = False
     energy: float | None = None
     power: float | None = None
@@ -146,8 +149,15 @@ class EnOceanDevice:
     @property
     def supports_tilt(self) -> bool:
         """Check if this cover supports tilt/angle control."""
+        return self.supports_tilt_for_channel()
+
+    def supports_tilt_for_channel(self, channel_id: int = DEFAULT_CHANNEL) -> bool:
+        """Use the reported rotation time when available, otherwise the EEP."""
         eep = self.primary_eep
-        return eep in ["D2-05-00", "D2-05-02"]
+        if eep not in ["D2-05-00", "D2-05-02"]:
+            return False
+        channel = self.channels.get(channel_id)
+        return channel is None or channel.rotation_time != 0
 
     @property
     def is_climate(self) -> bool:
@@ -293,6 +303,21 @@ class EnOceanDevice:
                     channel.angle = int(value)
                 except ValueError, TypeError:
                     pass
+
+            elif key == KEY_ROTATION_TIME:
+                # EEP D2-05-00 uses noRotation; OPUS also reports numeric zero.
+                # Unknown/noChange values must not erase a known configuration.
+                if isinstance(value, str) and value.strip() == "noRotation":
+                    channel.rotation_time = 0
+                elif isinstance(value, (int, float, str)) and not isinstance(
+                    value, bool
+                ):
+                    try:
+                        rotation_time = float(value)
+                    except ValueError, OverflowError:
+                        continue
+                    if isfinite(rotation_time) and rotation_time >= 0:
+                        channel.rotation_time = rotation_time
 
             elif key == KEY_LOCAL_CONTROL:
                 channel.local_control = value == STATE_ON
