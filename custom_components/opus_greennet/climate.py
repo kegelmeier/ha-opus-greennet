@@ -24,6 +24,9 @@ from .coordinator import (
 from .enocean_device import EnOceanDevice
 from .entity import OpusGreenNetEntity
 
+# The coordinator serializes commands per device; entities receive pushed state.
+PARALLEL_UPDATES = 0
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -72,7 +75,11 @@ class OpusGreenNetClimate(OpusGreenNetEntity, ClimateEntity):
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_min_temp = 0
     _attr_max_temp = 40
-    _attr_supported_features = ClimateEntityFeature.TARGET_TEMPERATURE
+    _attr_supported_features = (
+        ClimateEntityFeature.TARGET_TEMPERATURE
+        | ClimateEntityFeature.TURN_ON
+        | ClimateEntityFeature.TURN_OFF
+    )
 
     def __init__(
         self,
@@ -123,14 +130,16 @@ class OpusGreenNetClimate(OpusGreenNetEntity, ClimateEntity):
         """Return the current HVAC mode."""
         channel = self._device.channels.get(DEFAULT_CHANNEL)
         if not channel or not channel.heater_mode:
-            return HVACMode.OFF
+            return None
 
         mode = channel.heater_mode
-        if mode in ("heating", "on"):
+        if mode in ("heating", "on", "autoOff"):
             if self._device.primary_eep == "D1-4B-06":
                 return HVACMode.HEAT_COOL
             return HVACMode.HEAT
-        return HVACMode.OFF
+        if mode == "off":
+            return HVACMode.OFF
+        return None
 
     @property
     def hvac_action(self) -> HVACAction | None:
@@ -140,19 +149,30 @@ class OpusGreenNetClimate(OpusGreenNetEntity, ClimateEntity):
             return None
 
         mode = channel.heater_mode
-        if mode in ("heating", "on"):
-            # For CosiTherm, check thermalMode for cooling vs heating
-            if (
-                self._device.primary_eep == "D1-4B-06"
-                and channel.thermal_mode == "cooling"
-            ):
-                return HVACAction.COOLING
-            return HVACAction.HEATING
         if mode == "autoOff":
             return HVACAction.IDLE  # Temporarily disabled (window/summer)
-        if mode in ("off", "configIncomplete", "error"):
+        if mode == "off":
             return HVACAction.OFF
+        if mode in ("heating", "on") and self._device.primary_eep == "D1-4B-07":
+            if channel.power_state == "active":
+                return HVACAction.HEATING
+            if channel.power_state == "inactive":
+                return HVACAction.IDLE
+        # Enabled modes and seasonal thermalMode do not establish actuator activity.
         return None
+
+    async def async_turn_on(self) -> None:
+        """Enable the device's supported operating mode."""
+        mode = (
+            HVACMode.HEAT_COOL
+            if self._device.primary_eep == "D1-4B-06"
+            else HVACMode.HEAT
+        )
+        await self.async_set_hvac_mode(mode)
+
+    async def async_turn_off(self) -> None:
+        """Disable the heat area."""
+        await self.async_set_hvac_mode(HVACMode.OFF)
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set new target temperature."""

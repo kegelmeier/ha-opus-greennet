@@ -628,3 +628,162 @@ class TestGetOrCreateChannel:
         ch2 = dev.get_or_create_channel(0)
         assert ch2.is_on is True
         assert ch1 is ch2
+
+
+@pytest.mark.parametrize(
+    "key,attribute,previous",
+    [
+        ("temperature", "temperature", 21.5),
+        ("temperatureSetpoint", "temperature_setpoint", 22.0),
+        ("humidity", "humidity", 50.0),
+        ("feedTemperature", "feed_temperature", 35.0),
+        ("energyConsumption", "energy_consumption", 1.5),
+    ],
+)
+def test_explicit_unavailable_clears_previous_reading(
+    make_device, make_telegram, key, attribute, previous
+):
+    device = make_device("D1-4B-07")
+    channel = device.get_or_create_channel()
+    setattr(channel, attribute, previous)
+
+    device.update_from_telegram(make_telegram([{"key": key, "value": "noChange"}]))
+    assert getattr(channel, attribute) == previous
+
+    device.update_from_telegram(make_telegram([{"key": key, "value": "notAvailable"}]))
+    assert getattr(channel, attribute) is None
+
+
+@pytest.mark.parametrize(
+    "value", [True, False, "NaN", "Infinity", "-Infinity", None, {}, []]
+)
+def test_malformed_numbers_preserve_all_readings(make_device, make_telegram, value):
+    device = make_device("D1-4B-07")
+    fields = {
+        "dimValue": ("brightness", 30),
+        "position": ("position", 40),
+        "angle": ("angle", 50),
+        "temperature": ("temperature", 20.0),
+        "temperatureSetpoint": ("temperature_setpoint", 21.0),
+        "humidity": ("humidity", 50.0),
+        "feedTemperature": ("feed_temperature", 35.0),
+        "energyConsumption": ("energy_consumption", 1.5),
+        "energy": ("energy", 120.0),
+        "power": ("power", 20.0),
+    }
+    channel = device.get_or_create_channel()
+    channel.is_on = True
+    for attribute, previous in fields.values():
+        setattr(channel, attribute, previous)
+
+    device.update_from_telegram(
+        make_telegram([{"key": key, "value": value} for key in fields])
+    )
+
+    for attribute, previous in fields.values():
+        assert getattr(channel, attribute) == previous
+    assert channel.is_on is True
+
+
+@pytest.mark.parametrize(
+    "key,attribute,maximum",
+    [
+        ("dimValue", "brightness", 100),
+        ("position", "position", 100),
+        ("angle", "angle", 100),
+        ("temperature", "temperature", 40),
+        ("temperatureSetpoint", "temperature_setpoint", 40),
+        ("humidity", "humidity", 100),
+        ("feedTemperature", "feed_temperature", 80),
+        ("energyConsumption", "energy_consumption", 10),
+    ],
+)
+def test_documented_numeric_ranges(make_device, make_telegram, key, attribute, maximum):
+    device = make_device("D1-4B-07")
+    channel = device.get_or_create_channel()
+    for value in (0, maximum):
+        device.update_from_telegram(make_telegram([{"key": key, "value": value}]))
+        assert getattr(channel, attribute) == value
+    for value in (-1, maximum + 1):
+        device.update_from_telegram(make_telegram([{"key": key, "value": value}]))
+        assert getattr(channel, attribute) == maximum
+
+
+@pytest.mark.parametrize("value", ["noChange", "notAvailable", None, True, {}, []])
+def test_invalid_enums_do_not_invent_state(make_device, make_telegram, value):
+    device = make_device("D1-4B-07")
+    fields = {
+        "switch": ("is_on", True),
+        "localControl": ("local_control", True),
+        "heaterMode": ("heater_mode", "heating"),
+        "thermalMode": ("thermal_mode", "cooling"),
+        "powerState": ("power_state", "active"),
+        "temperatureOrigin": ("temperature_origin", "external"),
+        "actuatorDeactivated": ("actuator_deactivated", "info"),
+        "actuatorLowBattery": ("actuator_low_battery", "warning"),
+        "actuatorNotResponding": ("actuator_not_responding", "warning"),
+        "missingTemperature": ("missing_temperature", "info"),
+        "circuitInUse": ("circuit_in_use", "error"),
+    }
+    channel = device.get_or_create_channel()
+    for attribute, previous in fields.values():
+        setattr(channel, attribute, previous)
+
+    device.update_from_telegram(
+        make_telegram([{"key": key, "value": value} for key in fields])
+    )
+
+    for attribute, previous in fields.values():
+        assert getattr(channel, attribute) == previous
+
+
+@pytest.mark.parametrize("value", ["noChange", "invalid", None, 1, {}, []])
+def test_invalid_climate_booleans_preserve_state(make_device, make_telegram, value):
+    device = make_device("D1-4B-05")
+    channel = device.get_or_create_channel()
+    channel.window_open = channel.summer_mode = True
+
+    device.update_from_telegram(
+        make_telegram(
+            [
+                {"key": "windowOpen", "value": value},
+                {"key": "summerMode", "value": value},
+            ]
+        )
+    )
+    assert channel.window_open is True
+    assert channel.summer_mode is True
+
+
+@pytest.mark.parametrize("value", [True, "NaN", "Infinity", -1, "1.5", None, {}, []])
+@pytest.mark.parametrize("embedded", [True, False])
+def test_invalid_channel_does_not_update_channel_zero(
+    make_device, make_telegram, value, embedded
+):
+    device = make_device("D2-01-04")
+    functions = [{"key": "switch", "value": "on"}]
+    if embedded:
+        functions[0]["channel"] = value
+    else:
+        functions.append({"key": "channel", "value": value})
+    device.update_from_telegram(make_telegram(functions))
+    assert not device.channels
+
+
+def test_metadata_only_telegram_clears_transient_button(make_device, make_telegram):
+    device = make_device("F6-02-01")
+    device.update_from_telegram(
+        make_telegram([{"key": "buttonA0", "value": "pressed"}])
+    )
+    device.update_from_telegram({"telegramInfo": {"dbm": -65}})
+
+    assert device.channels[0].last_button is None
+    assert device.channels[0].last_button_action is None
+    assert device.dbm == -65
+
+
+@pytest.mark.parametrize("functions", [None, "invalid", [None, True, "invalid"]])
+def test_malformed_function_containers_are_ignored(make_device, functions):
+    device = make_device("D2-01-04")
+    device.update_from_telegram({"functions": functions})
+    assert not device.channels

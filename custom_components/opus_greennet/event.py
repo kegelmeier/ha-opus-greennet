@@ -24,6 +24,9 @@ from .diagnostics import log_entity_state_write
 from .enocean_device import EnOceanDevice
 from .entity import OpusGreenNetEntity
 
+# Events are pushed by the coordinator.
+PARALLEL_UPDATES = 0
+
 _LOGGER = logging.getLogger(__name__)
 
 # One event type per (button, action) pair, e.g. "buttonA0_pressed".

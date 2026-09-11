@@ -8,7 +8,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import SupportsResponse
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import (
+    ConfigEntryNotReady,
+    HomeAssistantError,
+    ServiceValidationError,
+)
 
 from custom_components.opus_greennet import (
     ATTR_DEVICE_ID,
@@ -111,3 +115,41 @@ async def test_get_service_returns_response_for_selected_device() -> None:
 
     assert result == {"configured": True}
     assert get_registration.kwargs["supports_response"] is SupportsResponse.ONLY
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("failure", "expected"),
+    [
+        (HomeAssistantError("Offline"), ConfigEntryNotReady),
+        (ValueError("Bug"), ValueError),
+    ],
+)
+async def test_failed_setup_cleans_up_without_masking_programming_errors(
+    failure: Exception, expected: type[Exception]
+) -> None:
+    coordinator = MagicMock()
+    coordinator.async_setup = AsyncMock(side_effect=failure)
+    coordinator.async_unload = AsyncMock()
+    entry = SimpleNamespace(data={"eag_id": "AABB0011"})
+    with (
+        patch(
+            "custom_components.opus_greennet.OpusGreenNetCoordinator",
+            return_value=coordinator,
+        ),
+        pytest.raises(expected),
+    ):
+        await async_setup_entry(MagicMock(), entry)
+    coordinator.async_unload.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_failed_platform_unload_keeps_coordinator_running() -> None:
+    coordinator = MagicMock()
+    coordinator.async_unload = AsyncMock()
+    entry = SimpleNamespace(runtime_data=SimpleNamespace(coordinator=coordinator))
+    hass = MagicMock()
+    hass.config_entries.async_unload_platforms = AsyncMock(return_value=False)
+
+    assert await async_unload_entry(hass, entry) is False
+    coordinator.async_unload.assert_not_awaited()

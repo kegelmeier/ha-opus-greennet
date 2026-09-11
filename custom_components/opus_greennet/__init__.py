@@ -147,12 +147,15 @@ async def async_setup_entry(
 
     try:
         await coordinator.async_setup()
-    except Exception as err:
+    except (HomeAssistantError, OSError) as err:
         await coordinator.async_unload()
         raise ConfigEntryNotReady(
             translation_domain=DOMAIN,
-            translation_key="mqtt_setup_failed",
+            translation_key="gateway_unavailable",
         ) from err
+    except BaseException:
+        await coordinator.async_unload()
+        raise
 
     try:
         device_registry = dr.async_get(hass)
@@ -169,7 +172,7 @@ async def async_setup_entry(
             gateway_device_id=gateway_device.id,
         )
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    except Exception:
+    except BaseException:
         await coordinator.async_unload()
         raise
 
