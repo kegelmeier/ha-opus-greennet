@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.2] - 2026-09-11
+
+### Fixed
+- **Duplicate signal-strength entities** (#26): Repeated discovery no longer causes duplicate unique-ID errors at startup, while newly recognized sensor types can still be added. The reporter confirmed the official beta across two restarts, with all 59 signal-strength sensors present and updating.
+- **Tilt controls on roller shutters** (#28): Tilt controls are hidden when the bridge reports `rotationTime` as `0` or `noRotation`. Existing discovery and state updates refresh this setting without extra configuration queries; ordinary position controls remain available, and devices without a valid rotation-time value retain their existing EEP behavior.
+
 ## [0.3.2b0] - 2026-08-31
 
 ### Fixed
