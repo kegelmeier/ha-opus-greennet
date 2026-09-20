@@ -328,6 +328,20 @@ class OpusGreenNetCoordinator:
                 self._device_stream_data[device_id], property_path, payload
             )
 
+            device = self.devices.get(device_id)
+            if device is not None and property_path in {"batteryLevel", "dbm"}:
+                value = self._parse_value(payload)
+                if property_path == "batteryLevel":
+                    device.battery_level = EnOceanDevice.parse_battery_level(value)
+                else:
+                    try:
+                        device.dbm = int(value)
+                    except TypeError, ValueError, OverflowError:
+                        device.dbm = None
+                signal = f"{SIGNAL_DEVICE_STATE_UPDATE}_{self.eag_id}_{device_id}"
+                async_dispatcher_send(self.hass, signal, device)
+                return
+
             # Reset stream timer for this device - finalize after short delay
             if (
                 device_id in self._pending_device_streams
@@ -843,7 +857,12 @@ class OpusGreenNetCoordinator:
                 physical_device=data.get("physicalDevice", ""),
                 first_seen=str(data.get("firstSeen", "")),
                 last_seen=str(data.get("lastSeen", "")),
+                software_revision=str(data.get("softwareRevision", "")),
+                hardware_revision=str(data.get("hardwareRevision", "")),
                 dbm=data.get("dbm"),
+                battery_level=EnOceanDevice.parse_battery_level(
+                    data.get("batteryLevel")
+                ),
             )
 
             # Preserve existing channel state or apply initial state from discovery
@@ -926,6 +945,14 @@ class OpusGreenNetCoordinator:
                 if complete:
                     return complete
         states = data.get("states", {})
+        if isinstance(states, list):
+            return [
+                state
+                for state in states
+                if isinstance(state, dict)
+                and state.get("key") in KNOWN_STATE_KEYS
+                and "value" in state
+            ]
         if isinstance(states, dict):
             return [
                 {"key": key, "value": value}

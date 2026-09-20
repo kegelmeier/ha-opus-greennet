@@ -36,7 +36,11 @@ async def async_setup_entry(
         """Add binary sensor entities for a discovered device."""
         entities: list[BinarySensorEntity] = []
 
-        if device.primary_eep == "F6-05-01":
+        if device.primary_eep == "A5-07-03":
+            entities.append(
+                OpusGreenNetMotionSensor(coordinator, eag_id, gateway_device_id, device)
+            )
+        elif device.primary_eep == "F6-05-01":
             entities.append(
                 OpusGreenNetMoistureSensor(
                     coordinator=coordinator,
@@ -185,6 +189,35 @@ class OpusGreenNetWindowSensor(OpusGreenNetBaseBinarySensor):
         if channel:
             return channel.window_open
         return None
+
+class OpusGreenNetMotionSensor(OpusGreenNetBaseBinarySensor):
+    """Representation of an OPUS SMS motion/presence sensor."""
+
+    _attr_device_class = BinarySensorDeviceClass.MOTION
+    _attr_translation_key = "motion"
+
+    def __init__(
+        self,
+        coordinator: OpusGreenNetCoordinator,
+        eag_id: str,
+        gateway_device_id: str,
+        device: EnOceanDevice,
+    ) -> None:
+        """Initialize the motion sensor."""
+        super().__init__(
+            coordinator,
+            eag_id,
+            gateway_device_id,
+            device,
+            "motion",
+            "motion",
+        )
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return true when motion/presence is reported."""
+        channel = self._device.channels.get(DEFAULT_CHANNEL)
+        return channel.motion_detected if channel else None
 
 
 class OpusGreenNetMoistureSensor(OpusGreenNetBaseBinarySensor):

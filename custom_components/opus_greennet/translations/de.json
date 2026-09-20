@@ -46,7 +46,7 @@
         "name": "Window"
       },
       "motion": {
-        "name": "Motion"
+        "name": "Bewegung"
       }
     },
     "cover": {
@@ -73,13 +73,13 @@
         "name": "Signal strength"
       },
       "illuminance": {
-        "name": "Illuminance"
+        "name": "Beleuchtungsstärke"
       },
       "supply_voltage": {
-        "name": "Supply voltage"
+        "name": "Versorgungsspannung"
       },
       "battery_level": {
-        "name": "Battery level"
+        "name": "Batteriestand"
       }
     },
     "switch": {

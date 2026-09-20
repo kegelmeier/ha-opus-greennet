@@ -13,5 +13,5 @@
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/kegelmeier/ha-opus-greennet/issues",
   "requirements": [],
-  "version": "0.3.3b3"
+  "version": "0.3.3b2"
 }

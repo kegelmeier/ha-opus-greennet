@@ -86,8 +86,14 @@ class OpusGreenNetEntity(Entity):
             identifiers={(DOMAIN, f"{self._eag_id}_{self._device.device_id}")},
             name=self._device.friendly_id or self._device.device_id,
             manufacturer=self._device.manufacturer or "OPUS / EnOcean",
-            model=self._device.primary_eep or "Unknown",
+            model=(
+                "OPUS SMS Anwesenheit"
+                if self._device.primary_eep == "A5-07-03"
+                else self._device.primary_eep or "Unknown"
+            ),
             serial_number=self._device.device_id,
+            sw_version=self._device.software_revision or None,
+            hw_version=self._device.hardware_revision or None,
             via_device_id=self._gateway_device_id,
         )
 

@@ -22,14 +22,17 @@ from .const import (
     KEY_FEED_TEMPERATURE,
     KEY_HEATER_MODE,
     KEY_HUMIDITY,
+    KEY_ILLUMINATION,
     KEY_LIQUID_DETECTED,
     KEY_LOCAL_CONTROL,
     KEY_MISSING_TEMPERATURE,
+    KEY_MOTION_DETECTED,
     KEY_POSITION,
     KEY_POWER,
     KEY_POWER_STATE,
     KEY_ROTATION_TIME,
     KEY_SUMMER_MODE,
+    KEY_SUPPLY_VOLTAGE,
     KEY_SWITCH,
     KEY_TEMPERATURE,
     KEY_TEMPERATURE_ORIGIN,
@@ -54,6 +57,9 @@ class EnOceanChannel:
     energy: float | None = None
     power: float | None = None
     liquid_detected: bool | None = None
+    motion_detected: bool | None = None
+    illumination: float | None = None
+    supply_voltage: float | None = None
     # Climate fields
     temperature: float | None = None
     temperature_setpoint: float | None = None
@@ -89,6 +95,8 @@ class EnOceanDevice:
     physical_device: str = ""
     first_seen: str = ""
     last_seen: str = ""
+    software_revision: str = ""
+    hardware_revision: str = ""
     last_update_source: str = ""
     last_update_received_monotonic: float | None = field(
         default=None, repr=False, compare=False
@@ -100,6 +108,7 @@ class EnOceanDevice:
         default=None, repr=False, compare=False
     )
     dbm: int | None = None
+    battery_level: int | None = None
     last_command_error: str | None = None
     channels: dict[int, EnOceanChannel] = field(default_factory=dict)
     profile: dict[str, Any] | None = None
@@ -245,6 +254,27 @@ class EnOceanDevice:
                 return False
         return None
 
+    @staticmethod
+    def _parse_sms_number(value: Any) -> float | None:
+        """Parse an SMS numeric value and preserve unavailable as None."""
+        if value is None or isinstance(value, bool) or value == "notAvailable":
+            return None
+        try:
+            parsed = float(value)
+        except TypeError, ValueError, OverflowError:
+            return None
+        return parsed if isfinite(parsed) else None
+
+    @staticmethod
+    def parse_battery_level(value: Any) -> int | None:
+        """Parse an OPUS battery percentage such as 72 or '72%'."""
+        if isinstance(value, str):
+            value = value.strip().removesuffix("%").strip()
+        parsed = EnOceanDevice._parse_sms_number(value)
+        if parsed is None or not 0 <= parsed <= 100:
+            return None
+        return round(parsed)
+
     def update_from_telegram(self, telegram: dict[str, Any]) -> None:
         """Update device state from a telegram message."""
         functions = telegram.get("functions", [])
@@ -338,6 +368,18 @@ class EnOceanDevice:
                 liquid_detected = self._parse_boolean(value)
                 if liquid_detected is not None:
                     channel.liquid_detected = liquid_detected
+
+            elif key == KEY_MOTION_DETECTED:
+                if value == "notAvailable":
+                    channel.motion_detected = None
+                else:
+                    channel.motion_detected = self._parse_boolean(value)
+
+            elif key == KEY_ILLUMINATION:
+                channel.illumination = self._parse_sms_number(value)
+
+            elif key == KEY_SUPPLY_VOLTAGE:
+                channel.supply_voltage = self._parse_sms_number(value)
 
             # Climate keys
             elif key == KEY_TEMPERATURE:

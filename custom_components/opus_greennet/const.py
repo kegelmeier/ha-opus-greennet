@@ -108,6 +108,8 @@ EEP_MAPPINGS: Final = {
     # 4-Button Switch (F6-03-xx)
     "F6-03-01": ("event", "Rocker Switch, 4 Rocker"),
     "F6-03-02": ("event", "Rocker Switch, 4 Rocker"),
+    # Smart Motion Sensor / occupancy detector (A5-07-03)
+    "A5-07-03": ("binary_sensor", "OPUS SMS Presence Detector"),
     # Liquid Leakage Sensor (F6-05-01)
     "F6-05-01": ("binary_sensor", "Liquid Leakage Sensor"),
 }
@@ -133,6 +135,10 @@ KEY_LOCAL_CONTROL: Final = "localControl"
 KEY_ENERGY: Final = "energy"
 KEY_POWER: Final = "power"
 KEY_LIQUID_DETECTED: Final = "liquidDetected"
+KEY_MOTION_DETECTED: Final = "motionDetected"
+KEY_ILLUMINATION: Final = "illumination"
+KEY_SUPPLY_VOLTAGE: Final = "supplyVoltage"
+KEY_BATTERY_LEVEL: Final = "batteryLevel"
 
 # Climate function keys
 KEY_TEMPERATURE: Final = "temperature"
@@ -198,6 +204,10 @@ KNOWN_STATE_KEYS: Final = frozenset(
         "energy",
         "power",
         "liquidDetected",
+        KEY_MOTION_DETECTED,
+        KEY_ILLUMINATION,
+        KEY_SUPPLY_VOLTAGE,
+        KEY_BATTERY_LEVEL,
         "temperature",
         "temperatureSetpoint",
         "heaterMode",

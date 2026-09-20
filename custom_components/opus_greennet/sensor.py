@@ -8,7 +8,10 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.const import (
+    LIGHT_LUX,
+    PERCENTAGE,
     SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
+    UnitOfElectricPotential,
     UnitOfPower,
     UnitOfRatio,
     UnitOfTemperature,
@@ -77,6 +80,21 @@ async def async_setup_entry(
                         device=device,
                     )
                 )
+
+        if device.primary_eep == "A5-07-03":
+            entities.extend(
+                (
+                    OpusGreenNetIlluminanceSensor(
+                        coordinator, eag_id, gateway_device_id, device
+                    ),
+                    OpusGreenNetSupplyVoltageSensor(
+                        coordinator, eag_id, gateway_device_id, device
+                    ),
+                    OpusGreenNetBatteryLevelSensor(
+                        coordinator, eag_id, gateway_device_id, device
+                    ),
+                )
+            )
 
         # Signal strength sensor (all devices with dbm data)
         entities.append(
@@ -220,6 +238,82 @@ class OpusGreenNetPowerConsumptionSensor(OpusGreenNetBaseSensor):
         """Return the energy consumption value."""
         channel = self._device.channels.get(DEFAULT_CHANNEL)
         return channel.energy_consumption if channel else None
+
+
+class OpusGreenNetIlluminanceSensor(OpusGreenNetBaseSensor):
+    """Illuminance reported by an OPUS SMS detector."""
+
+    _attr_device_class = SensorDeviceClass.ILLUMINANCE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = LIGHT_LUX
+
+    def __init__(self, coordinator, eag_id, gateway_device_id, device):
+        """Initialize the illuminance sensor."""
+        super().__init__(
+            coordinator,
+            eag_id,
+            gateway_device_id,
+            device,
+            "illumination",
+            "illuminance",
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        """Return illuminance in lux."""
+        channel = self._device.channels.get(DEFAULT_CHANNEL)
+        return channel.illumination if channel else None
+
+
+class OpusGreenNetSupplyVoltageSensor(OpusGreenNetBaseSensor):
+    """Supply voltage reported by an OPUS SMS detector."""
+
+    _attr_device_class = SensorDeviceClass.VOLTAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = UnitOfElectricPotential.VOLT
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator, eag_id, gateway_device_id, device):
+        """Initialize the supply-voltage sensor."""
+        super().__init__(
+            coordinator,
+            eag_id,
+            gateway_device_id,
+            device,
+            "supply_voltage",
+            "supply_voltage",
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        """Return supply voltage."""
+        channel = self._device.channels.get(DEFAULT_CHANNEL)
+        return channel.supply_voltage if channel else None
+
+
+class OpusGreenNetBatteryLevelSensor(OpusGreenNetBaseSensor):
+    """Battery level reported by an OPUS SMS detector."""
+
+    _attr_device_class = SensorDeviceClass.BATTERY
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator, eag_id, gateway_device_id, device):
+        """Initialize the battery-level sensor."""
+        super().__init__(
+            coordinator,
+            eag_id,
+            gateway_device_id,
+            device,
+            "battery_level",
+            "battery_level",
+        )
+
+    @property
+    def native_value(self) -> int | None:
+        """Return battery percentage."""
+        return self._device.battery_level
 
 
 class OpusGreenNetSignalStrengthSensor(OpusGreenNetBaseSensor):
