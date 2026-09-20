@@ -20,9 +20,6 @@ from .coordinator import (
 from .enocean_device import EnOceanDevice
 from .entity import OpusGreenNetEntity
 
-# Binary sensor state is pushed by the coordinator.
-PARALLEL_UPDATES = 0
-
 
 async def async_setup_entry(
     hass: HomeAssistant,

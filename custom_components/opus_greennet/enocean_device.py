@@ -45,13 +45,12 @@ class EnOceanChannel:
     """Represents a single channel of an EnOcean device."""
 
     channel_id: int
-    state_revision: int = field(default=0, repr=False, compare=False)
-    is_on: bool | None = None
+    is_on: bool = False
     brightness: int | None = None  # 0-100 for dimmers
     position: int | None = None  # 0-100 for covers
     angle: int | None = None  # Tilt angle for blinds
     rotation_time: float | None = None  # Zero means the cover has no slat rotation
-    local_control: bool | None = None
+    local_control: bool = False
     energy: float | None = None
     power: float | None = None
     liquid_detected: bool | None = None
@@ -74,7 +73,7 @@ class EnOceanChannel:
     missing_temperature: str | None = None
     circuit_in_use: str | None = None
     # Transient rocker-switch state: set only by the most recent telegram and
-    # emitted by the event entity. Reset on every update_from_telegram call.
+    # consumed once by the event entity. Reset on every update_from_telegram call.
     last_button: str | None = None
     last_button_action: str | None = None
 
@@ -223,55 +222,15 @@ class EnOceanDevice:
             self.channels[channel_id] = EnOceanChannel(channel_id=channel_id)
         return self.channels[channel_id]
 
-    @staticmethod
-    def _parse_number(
-        value: Any,
-        *,
-        minimum: float | None = None,
-        maximum: float | None = None,
-        integer: bool = False,
-    ) -> float | int | None:
-        """Parse finite protocol numbers without treating booleans as readings."""
-        if isinstance(value, bool) or not isinstance(value, (int, float, str)):
-            return None
+    def _parse_channel_id(self, value: Any) -> int:
+        """Parse a channel id from a telegram value."""
         try:
-            number = float(value)
-        except ValueError, OverflowError:
-            return None
-        if (
-            not isfinite(number)
-            or (minimum is not None and number < minimum)
-            or (maximum is not None and number > maximum)
-            or (integer and not number.is_integer())
-        ):
-            return None
-        return int(number) if integer else number
-
-    def _parse_channel_id(self, value: Any) -> int | None:
-        """Reject malformed channel selectors instead of updating channel zero."""
-        parsed = self._parse_number(value, minimum=0, integer=True)
-        return int(parsed) if parsed is not None else None
-
-    def _update_numeric_field(
-        self,
-        channel: EnOceanChannel,
-        attr: str,
-        value: Any,
-        minimum: float | None = None,
-        maximum: float | None = None,
-        *,
-        integer: bool = False,
-        allow_unavailable: bool = False,
-    ) -> None:
-        """Clear an explicitly unavailable reading and ignore malformed values."""
-        if allow_unavailable and value == "notAvailable":
-            setattr(channel, attr, None)
-        elif (
-            number := self._parse_number(
-                value, minimum=minimum, maximum=maximum, integer=integer
-            )
-        ) is not None:
-            setattr(channel, attr, number)
+            return int(value)
+        except ValueError, TypeError:
+            try:
+                return int(float(value))
+            except ValueError, TypeError:
+                return DEFAULT_CHANNEL
 
     @staticmethod
     def _parse_boolean(value: Any) -> bool | None:
@@ -291,14 +250,6 @@ class EnOceanDevice:
         functions = telegram.get("functions", [])
         if isinstance(functions, dict):
             functions = [functions]
-        if not isinstance(functions, list):
-            functions = []
-        functions = [func for func in functions if isinstance(func, dict)]
-
-        # Button fields describe only this telegram, including metadata-only updates.
-        for channel in self.channels.values():
-            channel.last_button = None
-            channel.last_button_action = None
 
         # Determine default channel from telegram-level channel function.
         default_channel_id = DEFAULT_CHANNEL
@@ -310,6 +261,7 @@ class EnOceanDevice:
                 break
 
         # Update channel state from functions
+        reset_channels: set[int] = set()
         for func in functions:
             key = func.get("key")
             if key == KEY_CHANNEL:
@@ -317,37 +269,40 @@ class EnOceanDevice:
 
             value = func.get("value")
             channel_id = self._parse_channel_id(func.get("channel", default_channel_id))
-            if channel_id is None:
-                continue
             channel = self.get_or_create_channel(channel_id)
-            channel.state_revision += 1
+
+            # Reset transient rocker fields so they only reflect the current
+            # telegram for channels touched by this update.
+            if channel_id not in reset_channels:
+                channel.last_button = None
+                channel.last_button_action = None
+                reset_channels.add(channel_id)
 
             if key in BUTTON_KEYS:
-                if value in ("pressed", "released"):
-                    channel.last_button = key
-                    channel.last_button_action = value
+                channel.last_button = key
+                channel.last_button_action = str(value) if value is not None else None
 
             elif key == KEY_SWITCH:
-                if value in ("on", "off"):
-                    channel.is_on = value == STATE_ON
+                channel.is_on = value == STATE_ON
 
             elif key == KEY_DIMMER:
-                brightness = self._parse_number(
-                    value, minimum=0, maximum=100, integer=True
-                )
-                if brightness is not None:
-                    channel.brightness = int(brightness)
-                    channel.is_on = brightness > 0
+                try:
+                    channel.brightness = int(value)
+                    channel.is_on = channel.brightness > 0
+                except ValueError, TypeError:
+                    pass
 
             elif key == KEY_POSITION:
-                self._update_numeric_field(
-                    channel, "position", value, 0, 100, integer=True
-                )
+                try:
+                    channel.position = int(value)
+                except ValueError, TypeError:
+                    pass
 
             elif key == KEY_ANGLE:
-                self._update_numeric_field(
-                    channel, "angle", value, 0, 100, integer=True
-                )
+                try:
+                    channel.angle = int(value)
+                except ValueError, TypeError:
+                    pass
 
             elif key == KEY_ROTATION_TIME:
                 # EEP D2-05-00 uses noRotation; OPUS also reports numeric zero.
@@ -365,14 +320,19 @@ class EnOceanDevice:
                         channel.rotation_time = rotation_time
 
             elif key == KEY_LOCAL_CONTROL:
-                if value in ("on", "off"):
-                    channel.local_control = value == STATE_ON
+                channel.local_control = value == STATE_ON
 
             elif key == KEY_ENERGY:
-                self._update_numeric_field(channel, "energy", value)
+                try:
+                    channel.energy = float(value)
+                except ValueError, TypeError:
+                    pass
 
             elif key == KEY_POWER:
-                self._update_numeric_field(channel, "power", value)
+                try:
+                    channel.power = float(value)
+                except ValueError, TypeError:
+                    pass
 
             elif key == KEY_LIQUID_DETECTED:
                 liquid_detected = self._parse_boolean(value)
@@ -381,100 +341,86 @@ class EnOceanDevice:
 
             # Climate keys
             elif key == KEY_TEMPERATURE:
-                self._update_numeric_field(
-                    channel, "temperature", value, 0, 40, allow_unavailable=True
-                )
+                if value != "notAvailable":
+                    try:
+                        channel.temperature = float(value)
+                    except ValueError, TypeError:
+                        pass
 
             elif key == KEY_TEMPERATURE_SETPOINT:
-                self._update_numeric_field(
-                    channel,
-                    "temperature_setpoint",
-                    value,
-                    0,
-                    40,
-                    allow_unavailable=True,
-                )
+                if value != "notAvailable":
+                    try:
+                        channel.temperature_setpoint = float(value)
+                    except ValueError, TypeError:
+                        pass
 
             elif key == KEY_HEATER_MODE:
-                if value in (
-                    "heating",
-                    "on",
-                    "off",
-                    "autoOff",
-                    "configIncomplete",
-                    "error",
-                ):
-                    channel.heater_mode = value
+                channel.heater_mode = str(value)
 
             elif key == KEY_HUMIDITY:
-                self._update_numeric_field(
-                    channel, "humidity", value, 0, 100, allow_unavailable=True
-                )
+                if value != "notAvailable":
+                    try:
+                        channel.humidity = float(value)
+                    except ValueError, TypeError:
+                        pass
 
             elif key == KEY_WINDOW_OPEN:
-                if (parsed := self._parse_boolean(value)) is not None:
-                    channel.window_open = parsed
+                channel.window_open = value == "true" or value is True
 
             elif key == KEY_SUMMER_MODE:
-                if (parsed := self._parse_boolean(value)) is not None:
-                    channel.summer_mode = parsed
+                channel.summer_mode = value == "true" or value is True
 
             elif key == KEY_FEED_TEMPERATURE:
-                self._update_numeric_field(
-                    channel, "feed_temperature", value, 0, 80, allow_unavailable=True
-                )
+                if value != "notAvailable":
+                    try:
+                        channel.feed_temperature = float(value)
+                    except ValueError, TypeError:
+                        pass
 
             elif key == KEY_THERMAL_MODE:
-                if value in ("heating", "cooling"):
-                    channel.thermal_mode = value
+                channel.thermal_mode = str(value)
 
             elif key == KEY_ENERGY_CONSUMPTION:
-                self._update_numeric_field(
-                    channel, "energy_consumption", value, 0, 10, allow_unavailable=True
-                )
+                if value != "notAvailable":
+                    try:
+                        channel.energy_consumption = float(value)
+                    except ValueError, TypeError:
+                        pass
 
             elif key == KEY_POWER_STATE:
-                if value in ("active", "inactive"):
-                    channel.power_state = value
+                channel.power_state = str(value)
 
             elif key == KEY_TEMPERATURE_ORIGIN:
-                if value in ("external", "internal"):
-                    channel.temperature_origin = value
+                channel.temperature_origin = str(value)
 
             # Error/warning states
             elif key == KEY_ACTUATOR_DEACTIVATED:
-                if value in ("info", "reset"):
-                    channel.actuator_deactivated = value
+                channel.actuator_deactivated = str(value)
 
             elif key == KEY_ACTUATOR_LOW_BATTERY:
-                if value in ("warning", "reset"):
-                    channel.actuator_low_battery = value
+                channel.actuator_low_battery = str(value)
 
             elif key == KEY_ACTUATOR_NOT_RESPONDING:
-                if value in ("warning", "error", "reset"):
-                    channel.actuator_not_responding = value
+                channel.actuator_not_responding = str(value)
 
             elif key == KEY_MISSING_TEMPERATURE:
-                if value in ("info", "warning", "error", "reset"):
-                    channel.missing_temperature = value
+                channel.missing_temperature = str(value)
 
             elif key == KEY_CIRCUIT_IN_USE:
-                if value in ("error", "reset"):
-                    channel.circuit_in_use = value
+                channel.circuit_in_use = str(value)
 
         # Update last seen from telegram
-        if isinstance(telegram.get("timestamp"), str):
+        if "timestamp" in telegram:
             self.last_seen = telegram["timestamp"]
-        if isinstance(telegram.get("telegramInfo"), dict):
-            dbm = self._parse_number(telegram["telegramInfo"].get("dbm"), integer=True)
+        if "telegramInfo" in telegram:
+            dbm = telegram["telegramInfo"].get("dbm")
             if dbm is not None:
-                self.dbm = int(dbm)
+                self.dbm = dbm
 
     @classmethod
     def from_device_object(cls, device_data: dict[str, Any]) -> EnOceanDevice:
         """Create an EnOceanDevice from a device JSON object."""
         device = device_data.get("device", device_data)
-        dbm = cls._parse_number(device.get("dbm"), integer=True)
 
         return cls(
             device_id=device.get("deviceId", ""),
@@ -484,5 +430,5 @@ class EnOceanDevice:
             physical_device=device.get("physicalDevice", ""),
             first_seen=device.get("firstSeen", ""),
             last_seen=device.get("lastSeen", ""),
-            dbm=int(dbm) if dbm is not None else None,
+            dbm=device.get("dbm"),
         )

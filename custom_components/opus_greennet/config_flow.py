@@ -13,7 +13,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 
 from .const import CONF_EAG_ID, DOMAIN
-from .mqtt_transport import async_probe_gateway
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,7 +31,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
 
     Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
     """
-    eag_id = data[CONF_EAG_ID].strip().upper()
+    eag_id = data[CONF_EAG_ID].upper()
 
     # Validate EAG ID format
     if not EAG_ID_PATTERN.fullmatch(eag_id):
@@ -42,11 +41,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     if not mqtt.is_connected(hass):
         raise CannotConnect
 
-    try:
-        await async_probe_gateway(hass, eag_id)
-    except HomeAssistantError as err:
-        raise GatewayUnavailable from err
-
+    # Return info that you want to store in the config entry.
     return {"title": f"Opus GreenNet ({eag_id})", "eag_id": eag_id}
 
 
@@ -66,22 +61,20 @@ class OpusGreenNetConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="mqtt_not_configured")
 
         if user_input is not None:
-            eag_id = user_input[CONF_EAG_ID].strip().upper()
-            if EAG_ID_PATTERN.fullmatch(eag_id):
-                await self.async_set_unique_id(eag_id)
-                self._abort_if_unique_id_configured()
             try:
                 info = await validate_input(self.hass, user_input)
             except CannotConnect:
                 errors["base"] = "cannot_connect"
-            except GatewayUnavailable:
-                errors["base"] = "gateway_unavailable"
             except InvalidEagId:
                 errors[CONF_EAG_ID] = "invalid_eag_id"
             except Exception:  # pylint: disable=broad-except
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
             else:
+                # Check if already configured
+                await self.async_set_unique_id(info["eag_id"])
+                self._abort_if_unique_id_configured()
+
                 return self.async_create_entry(
                     title=info["title"],
                     data={CONF_EAG_ID: info["eag_id"]},
@@ -100,7 +93,3 @@ class CannotConnect(HomeAssistantError):
 
 class InvalidEagId(HomeAssistantError):
     """Error to indicate the EAG ID is invalid."""
-
-
-class GatewayUnavailable(HomeAssistantError):
-    """The broker is connected but the specified gateway did not respond."""

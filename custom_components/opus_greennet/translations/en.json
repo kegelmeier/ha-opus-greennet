@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Opus GreenNet Bridge",
-        "description": "Configure the bridge connected to your MQTT broker. Setup checks that the specified bridge responds.",
+        "description": "Configure the bridge connected to your MQTT broker.",
         "data": {
           "eag_id": "EAG identifier"
         },
@@ -15,8 +15,7 @@
     "error": {
       "cannot_connect": "Failed to connect to the MQTT broker",
       "invalid_eag_id": "The EAG identifier must contain exactly eight hexadecimal characters",
-      "unknown": "Unexpected error",
-      "gateway_unavailable": "The MQTT broker is connected, but the bridge did not respond. Check its identifier and the MQTT bridge connection."
+      "unknown": "Unexpected error"
     },
     "abort": {
       "already_configured": "This bridge is already configured",
@@ -98,21 +97,6 @@
     },
     "no_loaded_config_entry": {
       "message": "No Opus GreenNet gateway is loaded."
-    },
-    "gateway_unavailable": {
-      "message": "The OPUS gateway is unavailable. Check the bridge connection and try again."
-    },
-    "mqtt_unavailable": {
-      "message": "The Home Assistant MQTT connection is unavailable."
-    },
-    "request_rejected": {
-      "message": "The gateway rejected the request for {device_id}: {reason}"
-    },
-    "request_timeout": {
-      "message": "The gateway did not acknowledge the request for {device_id}. Its outcome is unknown; check the device before trying again."
-    },
-    "request_cancelled": {
-      "message": "The request was cancelled because the integration is unloading or its connection was lost."
     }
   },
   "services": {
