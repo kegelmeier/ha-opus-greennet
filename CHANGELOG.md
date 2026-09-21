@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+# [0.3.5] Hoppe Window-Handle added (one Sensor, no Lock-Function)
+
+# [0.3.4] Hoppe eLock-Window-Handle added (only Sensor, changing Lock-Status is not working)
+
+## [0.3.3b3] SMS-Motion Sensor added 
+- 
+- not working: Home-Assistant-Lock-Entity (`notAllowed`) and (`allowed`)
+- Enum-Sensor `Handlesensor` (`closed` / `open`)
+- Enum-Sensor `Lockstatus` (`notRequested` / `requested`)
+- Parsing indexierter `states/{index}/key`- und `states/{index}/value`-Fragments
+- Registrierung von `Platform.LOCK` und Erweiterung von `EnOceanChannel`
+- English and German Translations
+
 ## [0.3.2] - 2026-09-11
 
 ### Fixed
