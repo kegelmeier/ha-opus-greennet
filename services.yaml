@@ -1,0 +1,50 @@
+get_device_configuration:
+  fields:
+    device_id:
+      required: true
+      example: "AABBCCDD"
+      selector:
+        text:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: opus_greennet
+
+set_device_configuration:
+  fields:
+    device_id:
+      required: true
+      example: "AABBCCDD"
+      selector:
+        text:
+    configuration:
+      required: true
+      selector:
+        object:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: opus_greennet
+
+get_device_parameters:
+  fields:
+    device_id:
+      required: true
+      example: "AABBCCDD"
+      selector:
+        text:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: opus_greennet
+
+reload_entry:
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: opus_greennet
