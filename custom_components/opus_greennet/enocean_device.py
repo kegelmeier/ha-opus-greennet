@@ -21,10 +21,12 @@ from .const import (
     KEY_ENERGY_CONSUMPTION,
     KEY_FEED_TEMPERATURE,
     KEY_HEATER_MODE,
+    KEY_HANDLE,
     KEY_HUMIDITY,
     KEY_ILLUMINATION,
     KEY_LIQUID_DETECTED,
     KEY_LOCAL_CONTROL,
+    KEY_LOCK,
     KEY_MISSING_TEMPERATURE,
     KEY_MOTION_DETECTED,
     KEY_POSITION,
@@ -38,6 +40,7 @@ from .const import (
     KEY_TEMPERATURE_ORIGIN,
     KEY_TEMPERATURE_SETPOINT,
     KEY_THERMAL_MODE,
+    KEY_UNLOCK,
     KEY_WINDOW_OPEN,
     STATE_ON,
 )
@@ -60,6 +63,10 @@ class EnOceanChannel:
     motion_detected: bool | None = None
     illumination: float | None = None
     supply_voltage: float | None = None
+    # HOPPE window handle fields (EEP D2-06-40)
+    handle_state: str | None = None
+    lock_state: str | None = None
+    unlock_state: str | None = None
     # Climate fields
     temperature: float | None = None
     temperature_setpoint: float | None = None
@@ -380,6 +387,16 @@ class EnOceanDevice:
 
             elif key == KEY_SUPPLY_VOLTAGE:
                 channel.supply_voltage = self._parse_sms_number(value)
+
+            # HOPPE window handle keys
+            elif key == KEY_HANDLE:
+                channel.handle_state = str(value)
+
+            elif key == KEY_LOCK:
+                channel.lock_state = str(value)
+
+            elif key == KEY_UNLOCK:
+                channel.unlock_state = str(value)
 
             # Climate keys
             elif key == KEY_TEMPERATURE:

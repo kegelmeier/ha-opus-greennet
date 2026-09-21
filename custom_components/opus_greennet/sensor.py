@@ -22,7 +22,14 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import OpusGreenNetConfigEntry
-from .const import CONF_EAG_ID, DEFAULT_CHANNEL
+from .const import (
+    CONF_EAG_ID,
+    DEFAULT_CHANNEL,
+    HANDLE_CLOSED,
+    HANDLE_OPEN,
+    UNLOCK_NOT_REQUESTED,
+    UNLOCK_REQUESTED,
+)
 from .coordinator import (
     SIGNAL_DEVICE_DISCOVERED,
     OpusGreenNetCoordinator,
@@ -91,6 +98,18 @@ async def async_setup_entry(
                         coordinator, eag_id, gateway_device_id, device
                     ),
                     OpusGreenNetBatteryLevelSensor(
+                        coordinator, eag_id, gateway_device_id, device
+                    ),
+                )
+            )
+
+        if device.primary_eep == "D2-06-40":
+            entities.extend(
+                (
+                    OpusGreenNetHandleStateSensor(
+                        coordinator, eag_id, gateway_device_id, device
+                    ),
+                    OpusGreenNetUnlockRequestSensor(
                         coordinator, eag_id, gateway_device_id, device
                     ),
                 )
@@ -314,6 +333,54 @@ class OpusGreenNetBatteryLevelSensor(OpusGreenNetBaseSensor):
     def native_value(self) -> int | None:
         """Return battery percentage."""
         return self._device.battery_level
+
+
+class OpusGreenNetHandleStateSensor(OpusGreenNetBaseSensor):
+    """Position state reported by a HOPPE window handle."""
+
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = [HANDLE_CLOSED, HANDLE_OPEN]
+
+    def __init__(self, coordinator, eag_id, gateway_device_id, device):
+        """Initialize the window handle state sensor."""
+        super().__init__(
+            coordinator,
+            eag_id,
+            gateway_device_id,
+            device,
+            "handle_state",
+            "handle_state",
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        """Return closed or open as reported by the window handle."""
+        channel = self._device.channels.get(DEFAULT_CHANNEL)
+        return channel.handle_state if channel else None
+
+
+class OpusGreenNetUnlockRequestSensor(OpusGreenNetBaseSensor):
+    """Unlock-button request reported by a HOPPE window handle."""
+
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = [UNLOCK_NOT_REQUESTED, UNLOCK_REQUESTED]
+
+    def __init__(self, coordinator, eag_id, gateway_device_id, device):
+        """Initialize the unlock request sensor."""
+        super().__init__(
+            coordinator,
+            eag_id,
+            gateway_device_id,
+            device,
+            "unlock_request",
+            "unlock_request",
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        """Return whether the handle button requests an unlock."""
+        channel = self._device.channels.get(DEFAULT_CHANNEL)
+        return channel.unlock_state if channel else None
 
 
 class OpusGreenNetSignalStrengthSensor(OpusGreenNetBaseSensor):

@@ -80,11 +80,30 @@
       },
       "battery_level": {
         "name": "Batteriestand"
+      },
+      "handle_state": {
+        "name": "Griffstellung",
+        "state": {
+          "closed": "Geschlossen",
+          "open": "Offen/gekippt"
+        }
+      },
+      "unlock_request": {
+        "name": "Entsperranfrage",
+        "state": {
+          "notRequested": "Nicht angefordert",
+          "requested": "Angefordert"
+        }
       }
     },
     "switch": {
       "channel": {
         "name": "Channel {channel}"
+      }
+    },
+    "lock": {
+      "window_handle_lock": {
+        "name": "Fenstergriffsperre"
       }
     }
   },

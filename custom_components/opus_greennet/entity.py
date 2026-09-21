@@ -89,6 +89,8 @@ class OpusGreenNetEntity(Entity):
             model=(
                 "OPUS SMS Anwesenheit"
                 if self._device.primary_eep == "A5-07-03"
+                else "HOPPE Smart Window Handle"
+                if self._device.primary_eep == "D2-06-40"
                 else self._device.primary_eep or "Unknown"
             ),
             serial_number=self._device.device_id,

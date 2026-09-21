@@ -15,6 +15,9 @@ TOPIC_STREAM_TELEGRAM: Final = "{base}/{eag_id}/stream/telegram/{device_id}/from
 TOPIC_STREAM_TELEGRAM_TO: Final = "{base}/{eag_id}/stream/telegram/{device_id}/to"
 TOPIC_STREAM_DEVICE: Final = "{base}/{eag_id}/stream/device/{device_id}"
 TOPIC_PUT_STATE: Final = "{base}/{eag_id}/put/devices/{device_id}/state"
+TOPIC_WINDOW_HANDLE_ACCESS: Final = (
+    "{base}/{eag_id}/stream/telegram/{device_id}/functions/0/value"
+)
 TOPIC_SUB_PUT_ANSWER_STATE: Final = "{base}/{eag_id}/putAnswer/devices/+/state"
 TOPIC_GET_DEVICES: Final = "{base}/{eag_id}/get/devices"
 TOPIC_GET_ANSWER_DEVICES: Final = "{base}/{eag_id}/getAnswer/devices/#"
@@ -94,6 +97,8 @@ EEP_MAPPINGS: Final = {
     "D2-05-00": ("cover", "Blinds Control for Position and Angle"),
     "D2-05-01": ("cover", "Blinds Control for Position"),
     "D2-05-02": ("cover", "Blinds Control for Position and Angle, Lock"),
+    # Window Handle (D2-06-40)
+    "D2-06-40": ("lock", "HOPPE Smart Window Handle"),
     # HeatArea (D1-4B-xx) - Proprietary OPUS profiles
     "D1-4B-05": ("climate", "OPUS Valve Area"),
     "D1-4B-06": ("climate", "OPUS CosiTherm Area"),
@@ -122,6 +127,7 @@ ENTITY_PLATFORMS: Final = {
     "climate": "climate",
     "binary_sensor": "binary_sensor",
     "event": "event",
+    "lock": "lock",
 }
 
 # Function keys used in EnOcean telegrams
@@ -139,6 +145,9 @@ KEY_MOTION_DETECTED: Final = "motionDetected"
 KEY_ILLUMINATION: Final = "illumination"
 KEY_SUPPLY_VOLTAGE: Final = "supplyVoltage"
 KEY_BATTERY_LEVEL: Final = "batteryLevel"
+KEY_HANDLE: Final = "handle"
+KEY_LOCK: Final = "lock"
+KEY_UNLOCK: Final = "unlock"
 
 # Climate function keys
 KEY_TEMPERATURE: Final = "temperature"
@@ -189,6 +198,16 @@ HEATER_MODE_AUTO_OFF: Final = "autoOff"
 HEATER_MODE_CONFIG_INCOMPLETE: Final = "configIncomplete"
 HEATER_MODE_ERROR: Final = "error"
 
+# HOPPE window handle states and commands (EEP D2-06-40)
+HANDLE_CLOSED: Final = "closed"
+HANDLE_OPEN: Final = "open"
+LOCK_LOCKED: Final = "locked"
+LOCK_UNLOCKED: Final = "unlocked"
+UNLOCK_NOT_REQUESTED: Final = "notRequested"
+UNLOCK_REQUESTED: Final = "requested"
+LOCK_COMMAND_ALLOWED: Final = "allowed"
+LOCK_COMMAND_NOT_ALLOWED: Final = "notAllowed"
+
 # Default values
 DEFAULT_CHANNEL: Final = 0
 
@@ -208,6 +227,9 @@ KNOWN_STATE_KEYS: Final = frozenset(
         KEY_ILLUMINATION,
         KEY_SUPPLY_VOLTAGE,
         KEY_BATTERY_LEVEL,
+        KEY_HANDLE,
+        KEY_LOCK,
+        KEY_UNLOCK,
         "temperature",
         "temperatureSetpoint",
         "heaterMode",

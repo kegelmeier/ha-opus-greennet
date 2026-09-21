@@ -20,6 +20,8 @@ from .const import (
     DOMAIN,
     KEY_CHANNEL,
     KEY_ROTATION_TIME,
+    LOCK_COMMAND_ALLOWED,
+    LOCK_COMMAND_NOT_ALLOWED,
     KNOWN_STATE_KEYS,
     TOPIC_BASE,
     TOPIC_GET_ANSWER_DEVICE_CONFIGURATION,
@@ -40,6 +42,7 @@ from .const import (
     TOPIC_SUB_DEVICES_ALL,
     TOPIC_SUB_PUT_ANSWER_STATE,
     TOPIC_SUB_TELEGRAM_FROM_ALL,
+    TOPIC_WINDOW_HANDLE_ACCESS,
 )
 from .enocean_device import EnOceanDevice
 
@@ -673,12 +676,35 @@ class OpusGreenNetCoordinator:
         if device_entry is None:
             return False
 
-        state_key = property_path.removeprefix("states/").split("/", 1)[0]
+        state_key: str | None = None
+        value: Any = None
+        path_parts = property_path.split("/")
+
+        # State arrays arrive as separate states/{index}/key and value fragments.
+        # Read the completed pair from the device cache, regardless of arrival order.
+        if len(path_parts) == 3 and path_parts[1].isdigit():
+            states = self._device_data.get(device_id, {}).get("states", [])
+            state_index = int(path_parts[1])
+            if not isinstance(states, list) or state_index >= len(states):
+                return False
+            state = states[state_index]
+            if (
+                not isinstance(state, dict)
+                or "key" not in state
+                or "value" not in state
+            ):
+                return False
+            state_key = state.get("key")
+            value = state.get("value")
+        elif len(path_parts) >= 2:
+            # Retain compatibility with bridges exposing a flat states/{key} map.
+            state_key = path_parts[1]
+            value = self._parse_value(payload)
+
         if state_key not in KNOWN_STATE_KEYS:
             return False
 
         _, device = device_entry
-        value = self._parse_value(payload)
         if state_key != KEY_ROTATION_TIME:
             self._cancel_reconciliation_queries(device_id)
             device.last_command_error = None
@@ -1255,6 +1281,30 @@ class OpusGreenNetCoordinator:
         if channel > 0 or (device is not None and device.channel_count > 1):
             return [{"key": KEY_CHANNEL, "value": str(channel)}, *functions]
         return functions
+
+    async def async_set_window_handle_lock(
+        self,
+        device_id: str,
+        *,
+        locked: bool,
+    ) -> None:
+        """Allow or deny operation of a HOPPE window handle."""
+        topic = TOPIC_WINDOW_HANDLE_ACCESS.format(
+            base=TOPIC_BASE,
+            eag_id=self.eag_id,
+            device_id=device_id,
+        )
+        payload = LOCK_COMMAND_NOT_ALLOWED if locked else LOCK_COMMAND_ALLOWED
+        _LOGGER.debug(
+            "Sending HOPPE window handle command to %s: %s", topic, payload
+        )
+        await mqtt.async_publish(
+            self.hass,
+            topic,
+            payload,
+            qos=1,
+            retain=False,
+        )
 
     async def async_turn_on(
         self,

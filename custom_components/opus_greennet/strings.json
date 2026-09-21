@@ -69,11 +69,30 @@
       },
       "signal_strength": {
         "name": "Signal strength"
+      },
+      "handle_state": {
+        "name": "Handle state",
+        "state": {
+          "closed": "Closed",
+          "open": "Open"
+        }
+      },
+      "unlock_request": {
+        "name": "Unlock request",
+        "state": {
+          "notRequested": "Not requested",
+          "requested": "Requested"
+        }
       }
     },
     "switch": {
       "channel": {
         "name": "Channel {channel}"
+      }
+    },
+    "lock": {
+      "window_handle_lock": {
+        "name": "Window handle lock"
       }
     }
   },
