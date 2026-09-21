@@ -47,6 +47,12 @@
       },
       "motion": {
         "name": "Bewegung"
+      },
+      "smoke_alarm": {
+        "name": "Rauchalarm"
+      },
+      "battery_low": {
+        "name": "Batterie schwach"
       }
     },
     "cover": {
@@ -129,6 +135,21 @@
     },
     "no_loaded_config_entry": {
       "message": "No Opus GreenNet gateway is loaded."
+    },
+    "gateway_unavailable": {
+      "message": "The OPUS gateway is unavailable. Check the bridge connection and try again."
+    },
+    "mqtt_unavailable": {
+      "message": "The Home Assistant MQTT connection is unavailable."
+    },
+    "request_rejected": {
+      "message": "The gateway rejected the request for {device_id}: {reason}"
+    },
+    "request_timeout": {
+      "message": "The gateway did not acknowledge the request for {device_id}. Its outcome is unknown; check the device before trying again."
+    },
+    "request_cancelled": {
+      "message": "The request was cancelled because the integration is unloading or its connection was lost."
     }
   },
   "services": {

@@ -2,6 +2,8 @@
 
 All notable changes to this project will be documented in this file.
 
+# [0.3.6] Erweiterung: Jaeger Direkt Rauchwarnmelder (RWM), EEP-Profil: F6-05-02
+
 # [0.3.5] Hoppe Window-Handle added (one Sensor, no Lock-Function)
 
 # [0.3.4] Hoppe eLock-Window-Handle added (only Sensor, changing Lock-Status is not working)

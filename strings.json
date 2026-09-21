@@ -45,6 +45,15 @@
       },
       "window": {
         "name": "Window"
+      },
+      "motion": {
+        "name": "Motion"
+      },
+      "smoke_alarm": {
+        "name": "Smoke alarm"
+      },
+      "battery_low": {
+        "name": "Battery low"
       }
     },
     "cover": {

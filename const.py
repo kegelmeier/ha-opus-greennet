@@ -119,6 +119,8 @@ EEP_MAPPINGS: Final = {
     "A5-07-03": ("binary_sensor", "OPUS SMS Presence Detector"),
     # Liquid Leakage Sensor (F6-05-01)
     "F6-05-01": ("binary_sensor", "Liquid Leakage Sensor"),
+    # NEU: Rauchwarnmelder (RWM) "Jaeger Direkt", Produkt-ID 00401000002E
+    "F6-05-02": ("binary_sensor", "Jaeger Direkt Smoke Detector (RWM)"),
 }
 
 # Entity type to platform mapping
@@ -151,6 +153,10 @@ KEY_BATTERY_LEVEL: Final = "batteryLevel"
 KEY_HANDLE: Final = "handle"
 KEY_LOCK: Final = "lock"
 KEY_UNLOCK: Final = "unlock"
+
+# NEU: Jaeger Direkt RWM (F6-05-02) telegram function keys
+KEY_ALARM: Final = "alarm"
+KEY_BATTERY_LOW: Final = "batteryLow"
 
 # Climate function keys
 KEY_TEMPERATURE: Final = "temperature"
@@ -234,6 +240,8 @@ KNOWN_STATE_KEYS: Final = frozenset(
         KEY_HANDLE,
         KEY_LOCK,
         KEY_UNLOCK,
+        KEY_ALARM,
+        KEY_BATTERY_LOW,
         "temperature",
         "temperatureSetpoint",
         "heaterMode",

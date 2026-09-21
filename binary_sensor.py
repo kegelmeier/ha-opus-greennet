@@ -49,6 +49,24 @@ async def async_setup_entry(
                     device=device,
                 )
             )
+        elif device.primary_eep == "F6-05-02":
+            # Jaeger Direkt Rauchwarnmelder (RWM), Produkt-ID 00401000002E
+            entities.append(
+                OpusGreenNetSmokeSensor(
+                    coordinator=coordinator,
+                    eag_id=eag_id,
+                    gateway_device_id=gateway_device_id,
+                    device=device,
+                )
+            )
+            entities.append(
+                OpusGreenNetSmokeBatterySensor(
+                    coordinator=coordinator,
+                    eag_id=eag_id,
+                    gateway_device_id=gateway_device_id,
+                    device=device,
+                )
+            )
 
         if not device.is_climate:
             if entities:
@@ -248,6 +266,81 @@ class OpusGreenNetMoistureSensor(OpusGreenNetBaseBinarySensor):
         channel = self._device.channels.get(DEFAULT_CHANNEL)
         if channel:
             return channel.liquid_detected
+        return None
+
+
+class OpusGreenNetSmokeSensor(OpusGreenNetBaseBinarySensor):
+    """Smoke alarm binary sensor for Jaeger Direkt RWM (EEP F6-05-02) devices.
+
+    MQTT payload function key: "alarm", values "on" (smoke detected) /
+    "off" (no smoke detected). Product ID: 00401000002E.
+    """
+
+    _attr_device_class = BinarySensorDeviceClass.SMOKE
+
+    def __init__(
+        self,
+        coordinator: OpusGreenNetCoordinator,
+        eag_id: str,
+        gateway_device_id: str,
+        device: EnOceanDevice,
+    ) -> None:
+        """Initialize the smoke alarm sensor."""
+        super().__init__(
+            coordinator,
+            eag_id,
+            gateway_device_id,
+            device,
+            "smoke_alarm",
+            "smoke_alarm",
+        )
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return true when a smoke alarm is currently reported."""
+        channel = self._device.channels.get(DEFAULT_CHANNEL)
+        if channel:
+            return channel.smoke_alarm
+        return None
+
+
+class OpusGreenNetSmokeBatterySensor(OpusGreenNetBaseBinarySensor):
+    """Low battery binary sensor for Jaeger Direkt RWM (EEP F6-05-02) devices.
+
+    MQTT payload function key: "batteryLow", values true (battery low) /
+    false (battery ok). Product ID: 00401000002E.
+    """
+
+    _attr_device_class = BinarySensorDeviceClass.BATTERY
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(
+        self,
+        coordinator: OpusGreenNetCoordinator,
+        eag_id: str,
+        gateway_device_id: str,
+        device: EnOceanDevice,
+    ) -> None:
+        """Initialize the low battery sensor."""
+        super().__init__(
+            coordinator,
+            eag_id,
+            gateway_device_id,
+            device,
+            "battery_low",
+            "battery_low",
+        )
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return true when the battery is reported as low.
+
+        Note: BinarySensorDeviceClass.BATTERY is_on=True means low battery,
+        matching the "batteryLow" semantics of the source payload directly.
+        """
+        channel = self._device.channels.get(DEFAULT_CHANNEL)
+        if channel:
+            return channel.battery_low
         return None
 
 

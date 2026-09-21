@@ -13,7 +13,9 @@ from .const import (
     KEY_ACTUATOR_DEACTIVATED,
     KEY_ACTUATOR_LOW_BATTERY,
     KEY_ACTUATOR_NOT_RESPONDING,
+    KEY_ALARM,
     KEY_ANGLE,
+    KEY_BATTERY_LOW,
     KEY_CHANNEL,
     KEY_CIRCUIT_IN_USE,
     KEY_DIMMER,
@@ -67,6 +69,9 @@ class EnOceanChannel:
     handle_state: str | None = None
     lock_state: str | None = None
     unlock_state: str | None = None
+    # Jaeger Direkt smoke detector fields (EEP F6-05-02)
+    smoke_alarm: bool | None = None
+    battery_low: bool | None = None
     # Climate fields
     temperature: float | None = None
     temperature_setpoint: float | None = None
@@ -242,10 +247,10 @@ class EnOceanDevice:
         """Parse a channel id from a telegram value."""
         try:
             return int(value)
-        except ValueError, TypeError:
+        except (ValueError, TypeError):
             try:
                 return int(float(value))
-            except ValueError, TypeError:
+            except (ValueError, TypeError):
                 return DEFAULT_CHANNEL
 
     @staticmethod
@@ -268,7 +273,7 @@ class EnOceanDevice:
             return None
         try:
             parsed = float(value)
-        except TypeError, ValueError, OverflowError:
+        except (TypeError, ValueError, OverflowError):
             return None
         return parsed if isfinite(parsed) else None
 
@@ -326,19 +331,19 @@ class EnOceanDevice:
                 try:
                     channel.brightness = int(value)
                     channel.is_on = channel.brightness > 0
-                except ValueError, TypeError:
+                except (ValueError, TypeError):
                     pass
 
             elif key == KEY_POSITION:
                 try:
                     channel.position = int(value)
-                except ValueError, TypeError:
+                except (ValueError, TypeError):
                     pass
 
             elif key == KEY_ANGLE:
                 try:
                     channel.angle = int(value)
-                except ValueError, TypeError:
+                except (ValueError, TypeError):
                     pass
 
             elif key == KEY_ROTATION_TIME:
@@ -351,7 +356,7 @@ class EnOceanDevice:
                 ):
                     try:
                         rotation_time = float(value)
-                    except ValueError, OverflowError:
+                    except (ValueError, OverflowError):
                         continue
                     if isfinite(rotation_time) and rotation_time >= 0:
                         channel.rotation_time = rotation_time
@@ -362,13 +367,13 @@ class EnOceanDevice:
             elif key == KEY_ENERGY:
                 try:
                     channel.energy = float(value)
-                except ValueError, TypeError:
+                except (ValueError, TypeError):
                     pass
 
             elif key == KEY_POWER:
                 try:
                     channel.power = float(value)
-                except ValueError, TypeError:
+                except (ValueError, TypeError):
                     pass
 
             elif key == KEY_LIQUID_DETECTED:
@@ -398,19 +403,30 @@ class EnOceanDevice:
             elif key == KEY_UNLOCK:
                 channel.unlock_state = str(value)
 
+            # Jaeger Direkt smoke detector keys (EEP F6-05-02)
+            elif key == KEY_ALARM:
+                # Payload values per gateway spec: "on" (smoke alarm) / "off" (no smoke)
+                channel.smoke_alarm = value == STATE_ON
+
+            elif key == KEY_BATTERY_LOW:
+                # Payload values per gateway spec: true (battery low) / false (battery ok)
+                battery_low = self._parse_boolean(value)
+                if battery_low is not None:
+                    channel.battery_low = battery_low
+
             # Climate keys
             elif key == KEY_TEMPERATURE:
                 if value != "notAvailable":
                     try:
                         channel.temperature = float(value)
-                    except ValueError, TypeError:
+                    except (ValueError, TypeError):
                         pass
 
             elif key == KEY_TEMPERATURE_SETPOINT:
                 if value != "notAvailable":
                     try:
                         channel.temperature_setpoint = float(value)
-                    except ValueError, TypeError:
+                    except (ValueError, TypeError):
                         pass
 
             elif key == KEY_HEATER_MODE:
@@ -420,7 +436,7 @@ class EnOceanDevice:
                 if value != "notAvailable":
                     try:
                         channel.humidity = float(value)
-                    except ValueError, TypeError:
+                    except (ValueError, TypeError):
                         pass
 
             elif key == KEY_WINDOW_OPEN:
@@ -433,7 +449,7 @@ class EnOceanDevice:
                 if value != "notAvailable":
                     try:
                         channel.feed_temperature = float(value)
-                    except ValueError, TypeError:
+                    except (ValueError, TypeError):
                         pass
 
             elif key == KEY_THERMAL_MODE:
@@ -443,7 +459,7 @@ class EnOceanDevice:
                 if value != "notAvailable":
                     try:
                         channel.energy_consumption = float(value)
-                    except ValueError, TypeError:
+                    except (ValueError, TypeError):
                         pass
 
             elif key == KEY_POWER_STATE:

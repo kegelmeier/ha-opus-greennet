@@ -16,6 +16,15 @@ from .enocean_device import EnOceanDevice
 
 _LOGGER = logging.getLogger(__name__)
 
+# Friendly model names shown in the HA device registry, keyed by primary EEP.
+# Falls back to the raw EEP string when a device is not listed here.
+_MODEL_NAMES_BY_EEP: dict[str, str] = {
+    "A5-07-03": "OPUS SMS Anwesenheit",
+    "D2-06-40": "HOPPE Smart Window Handle",
+    # Jaeger Direkt Rauchwarnmelder (RWM), Produkt-ID 00401000002E
+    "F6-05-02": "Jaeger Direkt RWM (Rauchwarnmelder)",
+}
+
 
 @callback
 def migrate_legacy_multichannel_entity(
@@ -86,12 +95,8 @@ class OpusGreenNetEntity(Entity):
             identifiers={(DOMAIN, f"{self._eag_id}_{self._device.device_id}")},
             name=self._device.friendly_id or self._device.device_id,
             manufacturer=self._device.manufacturer or "OPUS / EnOcean",
-            model=(
-                "OPUS SMS Anwesenheit"
-                if self._device.primary_eep == "A5-07-03"
-                else "HOPPE Smart Window Handle"
-                if self._device.primary_eep == "D2-06-40"
-                else self._device.primary_eep or "Unknown"
+            model=_MODEL_NAMES_BY_EEP.get(
+                self._device.primary_eep, self._device.primary_eep or "Unknown"
             ),
             serial_number=self._device.device_id,
             sw_version=self._device.software_revision or None,
