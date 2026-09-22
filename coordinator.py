@@ -7,26 +7,35 @@ FIX HISTORY (this file)
 ------------------------
 1. Removed a permanent subscription to TOPIC_GET_ANSWER_SYSTEM_INFO /
    TOPIC_GET_ANSWER_SYSTEM_UPTIME that raced against the request-scoped
-   subscription MQTTRequestManager opens for the same topic during
-   _async_refresh_gateway(). HA's MQTT client does not reliably re-fire
-   SUBACK for an already-subscribed topic, so the request-scoped subscribe
-   used to hang until timeout on every single setup.
+   subscription MQTTRequestManager opens for the same topic.
 2. Made the system-info probe (get/config/system/info) best-effort instead
-   of mandatory for gateway availability - a Mosquitto bridge that does not
-   relay this diagnostic-only endpoint must not block the whole integration.
+   of mandatory for gateway availability.
 3. Stopped retrying a known-unsupported system-info probe on every 60s
-   health tick. Fix #2 alone still repeated the doomed request (and its full
-   10s timeout) forever, flooding the log every minute. A tri-state flag
-   (`_system_info_supported`) now disables further automatic probes after
-   the first failure; a full resync (setup, or reconnect after an outage)
-   always retries once, so fixing the bridge config later is picked up
-   automatically without a manual reload.
+   health tick via the tri-state `_system_info_supported` flag.
+4. UPSTREAM-REPORTED BUG: _has_operational_state() only checked the function
+   `key`, never the `value`, mistaking the "unknown" interim sentinel for
+   command confirmation. Fixed via UNKNOWN_VALUE_SENTINEL.
+5. UPSTREAM BUG: async_stop_cover() sent an invalid {"key": "position",
+   "value": "stop"} payload. Per EEP D2-05-00/D2-05-06, stop is its own
+   function (key "stop", value "true"). Fixed via KEY_STOP.
+6. QUALITY-SCALE (Gold, "repair-issues"): the system-info-unsupported case
+   from fix #3 now also raises a dismissable Home Assistant repair issue in
+   addition to the log warning, instead of being log-only.
+
+NOTE ON A REVERTED EXPERIMENT: a prior revision of mqtt_transport.py briefly
+changed mqtt.async_on_subscribe_done() to be awaited with keyword arguments,
+based on a developer-blog example rather than verified behavior. This broke
+setup with `TypeError: 'functools.partial' object can't be awaited`,
+proving the function is in fact synchronous and returns a plain callable.
+That change was reverted. Do not "modernize" this call again without first
+confirming the exact signature against a real, running Home Assistant
+instance - see mqtt_transport.py module docstring.
 
 Ported extensions (fubu2k fork, reconciled against the hardened base):
   * Generalized indexed key/value fragment parsing via one of several
     top-level containers (const.INDEXED_STATE_CONTAINERS): "states/{n}" for
     the OPUS SMS presence sensor (A5-07-03), "transmitModes/{n}" for the
-    Jaeger Direkt RWM (F6-05-02). Both are read identically.
+    Jaeger Direkt RWM (F6-05-02).
   * A batteryLevel/dbm fast-path for stream/device/{id}/... live deltas.
   * async_set_window_handle_lock() for the HOPPE eLock command topic.
 """
@@ -46,6 +55,7 @@ from homeassistant.components import mqtt
 from homeassistant.components.mqtt import ReceiveMessage
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_call_later, async_track_time_interval
 
@@ -55,6 +65,7 @@ from .const import (
     INDEXED_STATE_CONTAINERS,
     KEY_CHANNEL,
     KEY_ROTATION_TIME,
+    KEY_STOP,
     KNOWN_STATE_KEYS,
     LOCK_COMMAND_ALLOWED,
     LOCK_COMMAND_NOT_ALLOWED,
@@ -100,6 +111,8 @@ RAW_MQTT_DEBUG_PAYLOAD_LIMIT = 500
 OUTBOUND_STATE_RECONCILIATION_DELAYS = (5, 20)
 GATEWAY_HEALTH_INTERVAL = timedelta(seconds=60)
 UPTIME_SUBSCRIPTION_TTL = 10
+UNKNOWN_VALUE_SENTINEL = "unknown"
+ISSUE_SYSTEM_INFO_UNSUPPORTED = "system_info_unsupported"
 
 DEVICE_TOPIC_PATTERN = re.compile(r"EnOcean/([^/]+)/stream/devices/([^/]+)/(.+)")
 TELEGRAM_TOPIC_PATTERN = re.compile(
@@ -148,9 +161,6 @@ class OpusGreenNetCoordinator:
         self._command_waiters: dict[str, int] = {}
         self.gateway_info: dict[str, Any] = {}
         self.gateway_uptime: str | None = None
-        # Tri-state: None = not probed yet, True = probe succeeded at least
-        # once, False = probe failed and further automatic (non-resync)
-        # retries are skipped to avoid flooding the log every health tick.
         self._system_info_supported: bool | None = None
 
     @property
@@ -269,22 +279,7 @@ class OpusGreenNetCoordinator:
             )
 
     async def _async_refresh_gateway(self, *, resync: bool) -> None:
-        """Probe the gateway; give up retrying system info once known unsupported.
-
-        Device discovery (get/devices) has no request/response acknowledgement
-        of its own - it is answered asynchronously on getAnswer/devices/#,
-        already consumed independently by _handle_get_answer_devices. Gateway
-        availability therefore does not depend on the diagnostic-only
-        system-info round trip succeeding.
-
-        System info retry policy: once a probe fails, `_system_info_supported`
-        is set to False and further periodic (non-resync) health ticks skip
-        the probe entirely - retrying a request that is guaranteed to time
-        out every 60 seconds forever would only flood the log. A full resync
-        (initial setup, or recovering from a detected outage) always retries
-        once, so fixing a Mosquitto bridge config later is picked up
-        automatically on the next reconnect without a manual reload.
-        """
+        """Probe the gateway; give up retrying system info once known unsupported."""
         if self._bridge_connected is False:
             raise request_error("gateway_unavailable", self.eag_id)
 
@@ -302,6 +297,7 @@ class OpusGreenNetCoordinator:
                 )
                 self._system_info_supported = True
                 _LOGGER.debug("OPUS gateway %s responded to the health probe", self.eag_id)
+                ir.async_delete_issue(self.hass, DOMAIN, ISSUE_SYSTEM_INFO_UNSUPPORTED)
             except HomeAssistantError as err:
                 if self._system_info_supported is not False:
                     _LOGGER.warning(
@@ -315,6 +311,16 @@ class OpusGreenNetCoordinator:
                         self.eag_id,
                         err,
                         GATEWAY_HEALTH_INTERVAL,
+                    )
+                    ir.async_create_issue(
+                        self.hass,
+                        DOMAIN,
+                        ISSUE_SYSTEM_INFO_UNSUPPORTED,
+                        is_fixable=False,
+                        is_persistent=False,
+                        severity=ir.IssueSeverity.WARNING,
+                        translation_key=ISSUE_SYSTEM_INFO_UNSUPPORTED,
+                        translation_placeholders={"eag_id": self.eag_id},
                     )
                 self._system_info_supported = False
 
@@ -409,6 +415,7 @@ class OpusGreenNetCoordinator:
         self._device_stream_data.clear()
         self._telegram_received_at.clear()
         self._device_stream_received_at.clear()
+        ir.async_delete_issue(self.hass, DOMAIN, ISSUE_SYSTEM_INFO_UNSUPPORTED)
 
     # ──────────────────────────────────────────────────────────────────────
     # Device property messages (stream/devices - initial full state at boot)
@@ -1033,8 +1040,14 @@ class OpusGreenNetCoordinator:
 
     @staticmethod
     def _has_operational_state(functions: list[dict[str, Any]]) -> bool:
+        """Return True only for functions that confirm an actual, known state."""
         return any(
-            function.get("key") in KNOWN_STATE_KEYS and function.get("key") != KEY_ROTATION_TIME
+            function.get("key") in KNOWN_STATE_KEYS
+            and function.get("key") != KEY_ROTATION_TIME
+            and not (
+                isinstance(function.get("value"), str)
+                and function.get("value").strip().lower() == UNKNOWN_VALUE_SENTINEL
+            )
             for function in functions
         )
 
@@ -1291,8 +1304,15 @@ class OpusGreenNetCoordinator:
         await self.async_send_command(device_id, self._with_channel_if_needed(device_id, functions, channel))
 
     async def async_stop_cover(self, device_id: str, channel: int = 0) -> None:
-        functions = [{"key": "position", "value": "stop"}]
-        await self.async_send_command(device_id, self._with_channel_if_needed(device_id, functions, channel))
+        """Stop cover movement.
+
+        EEP D2-05-xx defines a dedicated stop function - key "stop", value
+        "true" - separate from "position" (which only accepts 0-100 or
+        "unknown").
+        """
+        functions = [{"key": KEY_STOP, "value": "true"}]
+        functions = self._with_channel_if_needed(device_id, functions, channel)
+        await self.async_send_command(device_id, functions)
 
     async def async_query_device_status(self, device_id: str, channel: int = 0) -> None:
         functions = [{"key": "query", "value": "status"}]
@@ -1312,14 +1332,7 @@ class OpusGreenNetCoordinator:
     # ──────────────────────────────────────────────────────────────────────
 
     async def async_set_window_handle_lock(self, device_id: str, *, locked: bool) -> None:
-        """Allow or deny operation of a HOPPE window handle.
-
-        NOTE: unlike async_send_command, this topic has no documented
-        putAnswer acknowledgement (confirmed: the OPUS gateway does not
-        reliably reflect this command back into the reported lock state in
-        the field). It is therefore sent as a direct, availability-gated
-        publish rather than through MQTTRequestManager.
-        """
+        """Allow or deny operation of a HOPPE window handle."""
         if not self.available:
             raise request_error("gateway_unavailable", device_id)
         topic = TOPIC_WINDOW_HANDLE_ACCESS.format(
