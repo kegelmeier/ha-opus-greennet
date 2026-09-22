@@ -39,9 +39,11 @@ A custom Home Assistant integration for the Opus GreenNet Bridge, enabling contr
 | **Light** | D2-01-02, D2-01-03, D2-01-06, D2-01-07, D2-01-0A, D2-01-0B, D2-01-0F, D2-01-10, D2-01-12, A5-38-08, A5-38-09 | Dimmable lights and gateway switching |
 | **Switch** | D2-01-00, D2-01-01, D2-01-04, D2-01-05, D2-01-08, D2-01-09, D2-01-0C, D2-01-0D, D2-01-0E, D2-01-11 | On/Off switches and actuators |
 | **Cover** | D2-05-00, D2-05-01, D2-05-02 | Blinds, shades, and shutters |
+| **eLock Window Handle** | D2-06-40 |
+| **Window Handle** | F6-10-00, D2-03-10 |
 | **Climate** | D1-4B-05, D1-4B-06, D1-4B-07 | OPUS HeatArea thermostats (Valve, CosiTherm, Electro Heating) |
-| **Sensor** | _(from climate devices)_ | Humidity, feed temperature, power consumption, signal strength |
-| **Binary Sensor** | F6-05-01, _(from climate devices)_ | Water leak detection, window open, actuator errors, battery low |
+| **Sensor** | _(from climate devices)_ | Humidity, feed temperature, power consumption, signal strength) |
+| **Binary Sensor** | F6-05-01, A5-07-03, F6-05-02, _(from climate devices)_ | Water leak detection, window open, actuator errors, battery low, Smart Motion Sensor (SMS), Jaeger Direkt Smoke Detector (RWM) |
 | **Event** | F6-02-01, F6-02-02, F6-02-03, F6-03-01, F6-03-02 | Rocker switch press/release events, per button (`buttonA0_pressed`, `buttonA0_released`, …, `multipleButtons_released`) with `button` and `action` event attributes |
 
 Cover tilt controls are hidden when the bridge reports `rotationTime` as `0` or
