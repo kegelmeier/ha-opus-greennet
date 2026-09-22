@@ -45,6 +45,15 @@
       },
       "window": {
         "name": "Window"
+      },
+      "motion": {
+        "name": "Motion"
+      },
+      "smoke_alarm": {
+        "name": "Smoke alarm"
+      },
+      "battery_low": {
+        "name": "Battery low"
       }
     },
     "cover": {
@@ -55,6 +64,11 @@
     "light": {
       "channel": {
         "name": "Channel {channel}"
+      }
+    },
+    "lock": {
+      "window_handle_lock": {
+        "name": "Window handle lock"
       }
     },
     "sensor": {
@@ -69,6 +83,30 @@
       },
       "signal_strength": {
         "name": "Signal strength"
+      },
+      "illuminance": {
+        "name": "Illuminance"
+      },
+      "supply_voltage": {
+        "name": "Supply voltage"
+      },
+      "battery_level": {
+        "name": "Battery level"
+      },
+      "handle_state": {
+        "name": "Handle state",
+        "state": {
+          "closed": "Closed",
+          "open": "Open",
+          "tilt": "Tilted"
+        }
+      },
+      "unlock_request": {
+        "name": "Unlock request",
+        "state": {
+          "notRequested": "Not requested",
+          "requested": "Requested"
+        }
       }
     },
     "switch": {

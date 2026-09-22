@@ -1,9 +1,22 @@
-"""Bounded MQTT request/response operations for the OPUS bridge."""
+"""Bounded MQTT request/response operations for the OPUS bridge.
+
+Base: kegelmeier v0.3.3b0 - functionally unchanged. The gateway-connection
+regression reported after switching to v0.3.3b0 was NOT in this file; it was
+a duplicate subscription to the same answer topic in coordinator.py's
+async_setup() racing against the request-scoped subscription this module
+opens in MQTTRequestManager.async_request() (see coordinator.py module
+docstring for the full root-cause analysis and fix).
+
+Only change in this revision: added debug logging around the subscribe/
+SUBACK/publish/response sequence, so a future handshake deadlock is visible
+in the log immediately instead of only surfacing as an opaque 10s timeout.
+"""
 
 from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from collections.abc import Callable
 from typing import Any
 
@@ -18,6 +31,8 @@ from .const import (
     TOPIC_GET_ANSWER_SYSTEM_INFO,
     TOPIC_GET_SYSTEM_INFO,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 REQUEST_TIMEOUT = 10.0
 
@@ -66,6 +81,7 @@ async def async_wait_for_subscriptions(hass: HomeAssistant, topics: list[str]) -
     @callback
     def subscription_done(topic: str) -> None:
         pending.discard(topic)
+        _LOGGER.debug("SUBACK received for %s (%d topic(s) still pending)", topic, len(pending))
         if not pending and not ready.done():
             ready.set_result(None)
 
@@ -79,6 +95,16 @@ async def async_wait_for_subscriptions(hass: HomeAssistant, topics: list[str]) -
         if pending:
             async with asyncio.timeout(REQUEST_TIMEOUT):
                 await ready
+    except TimeoutError:
+        _LOGGER.warning(
+            "Timed out waiting for MQTT SUBACK on: %s. If one of these topics "
+            "is already subscribed elsewhere in the integration, Home "
+            "Assistant's MQTT client may not re-fire its SUBACK callback - "
+            "do not add a second standing subscription to a topic that is "
+            "also used as a request/response answer topic.",
+            sorted(pending),
+        )
+        raise
     finally:
         for cancel in cancellations:
             cancel()
@@ -133,10 +159,17 @@ class MQTTRequestManager:
         require_status: bool = False,
         is_available: Callable[[], bool] | None = None,
     ) -> dict[str, Any]:
-        """Subscribe, await SUBACK, publish, and validate one fresh response."""
-        # The OPUS response has no request ID. Only one local operation may use
-        # an answer topic at a time; a late response after timeout remains an
-        # inherent protocol limitation and is never treated as device state.
+        """Subscribe, await SUBACK, publish, and validate one fresh response.
+
+        IMPORTANT: `answer_topic` must not already have a standing
+        subscription elsewhere in the integration. Home Assistant's MQTT
+        client does not reliably re-fire async_on_subscribe_done() for a
+        topic that is already subscribed, which would make the `await
+        subscribed` below hang until REQUEST_TIMEOUT on every call. If a
+        topic needs both a permanent listener and to be used here, route
+        the permanent listener's data through this method's response
+        instead of subscribing twice.
+        """
         lock = self._locks.setdefault(answer_topic, asyncio.Lock())
         generation = self._generation
         async with lock:
@@ -175,6 +208,10 @@ class MQTTRequestManager:
 
             try:
                 async with asyncio.timeout(REQUEST_TIMEOUT):
+                    _LOGGER.debug(
+                        "Subscribing to answer topic %s for device %s",
+                        answer_topic, device_id,
+                    )
                     cancellations.append(
                         self._own_cleanup(
                             await mqtt.async_subscribe(
@@ -190,6 +227,10 @@ class MQTTRequestManager:
                         )
                     )
                     await subscribed
+                    _LOGGER.debug(
+                        "SUBACK received for %s - publishing request to %s",
+                        answer_topic, topic,
+                    )
                     if self._closed or generation != self._generation:
                         raise request_error("request_cancelled", device_id)
                     if not mqtt.is_connected(self.hass):
@@ -200,8 +241,17 @@ class MQTTRequestManager:
                     await mqtt.async_publish(
                         self.hass, topic, payload, qos=1, retain=False
                     )
-                    return await response
+                    result = await response
+                    _LOGGER.debug("Response received on %s", answer_topic)
+                    return result
             except TimeoutError as err:
+                _LOGGER.warning(
+                    "OPUS request timed out for device %s (topic=%s, answer=%s, "
+                    "subscribed=%s). If `subscribed` is False, this topic is "
+                    "likely already subscribed elsewhere in the integration "
+                    "and never received a SUBACK for this request.",
+                    device_id, topic, answer_topic, subscribed.done(),
+                )
                 raise request_error("request_timeout", device_id) from err
             finally:
                 for cancel in cancellations:
@@ -209,8 +259,6 @@ class MQTTRequestManager:
                 for future in (subscribed, response):
                     self._waiters.pop(future, None)
                     if future.done() and not future.cancelled():
-                        # Unload may have failed both futures while we were
-                        # awaiting only one; always retrieve both exceptions.
                         future.exception()
                     elif not future.done():
                         future.cancel()

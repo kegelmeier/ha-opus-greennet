@@ -1,4 +1,10 @@
-"""The Opus GreenNet Bridge integration."""
+"""The Opus GreenNet Bridge integration.
+
+Base: kegelmeier v0.3.3b0. Only change for the four ported devices:
+Platform.LOCK is registered so the HOPPE eLock window handle (D2-06-40)
+gets a lock.py entity. Everything else in this file is unchanged from
+v0.3.3b0 - device/EEP knowledge never needs to touch __init__.py.
+"""
 
 from __future__ import annotations
 
@@ -35,6 +41,7 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 PLATFORMS: list[Platform] = [
     Platform.LIGHT,
     Platform.SWITCH,
+    Platform.LOCK,  # Ported: HOPPE eLock window handle (D2-06-40)
     Platform.COVER,
     Platform.CLIMATE,
     Platform.SENSOR,
@@ -83,9 +90,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     return True
 
 
-def _loaded_entry(
-    hass: HomeAssistant, config_entry_id: str | None
-) -> OpusGreenNetConfigEntry:
+def _loaded_entry(hass: HomeAssistant, config_entry_id: str | None) -> OpusGreenNetConfigEntry:
     """Resolve exactly one loaded Opus GreenNet config entry."""
     if config_entry_id:
         entry = hass.config_entries.async_get_entry(config_entry_id)
@@ -105,30 +110,18 @@ def _loaded_entry(
 
     loaded_entries = hass.config_entries.async_loaded_entries(DOMAIN)
     if not loaded_entries:
-        raise ServiceValidationError(
-            translation_domain=DOMAIN,
-            translation_key="no_loaded_config_entry",
-        )
+        raise ServiceValidationError(translation_domain=DOMAIN, translation_key="no_loaded_config_entry")
     if len(loaded_entries) > 1:
-        raise ServiceValidationError(
-            translation_domain=DOMAIN,
-            translation_key="config_entry_required",
-        )
+        raise ServiceValidationError(translation_domain=DOMAIN, translation_key="config_entry_required")
     return cast(OpusGreenNetConfigEntry, loaded_entries[0])
 
 
-def _coordinator_for_call(
-    hass: HomeAssistant, call: ServiceCall
-) -> OpusGreenNetCoordinator:
+def _coordinator_for_call(hass: HomeAssistant, call: ServiceCall) -> OpusGreenNetCoordinator:
     """Return the coordinator selected by a service call."""
-    return _loaded_entry(
-        hass, call.data.get(ATTR_CONFIG_ENTRY_ID)
-    ).runtime_data.coordinator
+    return _loaded_entry(hass, call.data.get(ATTR_CONFIG_ENTRY_ID)).runtime_data.coordinator
 
 
-def _validate_service_device(
-    coordinator: OpusGreenNetCoordinator, device_id: str
-) -> None:
+def _validate_service_device(coordinator: OpusGreenNetCoordinator, device_id: str) -> None:
     """Validate that a requested device belongs to the selected gateway."""
     if coordinator.get_device(device_id) is None:
         raise ServiceValidationError(
@@ -138,9 +131,7 @@ def _validate_service_device(
         )
 
 
-async def async_setup_entry(
-    hass: HomeAssistant, entry: OpusGreenNetConfigEntry
-) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: OpusGreenNetConfigEntry) -> bool:
     """Set up Opus GreenNet Bridge from a config entry."""
     eag_id = entry.data[CONF_EAG_ID]
     coordinator = OpusGreenNetCoordinator(hass, eag_id)
@@ -150,8 +141,7 @@ async def async_setup_entry(
     except (HomeAssistantError, OSError) as err:
         await coordinator.async_unload()
         raise ConfigEntryNotReady(
-            translation_domain=DOMAIN,
-            translation_key="gateway_unavailable",
+            translation_domain=DOMAIN, translation_key="gateway_unavailable"
         ) from err
     except BaseException:
         await coordinator.async_unload()
@@ -168,8 +158,7 @@ async def async_setup_entry(
             serial_number=eag_id,
         )
         entry.runtime_data = OpusGreenNetRuntimeData(
-            coordinator=coordinator,
-            gateway_device_id=gateway_device.id,
+            coordinator=coordinator, gateway_device_id=gateway_device.id
         )
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     except BaseException:
@@ -180,13 +169,10 @@ async def async_setup_entry(
     return True
 
 
-async def async_unload_entry(
-    hass: HomeAssistant, entry: OpusGreenNetConfigEntry
-) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: OpusGreenNetConfigEntry) -> bool:
     """Unload a config entry."""
     if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         return False
-
     await entry.runtime_data.coordinator.async_unload()
     return True
 
@@ -196,9 +182,7 @@ def _register_services(hass: HomeAssistant) -> None:
     if hass.services.has_service(DOMAIN, SERVICE_GET_DEVICE_CONFIG):
         return
 
-    async def handle_get_device_configuration(
-        call: ServiceCall,
-    ) -> ServiceResponse:
+    async def handle_get_device_configuration(call: ServiceCall) -> ServiceResponse:
         coordinator = _coordinator_for_call(hass, call)
         device_id = call.data[ATTR_DEVICE_ID]
         _validate_service_device(coordinator, device_id)
@@ -215,9 +199,7 @@ def _register_services(hass: HomeAssistant) -> None:
         coordinator = _coordinator_for_call(hass, call)
         device_id = call.data[ATTR_DEVICE_ID]
         _validate_service_device(coordinator, device_id)
-        await coordinator.async_set_device_configuration(
-            device_id, call.data[ATTR_CONFIGURATION]
-        )
+        await coordinator.async_set_device_configuration(device_id, call.data[ATTR_CONFIGURATION])
 
     async def handle_get_device_parameters(call: ServiceCall) -> ServiceResponse:
         coordinator = _coordinator_for_call(hass, call)
@@ -238,37 +220,22 @@ def _register_services(hass: HomeAssistant) -> None:
             entry = _loaded_entry(hass, config_entry_id)
             await hass.config_entries.async_reload(entry.entry_id)
             return
-
         for loaded_entry in hass.config_entries.async_loaded_entries(DOMAIN):
             await hass.config_entries.async_reload(loaded_entry.entry_id)
 
     async_register_admin_service(
-        hass,
-        DOMAIN,
-        SERVICE_GET_DEVICE_CONFIG,
-        handle_get_device_configuration,
-        schema=SERVICE_DEVICE_SCHEMA,
-        supports_response=SupportsResponse.ONLY,
+        hass, DOMAIN, SERVICE_GET_DEVICE_CONFIG, handle_get_device_configuration,
+        schema=SERVICE_DEVICE_SCHEMA, supports_response=SupportsResponse.ONLY,
     )
     async_register_admin_service(
-        hass,
-        DOMAIN,
-        SERVICE_SET_DEVICE_CONFIG,
-        handle_set_device_configuration,
+        hass, DOMAIN, SERVICE_SET_DEVICE_CONFIG, handle_set_device_configuration,
         schema=SERVICE_SET_CONFIG_SCHEMA,
     )
     async_register_admin_service(
-        hass,
-        DOMAIN,
-        SERVICE_GET_DEVICE_PARAMS,
-        handle_get_device_parameters,
-        schema=SERVICE_DEVICE_SCHEMA,
-        supports_response=SupportsResponse.ONLY,
+        hass, DOMAIN, SERVICE_GET_DEVICE_PARAMS, handle_get_device_parameters,
+        schema=SERVICE_DEVICE_SCHEMA, supports_response=SupportsResponse.ONLY,
     )
     async_register_admin_service(
-        hass,
-        DOMAIN,
-        SERVICE_RELOAD_ENTRY,
-        handle_reload_entry,
+        hass, DOMAIN, SERVICE_RELOAD_ENTRY, handle_reload_entry,
         schema=vol.Schema({vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string}),
     )
