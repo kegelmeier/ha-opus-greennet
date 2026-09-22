@@ -1,9 +1,16 @@
 """Constants for the Opus GreenNet Bridge integration.
 
-Base: kegelmeier/ha-opus-greennet v0.3.3b0 (unchanged by the PR #30 hardening,
-confirmed via commit diff). Extended with four EnOcean devices ported from the
-fubu2k fork (HOPPE window handles with/without eLock, Jaeger Direkt RWM smoke
-detector, OPUS SMS presence sensor).
+Base: kegelmeier/ha-opus-greennet v0.3.3b0. Extended with four EnOcean
+devices ported from the fubu2k fork (HOPPE window handles with/without
+eLock, Jaeger Direkt RWM smoke detector, OPUS SMS presence sensor).
+
+FIX: added KEY_STOP. Per the official EnOcean EEP D2-05-00 / D2-05-06
+specification, stopping a moving cover uses its own dedicated function
+(key "stop", value "true") - separate from "position" (0-100 or
+"unknown"). The previous coordinator.py sent {"key": "position",
+"value": "stop"}, which is invalid input for that key and was correctly
+rejected by the gateway with HTTP 400 on every cover.stop_cover call. See
+coordinator.async_stop_cover().
 """
 
 from __future__ import annotations
@@ -65,11 +72,6 @@ TOPIC_SUB_DEVICE_STREAM_ALL: Final = "{base}/{eag_id}/stream/device/#"
 TOPIC_SUB_DEVICES_ALL: Final = "{base}/{eag_id}/stream/devices/#"
 
 # EEP (EnOcean Equipment Profile) to primary entity type mapping.
-# Format: EEP -> (primary_platform, description)
-# NOTE: this only decides which platform module "owns" the device (i.e. which
-# async_setup_entry reacts to SIGNAL_DEVICE_DISCOVERED). Supplementary
-# entities (diagnostics, additional sensors, locks, ...) are declared once,
-# centrally, in entity_descriptions.py - platform files never hardcode EEPs.
 EEP_MAPPINGS: Final = {
     # Electronic Switch Actuators (D2-01-xx)
     "D2-01-00": ("switch", "Electronic Switch Actuator, 1 Channel"),
@@ -89,7 +91,7 @@ EEP_MAPPINGS: Final = {
     "D2-01-0E": ("switch", "Electronic Switch Actuator, 8 Channels with Energy"),
     "D2-01-0F": ("light", "Dimmer, 8 Channels"),
     "D2-01-10": ("light", "Dimmer, 8 Channels with Energy"),
-    "D2-01-11": ("switch", "Electronic Switch Actuator, 2 Channels, 2 Channels with Local Control"),
+    "D2-01-11": ("switch", "Electronic Switch Actuator, 2 Channels with Local Control"),
     "D2-01-12": ("light", "Dimmer, 2 Channels with Local Control"),
     # Blinds Control (D2-05-xx)
     "D2-05-00": ("cover", "Blinds Control for Position and Angle"),
@@ -111,16 +113,10 @@ EEP_MAPPINGS: Final = {
     # Liquid Leakage Sensor (F6-05-01)
     "F6-05-01": ("binary_sensor", "Liquid Leakage Sensor"),
     # --- Ported from fubu2k fork -------------------------------------------
-    # HOPPE Smart Window Handle with eLock: primary platform is "lock" so the
-    # device gets a Lock entity; the passive handle/unlock sensors are added
-    # via entity_descriptions.py.
     "D2-06-40": ("lock", "HOPPE Smart Window Handle (eLock)"),
-    # HOPPE Window Handle without eLock: passive sensor only.
     "F6-10-00": ("sensor", "HOPPE Window Handle"),
     "D2-03-10": ("sensor", "HOPPE Window Handle"),
-    # Jaeger Direkt Rauchwarnmelder (RWM), Produkt-ID 00401000002E.
     "F6-05-02": ("binary_sensor", "Jaeger Direkt Smoke Detector (RWM)"),
-    # OPUS SMS Anwesenheit / motion & presence detector.
     "A5-07-03": ("binary_sensor", "OPUS SMS Presence Detector"),
 }
 
@@ -148,6 +144,11 @@ KEY_ENERGY: Final = "energy"
 KEY_POWER: Final = "power"
 KEY_LIQUID_DETECTED: Final = "liquidDetected"
 KEY_QUERY: Final = "query"
+# FIX: dedicated stop function per EEP D2-05-00/D2-05-06 ("to" direction),
+# distinct from KEY_POSITION which only accepts 0-100 or "unknown". Sending
+# "stop" as a position value is invalid and is rejected by the gateway with
+# HTTP 400 - see coordinator.async_stop_cover().
+KEY_STOP: Final = "stop"
 
 # Climate function keys
 KEY_TEMPERATURE: Final = "temperature"
@@ -170,20 +171,15 @@ KEY_MISSING_TEMPERATURE: Final = "missingTemperature"
 KEY_CIRCUIT_IN_USE: Final = "circuitInUse"
 
 # --- Ported from fubu2k fork: new telegram function keys -------------------
-# OPUS SMS Anwesenheit (A5-07-03). Delivered via indexed states/{n} pairs on
-# stream/device/{DeviceID}/states/{n}/key + .../value, see coordinator.py.
 KEY_MOTION_DETECTED: Final = "motionDetected"
 KEY_ILLUMINATION: Final = "illumination"
 KEY_SUPPLY_VOLTAGE: Final = "supplyVoltage"
-KEY_BATTERY_LEVEL: Final = "batteryLevel"  # global device property, e.g. "72%"
+KEY_BATTERY_LEVEL: Final = "batteryLevel"
 
-# HOPPE window handle (D2-06-40 / F6-10-00 / D2-03-10)
 KEY_HANDLE: Final = "handle"
 KEY_LOCK: Final = "lock"
 KEY_UNLOCK: Final = "unlock"
 
-# Jaeger Direkt RWM (F6-05-02). Delivered via indexed transmitModes/{n} pairs,
-# see coordinator.py.
 KEY_ALARM: Final = "alarm"
 KEY_BATTERY_LOW: Final = "batteryLow"
 
@@ -218,10 +214,6 @@ LOCK_LOCKED: Final = "locked"
 LOCK_UNLOCKED: Final = "unlocked"
 UNLOCK_NOT_REQUESTED: Final = "notRequested"
 UNLOCK_REQUESTED: Final = "requested"
-# Command payloads for TOPIC_WINDOW_HANDLE_ACCESS. NOTE: per fubu2k's own
-# testing notes this command path does not reliably change the physical
-# lock state - the lock entity is ported "as is" (best effort / experimental)
-# per explicit product decision, see PORTING_NOTES.md.
 LOCK_COMMAND_ALLOWED: Final = "allowed"
 LOCK_COMMAND_NOT_ALLOWED: Final = "notAllowed"
 
@@ -236,6 +228,7 @@ KNOWN_STATE_KEYS: Final = frozenset(
         "position",
         "angle",
         KEY_ROTATION_TIME,
+        KEY_STOP,
         "localControl",
         "energy",
         "power",
@@ -271,8 +264,5 @@ KNOWN_STATE_KEYS: Final = frozenset(
 
 # Top-level indexed containers the OPUS gateway uses for flat key/value
 # fragment pairs, e.g. ".../states/0/key" + ".../states/0/value" or
-# ".../transmitModes/0/key" + ".../transmitModes/0/value". Every device type
-# uses exactly one of these containers; both are treated identically once the
-# {key, value} pair is complete. New containers only need to be added here -
-# no coordinator.py logic changes required (see coordinator._INDEXED_STATE_CONTAINERS).
+# ".../transmitModes/0/key" + ".../transmitModes/0/value".
 INDEXED_STATE_CONTAINERS: Final = ("states", "transmitModes")

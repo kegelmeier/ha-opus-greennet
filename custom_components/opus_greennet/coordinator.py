@@ -8,25 +8,31 @@ FIX HISTORY (this file)
 1. Removed a permanent subscription to TOPIC_GET_ANSWER_SYSTEM_INFO /
    TOPIC_GET_ANSWER_SYSTEM_UPTIME that raced against the request-scoped
    subscription MQTTRequestManager opens for the same topic during
-   _async_refresh_gateway(). Home Assistant's MQTT client does not reliably
-   re-fire SUBACK for an already-subscribed topic, so the request-scoped
-   subscribe used to hang until timeout on every single setup.
+   _async_refresh_gateway().
 2. Made the system-info probe (get/config/system/info) best-effort instead
-   of mandatory. Log evidence showed the SUBACK now arrives fine
-   (fix #1 confirmed working) but some deployments never receive an actual
-   response on getAnswer/config/system/info at all - typically because a
-   Mosquitto bridge only relays stream/#, get/devices and put/# but not the
-   diagnostic-only system/info endpoint, or because a given gateway firmware
-   does not implement it. System info is metadata only (shown in
-   diagnostics); it must never block the whole integration from becoming
-   available. Device discovery (get/devices -> getAnswer/devices/#) remains
-   independent of this and is unaffected either way.
+   of mandatory for gateway availability.
+3. Stopped retrying a known-unsupported system-info probe on every 60s
+   health tick via the tri-state `_system_info_supported` flag.
+4. UPSTREAM-REPORTED BUG: _has_operational_state() only checked the function
+   `key`, never the `value`. The bridge sends a real "from" telegram with a
+   known key but sentinel value "unknown" while movement is still in
+   progress, which was mistaken for command confirmation. Fixed via
+   UNKNOWN_VALUE_SENTINEL.
+5. UPSTREAM BUG: async_stop_cover() sent {"key": "position", "value":
+   "stop"}. Per the official EnOcean EEP D2-05-00/D2-05-06 specification,
+   stopping a moving cover uses its own dedicated function - key "stop",
+   value "true" - completely separate from "position" (which only accepts
+   0-100 or "unknown"). The previous payload was invalid input, correctly
+   rejected by the gateway with HTTP 400 on every stop_cover call. This was
+   invisible before v0.3.3b0 hardened async_send_command() to actually wait
+   for and validate the gateway's acknowledgement instead of firing and
+   forgetting. Fixed via KEY_STOP.
 
 Ported extensions (fubu2k fork, reconciled against the hardened base):
   * Generalized indexed key/value fragment parsing via one of several
     top-level containers (const.INDEXED_STATE_CONTAINERS): "states/{n}" for
     the OPUS SMS presence sensor (A5-07-03), "transmitModes/{n}" for the
-    Jaeger Direkt RWM (F6-05-02). Both are read identically.
+    Jaeger Direkt RWM (F6-05-02).
   * A batteryLevel/dbm fast-path for stream/device/{id}/... live deltas.
   * async_set_window_handle_lock() for the HOPPE eLock command topic.
 """
@@ -55,6 +61,7 @@ from .const import (
     INDEXED_STATE_CONTAINERS,
     KEY_CHANNEL,
     KEY_ROTATION_TIME,
+    KEY_STOP,
     KNOWN_STATE_KEYS,
     LOCK_COMMAND_ALLOWED,
     LOCK_COMMAND_NOT_ALLOWED,
@@ -100,6 +107,7 @@ RAW_MQTT_DEBUG_PAYLOAD_LIMIT = 500
 OUTBOUND_STATE_RECONCILIATION_DELAYS = (5, 20)
 GATEWAY_HEALTH_INTERVAL = timedelta(seconds=60)
 UPTIME_SUBSCRIPTION_TTL = 10
+UNKNOWN_VALUE_SENTINEL = "unknown"
 
 DEVICE_TOPIC_PATTERN = re.compile(r"EnOcean/([^/]+)/stream/devices/([^/]+)/(.+)")
 TELEGRAM_TOPIC_PATTERN = re.compile(
@@ -148,6 +156,7 @@ class OpusGreenNetCoordinator:
         self._command_waiters: dict[str, int] = {}
         self.gateway_info: dict[str, Any] = {}
         self.gateway_uptime: str | None = None
+        self._system_info_supported: bool | None = None
 
     @property
     def available(self) -> bool:
@@ -265,41 +274,39 @@ class OpusGreenNetCoordinator:
             )
 
     async def _async_refresh_gateway(self, *, resync: bool) -> None:
-        """Probe the gateway; treat system info as best-effort, not mandatory.
-
-        Device discovery (get/devices) has no request/response acknowledgement
-        in the OPUS protocol - it is answered asynchronously on
-        getAnswer/devices/#, already consumed independently by
-        _handle_get_answer_devices. Gateway availability therefore no longer
-        depends on the diagnostic-only system-info round trip succeeding: a
-        Mosquitto bridge that does not relay get/config/system/info (or a
-        gateway firmware that does not implement it) must not block the
-        entire integration.
-        """
+        """Probe the gateway; give up retrying system info once known unsupported."""
         if self._bridge_connected is False:
             raise request_error("gateway_unavailable", self.eag_id)
 
-        _LOGGER.debug(
-            "Probing OPUS gateway %s via %s",
-            self.eag_id,
-            TOPIC_GET_SYSTEM_INFO.format(base=TOPIC_BASE, eag_id=self.eag_id),
-        )
-        try:
-            self.gateway_info = await self._requests.async_request(
+        if resync or self._system_info_supported is not False:
+            _LOGGER.debug(
+                "Probing OPUS gateway %s via %s",
+                self.eag_id,
                 TOPIC_GET_SYSTEM_INFO.format(base=TOPIC_BASE, eag_id=self.eag_id),
-                TOPIC_GET_ANSWER_SYSTEM_INFO.format(base=TOPIC_BASE, eag_id=self.eag_id),
-                self.eag_id,
             )
-            _LOGGER.debug("OPUS gateway %s responded to the health probe", self.eag_id)
-        except HomeAssistantError as err:
-            _LOGGER.warning(
-                "OPUS gateway %s did not answer get/config/system/info (%s). "
-                "Continuing without gateway metadata - check that your "
-                "Mosquitto bridge relays this topic in both directions if "
-                "this persists. Device control and discovery are unaffected.",
-                self.eag_id,
-                err,
-            )
+            try:
+                self.gateway_info = await self._requests.async_request(
+                    TOPIC_GET_SYSTEM_INFO.format(base=TOPIC_BASE, eag_id=self.eag_id),
+                    TOPIC_GET_ANSWER_SYSTEM_INFO.format(base=TOPIC_BASE, eag_id=self.eag_id),
+                    self.eag_id,
+                )
+                self._system_info_supported = True
+                _LOGGER.debug("OPUS gateway %s responded to the health probe", self.eag_id)
+            except HomeAssistantError as err:
+                if self._system_info_supported is not False:
+                    _LOGGER.warning(
+                        "OPUS gateway %s did not answer get/config/system/info (%s). "
+                        "Disabling further automatic system-info probes for this "
+                        "gateway to avoid repeating a guaranteed timeout every %s - "
+                        "check that your Mosquitto bridge relays this topic in both "
+                        "directions if you want gateway metadata in diagnostics. "
+                        "Device control and discovery are unaffected. Reloading the "
+                        "integration will retry once.",
+                        self.eag_id,
+                        err,
+                        GATEWAY_HEALTH_INTERVAL,
+                    )
+                self._system_info_supported = False
 
         if self._unloaded or self._bridge_connected is False:
             raise request_error("gateway_unavailable", self.eag_id)
@@ -1016,8 +1023,14 @@ class OpusGreenNetCoordinator:
 
     @staticmethod
     def _has_operational_state(functions: list[dict[str, Any]]) -> bool:
+        """Return True only for functions that confirm an actual, known state."""
         return any(
-            function.get("key") in KNOWN_STATE_KEYS and function.get("key") != KEY_ROTATION_TIME
+            function.get("key") in KNOWN_STATE_KEYS
+            and function.get("key") != KEY_ROTATION_TIME
+            and not (
+                isinstance(function.get("value"), str)
+                and function.get("value").strip().lower() == UNKNOWN_VALUE_SENTINEL
+            )
             for function in functions
         )
 
@@ -1274,8 +1287,17 @@ class OpusGreenNetCoordinator:
         await self.async_send_command(device_id, self._with_channel_if_needed(device_id, functions, channel))
 
     async def async_stop_cover(self, device_id: str, channel: int = 0) -> None:
-        functions = [{"key": "position", "value": "stop"}]
-        await self.async_send_command(device_id, self._with_channel_if_needed(device_id, functions, channel))
+        """Stop cover movement.
+
+        FIX: EEP D2-05-xx defines a dedicated stop function - key "stop",
+        value "true" - separate from "position" (which only accepts 0-100
+        or "unknown"). The previous payload {"key": "position", "value":
+        "stop"} was invalid input, correctly rejected by the gateway with
+        HTTP 400 on every call. See coordinator.py module docstring, fix #5.
+        """
+        functions = [{"key": KEY_STOP, "value": "true"}]
+        functions = self._with_channel_if_needed(device_id, functions, channel)
+        await self.async_send_command(device_id, functions)
 
     async def async_query_device_status(self, device_id: str, channel: int = 0) -> None:
         functions = [{"key": "query", "value": "status"}]
