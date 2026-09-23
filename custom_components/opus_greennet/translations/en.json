@@ -153,6 +153,12 @@
       "message": "The request was cancelled because the integration is unloading or its connection was lost."
     }
   },
+  "issues": {
+    "system_info_unsupported": {
+      "title": "Gateway system info not available",
+      "description": "The OPUS gateway {eag_id} did not answer a request for its system information (model, firmware). This is diagnostic-only and does not affect device control or discovery. If you want this metadata in diagnostics, check that your Mosquitto bridge relays `get/config/system/info` and `getAnswer/config/system/info` for this gateway. This issue can be dismissed."
+    }
+  },
   "services": {
     "get_device_configuration": {
       "description": "Retrieves the stored configuration for an EnOcean device through the ReCom API.",

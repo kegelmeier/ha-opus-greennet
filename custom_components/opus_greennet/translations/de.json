@@ -153,6 +153,12 @@
       "message": "Die Anfrage wurde abgebrochen, weil die Integration entladen wird oder die Verbindung verloren ging."
     }
   },
+   "issues": {
+    "system_info_unsupported": {
+      "title": "Gateway-Systeminformationen nicht verfügbar",
+      "description": "Das OPUS-Gateway {eag_id} hat auf eine Anfrage nach Systeminformationen (Modell, Firmware) nicht geantwortet. Dies ist rein diagnostisch und beeinträchtigt weder die Gerätesteuerung noch die Erkennung. Falls du diese Metadaten in den Diagnosedaten sehen möchtest, prüfe, ob deine Mosquitto-Bridge `get/config/system/info` und `getAnswer/config/system/info` für dieses Gateway durchleitet. Dieser Hinweis kann verworfen werden."
+    }
+  },
   "services": {
     "get_device_configuration": {
       "description": "Ruft die gespeicherte Konfiguration eines EnOcean-Ger\u00e4ts \u00fcber die ReCom-API ab.",
