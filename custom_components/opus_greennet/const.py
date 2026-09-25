@@ -2,7 +2,7 @@
 
 Base: kegelmeier/ha-opus-greennet v0.3.3b0. Extended with four EnOcean
 devices ported from the fubu2k fork (HOPPE window handles with/without
-eLock, Jaeger Direkt RWM smoke detector, OPUS SMS presence sensor).
+AutoLock, Jaeger Direkt RWM smoke detector, OPUS SMS presence sensor).
 
 FIX: added KEY_STOP. Per the official EnOcean EEP D2-05-00 / D2-05-06
 specification, stopping a moving cover uses its own dedicated function
@@ -113,7 +113,10 @@ EEP_MAPPINGS: Final = {
     # Liquid Leakage Sensor (F6-05-01)
     "F6-05-01": ("binary_sensor", "Liquid Leakage Sensor"),
     # --- Ported from fubu2k fork -------------------------------------------
-    "D2-06-40": ("lock", "HOPPE Smart Window Handle (eLock)"),
+    # D2-06-40: primary type "sensor" — AutoLock state is an ENUM sensor
+    # (Option B). No LockEntity; the gateway-reported lock state is
+    # display-only and must not trigger any MQTT publish on user action.
+    "D2-06-40": ("sensor", "HOPPE Smart Window Handle (AutoLock)"),
     "F6-10-00": ("sensor", "HOPPE Window Handle"),
     "D2-03-10": ("sensor", "HOPPE Window Handle"),
     "F6-05-02": ("binary_sensor", "Jaeger Direkt Smoke Detector (RWM)"),
@@ -128,7 +131,6 @@ ENTITY_PLATFORMS: Final = {
     "climate": "climate",
     "binary_sensor": "binary_sensor",
     "event": "event",
-    "lock": "lock",
     "sensor": "sensor",
 }
 
@@ -148,6 +150,11 @@ KEY_QUERY: Final = "query"
 # distinct from KEY_POSITION which only accepts 0-100 or "unknown". Sending
 # "stop" as a position value is invalid and is rejected by the gateway with
 # HTTP 400 - see coordinator.async_stop_cover().
+# NOTE: KEY_STOP is intentionally NOT in KNOWN_STATE_KEYS. The stop command
+# is a one-way action function {key:"stop", value:"true"}, not a positional
+# state confirmation. Including it in KNOWN_STATE_KEYS would cause
+# _has_operational_state() to cancel reconciliation queries prematurely
+# after a stop command, preventing the mandatory follow-up position query.
 KEY_STOP: Final = "stop"
 
 # Climate function keys
@@ -206,7 +213,7 @@ HEATER_MODE_AUTO_OFF: Final = "autoOff"
 HEATER_MODE_CONFIG_INCOMPLETE: Final = "configIncomplete"
 HEATER_MODE_ERROR: Final = "error"
 
-# HOPPE window handle states and commands
+# HOPPE window handle states
 HANDLE_CLOSED: Final = "closed"
 HANDLE_OPEN: Final = "open"
 HANDLE_TILT: Final = "tilt"
@@ -214,13 +221,20 @@ LOCK_LOCKED: Final = "locked"
 LOCK_UNLOCKED: Final = "unlocked"
 UNLOCK_NOT_REQUESTED: Final = "notRequested"
 UNLOCK_REQUESTED: Final = "requested"
+# Kept for reference / future use; active lock control is NOT implemented.
 LOCK_COMMAND_ALLOWED: Final = "allowed"
 LOCK_COMMAND_NOT_ALLOWED: Final = "notAllowed"
+
+# Event type fired when the HOPPE AutoLock handle reports an unlock request.
+# Triggered on rising edge (unlock=requested) only; notRequested is ignored.
+EVENT_TYPE_UNLOCK_REQUESTED: Final = "unlock_requested"
 
 # Default values
 DEFAULT_CHANNEL: Final = 0
 
 # All known state keys for initial state application / fast-path parsing.
+# KEY_STOP is intentionally excluded: it is a command function, not a
+# positional state value, and must not cancel cover reconciliation queries.
 KNOWN_STATE_KEYS: Final = frozenset(
     {
         "switch",
@@ -228,7 +242,6 @@ KNOWN_STATE_KEYS: Final = frozenset(
         "position",
         "angle",
         KEY_ROTATION_TIME,
-        KEY_STOP,
         "localControl",
         "energy",
         "power",
