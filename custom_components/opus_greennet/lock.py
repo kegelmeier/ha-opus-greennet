@@ -13,6 +13,21 @@ LockEntity, consistent with every other entity in this integration.
 
 Discovery is driven by entity_descriptions.py (LOCK_DESCRIPTIONS), not a
 hardcoded EEP check, consistent with binary_sensor.py / sensor.py.
+
+FIX 2026-09-26: HOPPE D2-06-40 is a READ-ONLY source from the HA
+perspective. Physical state changes originate at the handle itself and are
+pushed by the gateway via MQTT stream topics.  The integration MUST NOT
+write back to the gateway when the GUI lock/unlock button is pressed,
+because:
+  a) the Mosquitto bridge maps stream/# as inbound-only, so any publish
+     would silently disappear before reaching the gateway broker; and
+  b) the AutoLock feature is intentionally controlled by the physical
+     handle, not by home automation.
+
+async_lock / async_unlock now raise HomeAssistantError immediately so the
+UI shows a clear "read-only" message and no optimistic local state change
+is applied.  The gateway-pushed state via stream/device/#/states/... remains
+the single source of truth.
 """
 
 from __future__ import annotations
@@ -21,6 +36,7 @@ from typing import Any
 
 from homeassistant.components.lock import LockEntity
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -33,6 +49,12 @@ from .enocean_device import EnOceanDevice
 
 # The coordinator serializes commands per device; entities receive pushed state.
 PARALLEL_UPDATES = 0
+
+_READ_ONLY_MSG = (
+    "Der HOPPE-AutoLock-Zustand ist schreibgeschützt und wird "
+    "ausschließlich vom OPUS-Gateway aktualisiert. "
+    "Manuelle Bedienung über die GUI ist nicht möglich."
+)
 
 
 async def async_setup_entry(
@@ -75,12 +97,15 @@ async def async_setup_entry(
 
 
 class OpusGreenNetWindowHandleLock(OpusGreenNetEntity, LockEntity):
-    """Control whether a HOPPE window handle may be operated.
+    """Read-only mirror of the HOPPE D2-06-40 AutoLock permission state.
 
     NOTE: the value_fn reads `channel.lock_state` ("locked"/"unlocked"),
     the EEP D2-06-40 "Lock Status" byte - never `channel.handle_state`
     ("open"/"closed"/"tilt", the "Handle Status" byte). These are two
     independent fields; conflating them was the original bug report.
+
+    This entity is intentionally read-only. async_lock / async_unlock
+    raise HomeAssistantError to prevent any GUI writeback to the gateway.
     """
 
     _attr_has_entity_name = True
@@ -113,27 +138,9 @@ class OpusGreenNetWindowHandleLock(OpusGreenNetEntity, LockEntity):
         return None
 
     async def async_lock(self, **kwargs: Any) -> None:
-        """Block operation of the window handle."""
-        description = self._opus_description
-        snapshot = self._channel_state_snapshot()
-        command = getattr(self._coordinator, description.coordinator_method)
-        await command(self._device.device_id, locked=True)
-        if not self._channel_state_matches(snapshot):
-            return
-        channel = self._device.get_or_create_channel(self._channel_id)
-        setattr(channel, description.lock_state_attr, description.locked_state)
-        channel.state_revision += 1
-        self.async_write_ha_state()
+        """Reject GUI write – HOPPE AutoLock state is read-only."""
+        raise HomeAssistantError(_READ_ONLY_MSG)
 
     async def async_unlock(self, **kwargs: Any) -> None:
-        """Allow operation of the window handle."""
-        description = self._opus_description
-        snapshot = self._channel_state_snapshot()
-        command = getattr(self._coordinator, description.coordinator_method)
-        await command(self._device.device_id, locked=False)
-        if not self._channel_state_matches(snapshot):
-            return
-        channel = self._device.get_or_create_channel(self._channel_id)
-        setattr(channel, description.lock_state_attr, description.unlocked_state)
-        channel.state_revision += 1
-        self.async_write_ha_state()
+        """Reject GUI write – HOPPE AutoLock state is read-only."""
+        raise HomeAssistantError(_READ_ONLY_MSG)
