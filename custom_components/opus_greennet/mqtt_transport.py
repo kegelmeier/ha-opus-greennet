@@ -7,17 +7,13 @@ async_setup() racing against the request-scoped subscription this module
 opens in MQTTRequestManager.async_request() (see coordinator.py module
 docstring for the full root-cause analysis and fix).
 
-Only change in this revision: added debug logging around the subscribe/
-SUBACK/publish/response sequence, so a future handshake deadlock is visible
-in the log immediately instead of only surfacing as an opaque 10s timeout.
-
-FIX 2026-09-26: async_probe_gateway() now uses the /uptime endpoint instead
-of /info.  The OPUS-IQ-DOT gateway (firmware v1.21.30 and earlier) does NOT
-respond to get/config/system/info; it only implements get/config/system/uptime.
-Using /info caused a guaranteed 10-second REQUEST_TIMEOUT warning on every
-integration start, followed by the coordinator silently disabling all future
-system-info probes.  Switching to /uptime eliminates the timeout entirely and
-also validates the gateway response via require_status=True (httpStatus 200).
+Only change in this revision: async_probe_gateway() now uses the
+/config/system/uptime endpoint (which the OPUS-IQ-DOT gateway actually
+implements) instead of /config/system/info (which it does not). This
+eliminates the guaranteed 10-second timeout WARNING at every integration
+start. require_status=True is passed so that a non-200 HTTP status in the
+gateway's JSON header is treated as a hard failure rather than a silent
+no-op.
 """
 
 from __future__ import annotations
@@ -273,17 +269,12 @@ class MQTTRequestManager:
 
 
 async def async_probe_gateway(hass: HomeAssistant, eag_id: str) -> dict[str, Any]:
-    """Verify the selected gateway responds via the /uptime endpoint.
+    """Verify the selected gateway responds via its /config/system/uptime endpoint.
 
-    The OPUS-IQ-DOT gateway does NOT implement get/config/system/info.
-    Using /uptime instead eliminates the guaranteed 10-second timeout that
-    occurred on every integration start when /info was used.
-
-    Expected response structure:
-        {
-            "header": {"httpStatus": 200, "content": "Uptime", ...},
-            "systemUptimeResponse": {"uptime": <seconds_since_boot>}
-        }
+    The OPUS-IQ-DOT gateway does not implement /config/system/info; using
+    /config/system/uptime avoids a guaranteed 10-second timeout at every
+    integration start. require_status=True ensures a non-200 HTTP status
+    in the gateway JSON header is treated as a hard failure.
     """
     manager = MQTTRequestManager(hass)
     try:

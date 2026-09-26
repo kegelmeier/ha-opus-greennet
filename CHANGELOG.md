@@ -1,120 +1,85 @@
 # Changelog
 
-## [Unreleased] – fix/hoppe-writeback-uptime-probe
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+
+---
+
+## [Unreleased] — fix/hoppe-writeback-uptime-probe
 
 ### Fixed
 
-#### `lock.py` – HOPPE AutoLock: GUI-Writeback vollständig blockiert
+#### HOPPE AutoLock – GUI-Writeback vollständig blockiert (`lock.py`)
 
-**Problem:** `async_lock()` und `async_unlock()` riefen den Coordinator auf
-und setzten anschließend `channel.lock_state` lokal – ohne dass jemals ein
-MQTT-Telegramm das Gateway erreicht hätte (die Mosquitto-Bridge leitet
-`stream/#` ausschließlich **inbound** weiter). Das Ergebnis war ein
-irreführend „verriegelter“ HA-Zustand, der nicht mit dem physischen
-Griffzustand übereinstimmte.
+- `async_lock()` und `async_unlock()` rufen nun **nicht mehr** den Coordinator
+  auf und mutieren **nicht mehr** `channel.lock_state` lokal.
+- Stattdessen werfen beide Methoden sofort eine `HomeAssistantError`-Ausnahme
+  mit einer deutschen Fehlermeldung. Die HA-GUI zeigt daraufhin einen
+  Fehler-Toast an, ohne irgendeinen MQTT-Befehl an das Gateway zu senden.
+- Hintergrund: Der `lock_state` des HOPPE-Griffs (EEP D2-06-40) wird
+  ausschließlich vom OPUS-IQ-DOT-Gateway gepusht. Ein Schreibbefehl über die
+  Mosquitto-Bridge würde entweder ins Leere laufen (fehlende outbound-Regel)
+  oder einen undefinierten Zustand erzeugen. Die Entität ist damit ein
+  **reiner Zustands-Spiegel** des Gateways.
+- Entfernte Funktionalität: kein Coordinator-Aufruf, keine lokale
+  `channel.state_revision`-Inkrementierung, kein `async_write_ha_state()`
+  in den Schreibpfaden.
 
-**Fix:** Beide Methoden werfen jetzt sofort eine `HomeAssistantError` mit
-einer Fehlermeldung. Kein Coordinator-Aufruf, keine lokale
-Zustandsmanipulation, kein `async_write_ha_state()`. Die GUI zeigt beim
-Antippen eine sichtbare Meldung; das Gateway-Push via
-`stream/device/#/states/…` bleibt die einzige Quelle für `lock_state`.
+#### Gateway-Probe – `/config/system/info` durch `/config/system/uptime` ersetzt (`mqtt_transport.py`)
 
-**Betroffene Dateien:** `custom_components/opus_greennet/lock.py`
+- `async_probe_gateway()` importiert und verwendet nun
+  `TOPIC_GET_SYSTEM_UPTIME` / `TOPIC_GET_ANSWER_SYSTEM_UPTIME` statt der
+  `/config/system/info`-Variante.
+- Ursache: Das OPUS-IQ-DOT-Gateway antwortet **nicht** auf
+  `getAnswer/config/system/info`, aber zuverlässig auf
+  `getAnswer/config/system/uptime` (bestätigt per MQTT Explorer,
+  2026-09-26, Gateway-Version OPUS-IQ-DOT v1.21.30).
+- Dadurch entfällt der garantierte 10-Sekunden-Timeout-WARNING beim
+  Integrationsstart:
+  ```
+  WARNING [...] OPUS request timed out for device 05215569
+  (topic=EnOcean/05215569/get/config/system/info, ...)
+  ```
+- `require_status=True` wird nun übergeben, damit ein Nicht-200-HTTP-Status
+  im Gateway-JSON-Header als harter Fehler behandelt wird.
+- Die Konstanten `TOPIC_GET_SYSTEM_INFO` / `TOPIC_GET_ANSWER_SYSTEM_INFO`
+  verbleiben in `const.py` (werden noch vom Coordinator verwendet) und
+  werden **nicht** aus dem Import-Block dieser Datei entfernt.
 
----
+### Pending (empfohlene Folge-PRs)
 
-#### `mqtt_transport.py` – Gateway-Probe auf `/uptime` umgestellt
+#### `coordinator.py` – Uptime-Parser auf verschachteltes JSON umstellen
 
-**Problem:** `async_probe_gateway()` fragte `get/config/system/info` ab.
-Das OPUS-IQ-DOT Gateway (Firmware v1.21.30) implementiert diesen Endpunkt
-**nicht**. Folge: bei jedem Integrationsstart erschien nach 10 Sekunden
-folgende Warnung im HA-Log:
-
-```
-WARNING (MainThread) [custom_components.opus_greennet.mqtt_transport]
-OPUS request timed out for device 05215569
-(topic=EnOcean/05215569/get/config/system/info,
- answer=EnOcean/05215569/getAnswer/config/system/info,
- subscribed=True).
-```
-
-Danach deaktivierte der Coordinator alle weiteren System-Info-Abfragen:
-
-```
-WARNING (MainThread) [custom_components.opus_greennet.coordinator]
-OPUS gateway 05215569 did not answer get/config/system/info
-(request_timeout). Disabling further automatic system-info probes …
-```
-
-**Fix:** `async_probe_gateway()` verwendet jetzt:
-- **Publish-Topic:** `EnOcean/{eag_id}/get/config/system/uptime`
-- **Subscribe-Topic:** `EnOcean/{eag_id}/getAnswer/config/system/uptime`
-- `require_status=True` → validiert `header.httpStatus == 200`
-
-Verifizierte Gateway-Antwort (live via MQTT Explorer, Firmware v1.21.30):
+Das Gateway liefert die Uptime in folgendem Format:
 ```json
 {
-  "header": {
-    "httpStatus": 200,
-    "content": "Uptime",
-    "gateway": "OPUS-IQ-DOT v1.21.30",
-    "timestamp": "2026-09-26T08:46:41.293+0200"
-  },
-  "systemUptimeResponse": {
-    "uptime": 16766
-  }
+  "header": { "httpStatus": 200, "gateway": "OPUS-IQ-DOT v1.21.30" },
+  "systemUptimeResponse": { "uptime": 16766 }
 }
 ```
-
-Das 10-Sekunden-Timeout beim Integrationsstart entfällt vollständig.
-
-**Betroffene Dateien:** `custom_components/opus_greennet/mqtt_transport.py`
-
-**Import-Änderung:**
+Der aktuelle Code speichert die rohe MQTT-Nutzlast als Zeichenkette
+(`self.gateway_uptime = payload`). Korrekte Extraktion:
 ```python
-# Vorher
-from .const import (
-    DOMAIN, TOPIC_BASE,
-    TOPIC_GET_ANSWER_SYSTEM_INFO,
-    TOPIC_GET_SYSTEM_INFO,
-)
-
-# Nachher
-from .const import (
-    DOMAIN, TOPIC_BASE,
-    TOPIC_GET_ANSWER_SYSTEM_UPTIME,
-    TOPIC_GET_SYSTEM_UPTIME,
-)
+data["systemUptimeResponse"]["uptime"]  # int, Sekunden
 ```
 
----
+#### `const.py` / `coordinator.py` – verwaiste HOPPE-Schreibkonstanten entfernen
 
-### Empfohlene Folge-Änderungen (nicht in diesem Branch enthalten)
+Folgende Konstanten sind nach dem Writeback-Block nicht mehr im aktiven
+Schreibpfad erreichbar und sollten in einem separaten Cleanup-PR entfernt
+werden, sobald auch der Coordinator-Uptime-Parser umgestellt ist:
+- `TOPIC_WINDOW_HANDLE_TARGET_KEY`
+- `TOPIC_WINDOW_HANDLE_TARGET_VALUE`
+- `KEY_HANDLE_TARGET`
+- `LOCK_COMMAND_ALLOWED`
+- `LOCK_COMMAND_NOT_ALLOWED`
 
-#### `coordinator.py` – Uptime-Wert korrekt aus verschachteltem JSON extrahieren
+#### Tests anpassen
 
-Die aktuelle Implementierung speichert die rohe MQTT-Nutzlast als String:
-```python
-self.gateway_uptime = payload  # ← falsch
-```
-
-Korrekte Extraktion:
-```python
-uptime_response = data.get("systemUptimeResponse")
-if not isinstance(uptime_response, dict):
-    raise request_error("request_rejected", self.eag_id, "Missing systemUptimeResponse")
-uptime = uptime_response.get("uptime")
-if isinstance(uptime, bool) or not isinstance(uptime, int) or uptime < 0:
-    raise request_error("request_rejected", self.eag_id, "Invalid system uptime")
-self.gateway_uptime = uptime  # integer, Sekunden seit Boot
-self.gateway_info = data.get("header", {})
-```
-
----
-
-### Tests
-
-- `test_probe_verifies_gateway_and_cleans_subscription()`: Topic-Erwartung
-  von `.../get/config/system/info` auf `.../get/config/system/uptime` ändern
-- Neuer Regressionstest für `async_lock()` / `async_unlock()`: sicherstellen,
-  dass kein MQTT-Publish ausgeführt wird und der Kanalzustand unverändert bleibt
+- `test_probe_verifies_gateway_and_cleans_subscription()` erwartet noch
+  `EnOcean/AABB0011/get/config/system/info` → auf `/uptime` umstellen.
+- Fake-Broker sollte die reale verschachtelte Antwort liefern
+  (`systemUptimeResponse.uptime`).
+- Regressionstest für `async_lock()` / `async_unlock()`: sicherstellen,
+  dass `broker.published == []` und `channel.lock_state` unverändert bleibt.

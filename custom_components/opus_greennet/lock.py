@@ -14,20 +14,10 @@ LockEntity, consistent with every other entity in this integration.
 Discovery is driven by entity_descriptions.py (LOCK_DESCRIPTIONS), not a
 hardcoded EEP check, consistent with binary_sensor.py / sensor.py.
 
-FIX 2026-09-26: HOPPE D2-06-40 is a READ-ONLY source from the HA
-perspective. Physical state changes originate at the handle itself and are
-pushed by the gateway via MQTT stream topics.  The integration MUST NOT
-write back to the gateway when the GUI lock/unlock button is pressed,
-because:
-  a) the Mosquitto bridge maps stream/# as inbound-only, so any publish
-     would silently disappear before reaching the gateway broker; and
-  b) the AutoLock feature is intentionally controlled by the physical
-     handle, not by home automation.
-
-async_lock / async_unlock now raise HomeAssistantError immediately so the
-UI shows a clear "read-only" message and no optimistic local state change
-is applied.  The gateway-pushed state via stream/device/#/states/... remains
-the single source of truth.
+READ-ONLY NOTE (2026-09-26): The HOPPE AutoLock lock_state is pushed
+exclusively by the gateway; Home Assistant must never write back to it.
+async_lock() and async_unlock() therefore raise HomeAssistantError
+instead of publishing any command or mutating local state.
 """
 
 from __future__ import annotations
@@ -41,7 +31,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import OpusGreenNetConfigEntry
-from .const import CONF_EAG_ID
+from .const import CONF_EAG_ID, DOMAIN
 from .coordinator import SIGNAL_DEVICE_DISCOVERED, OpusGreenNetCoordinator
 from .entity import OpusGreenNetEntity
 from .entity_descriptions import OpusLockDescription, descriptions_for
@@ -51,9 +41,9 @@ from .enocean_device import EnOceanDevice
 PARALLEL_UPDATES = 0
 
 _READ_ONLY_MSG = (
-    "Der HOPPE-AutoLock-Zustand ist schreibgeschützt und wird "
-    "ausschließlich vom OPUS-Gateway aktualisiert. "
-    "Manuelle Bedienung über die GUI ist nicht möglich."
+    "Der HOPPE-AutoLock-Zustand ist schreibgeschützt und wird ausschließlich "
+    "vom OPUS-Gateway aktualisiert. Befehle aus der Home-Assistant-GUI werden "
+    "nicht an das Gateway weitergeleitet."
 )
 
 
@@ -97,15 +87,18 @@ async def async_setup_entry(
 
 
 class OpusGreenNetWindowHandleLock(OpusGreenNetEntity, LockEntity):
-    """Read-only mirror of the HOPPE D2-06-40 AutoLock permission state.
+    """Read-only representation of the HOPPE AutoLock permission state.
 
     NOTE: the value_fn reads `channel.lock_state` ("locked"/"unlocked"),
     the EEP D2-06-40 "Lock Status" byte - never `channel.handle_state`
     ("open"/"closed"/"tilt", the "Handle Status" byte). These are two
     independent fields; conflating them was the original bug report.
 
-    This entity is intentionally read-only. async_lock / async_unlock
-    raise HomeAssistantError to prevent any GUI writeback to the gateway.
+    Write operations (async_lock / async_unlock) are intentionally blocked:
+    the HOPPE gateway does not accept lock commands over the Mosquitto bridge
+    without a dedicated outbound bridge rule, and issuing optimistic state
+    updates without confirmation is misleading. The entity is a pure state
+    mirror of what the gateway reports.
     """
 
     _attr_has_entity_name = True
@@ -138,9 +131,9 @@ class OpusGreenNetWindowHandleLock(OpusGreenNetEntity, LockEntity):
         return None
 
     async def async_lock(self, **kwargs: Any) -> None:
-        """Reject GUI write – HOPPE AutoLock state is read-only."""
+        """Reject GUI lock commands - state is controlled by the gateway only."""
         raise HomeAssistantError(_READ_ONLY_MSG)
 
     async def async_unlock(self, **kwargs: Any) -> None:
-        """Reject GUI write – HOPPE AutoLock state is read-only."""
+        """Reject GUI unlock commands - state is controlled by the gateway only."""
         raise HomeAssistantError(_READ_ONLY_MSG)
