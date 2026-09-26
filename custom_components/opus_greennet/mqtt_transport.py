@@ -10,6 +10,14 @@ docstring for the full root-cause analysis and fix).
 Only change in this revision: added debug logging around the subscribe/
 SUBACK/publish/response sequence, so a future handshake deadlock is visible
 in the log immediately instead of only surfacing as an opaque 10s timeout.
+
+FIX 2026-09-26: async_probe_gateway() now uses the /uptime endpoint instead
+of /info.  The OPUS-IQ-DOT gateway (firmware v1.21.30 and earlier) does NOT
+respond to get/config/system/info; it only implements get/config/system/uptime.
+Using /info caused a guaranteed 10-second REQUEST_TIMEOUT warning on every
+integration start, followed by the coordinator silently disabling all future
+system-info probes.  Switching to /uptime eliminates the timeout entirely and
+also validates the gateway response via require_status=True (httpStatus 200).
 """
 
 from __future__ import annotations
@@ -28,8 +36,8 @@ from homeassistant.exceptions import HomeAssistantError
 from .const import (
     DOMAIN,
     TOPIC_BASE,
-    TOPIC_GET_ANSWER_SYSTEM_INFO,
-    TOPIC_GET_SYSTEM_INFO,
+    TOPIC_GET_ANSWER_SYSTEM_UPTIME,
+    TOPIC_GET_SYSTEM_UPTIME,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -265,13 +273,25 @@ class MQTTRequestManager:
 
 
 async def async_probe_gateway(hass: HomeAssistant, eag_id: str) -> dict[str, Any]:
-    """Verify the selected gateway responds, even when its devices are quiet."""
+    """Verify the selected gateway responds via the /uptime endpoint.
+
+    The OPUS-IQ-DOT gateway does NOT implement get/config/system/info.
+    Using /uptime instead eliminates the guaranteed 10-second timeout that
+    occurred on every integration start when /info was used.
+
+    Expected response structure:
+        {
+            "header": {"httpStatus": 200, "content": "Uptime", ...},
+            "systemUptimeResponse": {"uptime": <seconds_since_boot>}
+        }
+    """
     manager = MQTTRequestManager(hass)
     try:
         return await manager.async_request(
-            TOPIC_GET_SYSTEM_INFO.format(base=TOPIC_BASE, eag_id=eag_id),
-            TOPIC_GET_ANSWER_SYSTEM_INFO.format(base=TOPIC_BASE, eag_id=eag_id),
+            TOPIC_GET_SYSTEM_UPTIME.format(base=TOPIC_BASE, eag_id=eag_id),
+            TOPIC_GET_ANSWER_SYSTEM_UPTIME.format(base=TOPIC_BASE, eag_id=eag_id),
             eag_id,
+            require_status=True,
         )
     except HomeAssistantError as err:
         if err.translation_key == "mqtt_unavailable":
