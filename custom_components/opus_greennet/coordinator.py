@@ -39,6 +39,20 @@ FIX HISTORY (this file)
     is the stable value for this gateway. qos=0 must not be used for any
     outbound OPUS command on this integration.
 
+15. FIX 2026-09-26: _async_refresh_gateway() now probes via
+    get/config/system/uptime instead of get/config/system/info.
+    The OPUS-IQ-DOT firmware v1.21.30 does NOT respond to /info; using
+    it caused a guaranteed 10-second REQUEST_TIMEOUT warning on every
+    integration start and then silently disabled all further health probes.
+    The separate _async_request_system_uptime() helper (fire-and-forget
+    plain subscribe + publish) is removed; the uptime value is now parsed
+    directly from the probe response as an integer seconds-since-boot.
+    gateway_uptime type changed: str | None -> int | None.
+    _system_info_supported flag, ISSUE_SYSTEM_INFO_UNSUPPORTED issue, and
+    UPTIME_SUBSCRIPTION_TTL constant are no longer needed but are retained
+    as dead code in this revision to keep the diff minimal; they will be
+    cleaned up in a follow-up.
+
 Ported extensions (fubu2k fork, reconciled against the hardened base):
   * Generalized indexed key/value fragment parsing via one of several
     top-level containers (const.INDEXED_STATE_CONTAINERS): "states/{n}" for
@@ -119,9 +133,9 @@ TELEGRAM_FINALIZE_DELAY = 0.15
 RAW_MQTT_DEBUG_PAYLOAD_LIMIT = 500
 OUTBOUND_STATE_RECONCILIATION_DELAYS = (5, 20)
 GATEWAY_HEALTH_INTERVAL = timedelta(seconds=60)
-UPTIME_SUBSCRIPTION_TTL = 10
+UPTIME_SUBSCRIPTION_TTL = 10  # retained for dead-code compatibility; no longer used
 UNKNOWN_VALUE_SENTINEL = "unknown"
-ISSUE_SYSTEM_INFO_UNSUPPORTED = "system_info_unsupported"
+ISSUE_SYSTEM_INFO_UNSUPPORTED = "system_info_unsupported"  # retained; no longer raised
 
 DEVICE_TOPIC_PATTERN = re.compile(r"EnOcean/([^/]+)/stream/devices/([^/]+)/(.+)")
 TELEGRAM_TOPIC_PATTERN = re.compile(
@@ -169,8 +183,10 @@ class OpusGreenNetCoordinator:
         self._telegram_paths: dict[str, set[str]] = {}
         self._command_waiters: dict[str, int] = {}
         self.gateway_info: dict[str, Any] = {}
-        self.gateway_uptime: str | None = None
-        self._system_info_supported: bool | None = None
+        # FIX 2026-09-26: type changed from str | None to int | None.
+        # Value is seconds since gateway boot, parsed from systemUptimeResponse.uptime.
+        self.gateway_uptime: int | None = None
+        self._system_info_supported: bool | None = None  # retained; no longer mutated
 
     @property
     def available(self) -> bool:
@@ -288,50 +304,54 @@ class OpusGreenNetCoordinator:
             )
 
     async def _async_refresh_gateway(self, *, resync: bool) -> None:
-        """Probe the gateway; give up retrying system info once known unsupported."""
+        """Probe the gateway via /uptime; populate gateway_uptime and gateway_info.
+
+        FIX 2026-09-26: the previous implementation probed get/config/system/info
+        which the OPUS-IQ-DOT firmware does not implement, causing a guaranteed
+        10-second timeout and subsequent disabling of all health probes.
+        The /uptime endpoint is supported by all known firmware versions and
+        returns a structured JSON payload with a nested systemUptimeResponse.uptime
+        integer (seconds since boot).
+        """
         if self._bridge_connected is False:
             raise request_error("gateway_unavailable", self.eag_id)
 
-        if resync or self._system_info_supported is not False:
-            _LOGGER.debug(
-                "Probing OPUS gateway %s via %s",
+        _LOGGER.debug(
+            "Probing OPUS gateway %s via %s",
+            self.eag_id,
+            TOPIC_GET_SYSTEM_UPTIME.format(base=TOPIC_BASE, eag_id=self.eag_id),
+        )
+        response = await self._requests.async_request(
+            TOPIC_GET_SYSTEM_UPTIME.format(base=TOPIC_BASE, eag_id=self.eag_id),
+            TOPIC_GET_ANSWER_SYSTEM_UPTIME.format(base=TOPIC_BASE, eag_id=self.eag_id),
+            self.eag_id,
+            require_status=True,
+        )
+
+        uptime_response = response.get("systemUptimeResponse")
+        if not isinstance(uptime_response, dict):
+            raise request_error(
+                "request_rejected",
                 self.eag_id,
-                TOPIC_GET_SYSTEM_INFO.format(base=TOPIC_BASE, eag_id=self.eag_id),
+                "Missing systemUptimeResponse in gateway reply",
             )
-            try:
-                self.gateway_info = await self._requests.async_request(
-                    TOPIC_GET_SYSTEM_INFO.format(base=TOPIC_BASE, eag_id=self.eag_id),
-                    TOPIC_GET_ANSWER_SYSTEM_INFO.format(base=TOPIC_BASE, eag_id=self.eag_id),
-                    self.eag_id,
-                )
-                self._system_info_supported = True
-                _LOGGER.debug("OPUS gateway %s responded to the health probe", self.eag_id)
-                ir.async_delete_issue(self.hass, DOMAIN, ISSUE_SYSTEM_INFO_UNSUPPORTED)
-            except HomeAssistantError as err:
-                if self._system_info_supported is not False:
-                    _LOGGER.warning(
-                        "OPUS gateway %s did not answer get/config/system/info (%s). "
-                        "Disabling further automatic system-info probes for this "
-                        "gateway to avoid repeating a guaranteed timeout every %s - "
-                        "check that your Mosquitto bridge relays this topic in both "
-                        "directions if you want gateway metadata in diagnostics. "
-                        "Device control and discovery are unaffected. Reloading the "
-                        "integration will retry once.",
-                        self.eag_id,
-                        err,
-                        GATEWAY_HEALTH_INTERVAL,
-                    )
-                    ir.async_create_issue(
-                        self.hass,
-                        DOMAIN,
-                        ISSUE_SYSTEM_INFO_UNSUPPORTED,
-                        is_fixable=False,
-                        is_persistent=False,
-                        severity=ir.IssueSeverity.WARNING,
-                        translation_key=ISSUE_SYSTEM_INFO_UNSUPPORTED,
-                        translation_placeholders={"eag_id": self.eag_id},
-                    )
-                self._system_info_supported = False
+        uptime = uptime_response.get("uptime")
+        if isinstance(uptime, bool) or not isinstance(uptime, int) or uptime < 0:
+            raise request_error(
+                "request_rejected",
+                self.eag_id,
+                f"Invalid uptime value: {uptime!r}",
+            )
+
+        self.gateway_uptime = uptime
+        self.gateway_info = response.get("header", {})
+        _LOGGER.debug(
+            "OPUS gateway %s responded: uptime=%ds firmware=%s",
+            self.eag_id,
+            uptime,
+            self.gateway_info.get("gateway", "unknown"),
+        )
+        ir.async_delete_issue(self.hass, DOMAIN, ISSUE_SYSTEM_INFO_UNSUPPORTED)
 
         if self._unloaded or self._bridge_connected is False:
             raise request_error("gateway_unavailable", self.eag_id)
@@ -345,35 +365,11 @@ class OpusGreenNetCoordinator:
                 qos=1,
                 retain=False,
             )
-            await self._async_request_system_uptime()
             if not self._discovery_timer:
                 self._discovery_timer = async_call_later(
                     self.hass, 2, self._finalize_discovery
                 )
         self._set_gateway_available(True)
-
-    async def _async_request_system_uptime(self) -> None:
-        """Fetch gateway uptime as its own bounded, self-cleaning, non-fatal request."""
-        topic = TOPIC_GET_SYSTEM_UPTIME.format(base=TOPIC_BASE, eag_id=self.eag_id)
-        answer_topic = TOPIC_GET_ANSWER_SYSTEM_UPTIME.format(
-            base=TOPIC_BASE, eag_id=self.eag_id
-        )
-
-        @callback
-        def handle_uptime(msg: ReceiveMessage) -> None:
-            payload = msg.payload
-            if isinstance(payload, bytes):
-                payload = payload.decode(errors="replace")
-            self.gateway_uptime = payload
-
-        try:
-            unsub = await mqtt.async_subscribe(
-                self.hass, answer_topic, handle_uptime, qos=1
-            )
-            async_call_later(self.hass, UPTIME_SUBSCRIPTION_TTL, lambda _: unsub())
-            await mqtt.async_publish(self.hass, topic, "", qos=1, retain=False)
-        except Exception:  # noqa: BLE001 - diagnostic-only, never fatal
-            _LOGGER.debug("Could not request OPUS gateway uptime for %s", self.eag_id)
 
     def _create_task(self, coroutine: Coroutine) -> asyncio.Task:
         """Own every coordinator background operation until unload."""
@@ -1353,6 +1349,10 @@ class OpusGreenNetCoordinator:
         therefore only updates the optimistic local state shown in the
         UI; it does not send any command to the gateway and does not
         affect the physical window handle.
+
+        NOTE 2026-09-26: lock.py now raises HomeAssistantError before
+        calling this method, so this stub is never reached from the GUI.
+        It is retained for API compatibility only.
 
         Do not re-add an MQTT publish here without first confirming with
         a fresh Mosquitto bridge capture that the gateway's bridge
