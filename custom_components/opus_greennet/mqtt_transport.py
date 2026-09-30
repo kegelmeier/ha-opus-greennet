@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from collections.abc import Callable
+from math import isfinite
 from typing import Any
 
 from homeassistant.components import mqtt
@@ -15,11 +17,16 @@ from homeassistant.exceptions import HomeAssistantError
 from .const import (
     DOMAIN,
     TOPIC_BASE,
-    TOPIC_GET_ANSWER_SYSTEM_INFO,
-    TOPIC_GET_SYSTEM_INFO,
+    TOPIC_GET_ANSWER_SYSTEM_UPTIME,
+    TOPIC_GET_SYSTEM_UPTIME,
 )
 
 REQUEST_TIMEOUT = 10.0
+# HA processes wildcard subscriptions before exact response topics. Large
+# retained device snapshots need more time than a single gateway operation.
+SUBSCRIPTION_TIMEOUT = 30.0
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def request_error(key: str, device_id: str, reason: str = "") -> HomeAssistantError:
@@ -77,8 +84,15 @@ async def async_wait_for_subscriptions(hass: HomeAssistant, topics: list[str]) -
                 )
             )
         if pending:
-            async with asyncio.timeout(REQUEST_TIMEOUT):
+            async with asyncio.timeout(SUBSCRIPTION_TIMEOUT):
                 await ready
+    except TimeoutError:
+        _LOGGER.warning(
+            "Timed out after %.0fs waiting for OPUS MQTT subscriptions: %s",
+            SUBSCRIPTION_TIMEOUT,
+            ", ".join(sorted(pending)),
+        )
+        raise
     finally:
         for cancel in cancellations:
             cancel()
@@ -216,15 +230,43 @@ class MQTTRequestManager:
                         future.cancel()
 
 
+def gateway_uptime_value(data: dict[str, Any]) -> str:
+    """Read the uptime response observed on OPUS-GW firmware 1.21.31."""
+    response = data.get("systemUptimeResponse")
+    value = response.get("uptime") if isinstance(response, dict) else None
+    if isinstance(value, bool) or not isinstance(value, (str, int, float)):
+        raise ValueError("The gateway returned an invalid uptime")
+    try:
+        uptime = float(value)
+    except (ValueError, OverflowError) as err:
+        raise ValueError("The gateway returned an invalid uptime") from err
+    if not isfinite(uptime) or uptime < 0:
+        raise ValueError("The gateway returned an invalid uptime")
+    return str(value)
+
+
+async def async_get_gateway_uptime(
+    manager: MQTTRequestManager, eag_id: str
+) -> dict[str, Any]:
+    """Probe a working MQTT endpoint without requiring optional system info."""
+    data = await manager.async_request(
+        TOPIC_GET_SYSTEM_UPTIME.format(base=TOPIC_BASE, eag_id=eag_id),
+        TOPIC_GET_ANSWER_SYSTEM_UPTIME.format(base=TOPIC_BASE, eag_id=eag_id),
+        eag_id,
+        require_status=True,
+    )
+    try:
+        gateway_uptime_value(data)
+    except ValueError as err:
+        raise request_error("request_rejected", eag_id, str(err)) from err
+    return data
+
+
 async def async_probe_gateway(hass: HomeAssistant, eag_id: str) -> dict[str, Any]:
-    """Verify the selected gateway responds, even when its devices are quiet."""
+    """Verify the selected gateway using its fresh MQTT uptime response."""
     manager = MQTTRequestManager(hass)
     try:
-        return await manager.async_request(
-            TOPIC_GET_SYSTEM_INFO.format(base=TOPIC_BASE, eag_id=eag_id),
-            TOPIC_GET_ANSWER_SYSTEM_INFO.format(base=TOPIC_BASE, eag_id=eag_id),
-            eag_id,
-        )
+        return await async_get_gateway_uptime(manager, eag_id)
     except HomeAssistantError as err:
         if err.translation_key == "mqtt_unavailable":
             raise

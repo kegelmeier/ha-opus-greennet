@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        homeassistant: ["2026.8.2", "2026.9.1"]
+        homeassistant: ["2026.8.2", "2026.9.4"]
     name: Home Assistant ${{ matrix.homeassistant }}
     steps:
       - uses: actions/checkout@v7

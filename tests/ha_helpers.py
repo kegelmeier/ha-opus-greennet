@@ -29,6 +29,7 @@ class MQTTTransport:
         self.published: list[tuple[str, str]] = []
         self.subscriptions: list[tuple[str, Callable]] = []
         self.reply = True
+        self.reply_info = True
 
     async def subscribe(self, hass, topic, callback, **kwargs) -> Callable:
         """Capture the real integration's topic subscriptions."""
@@ -49,13 +50,24 @@ class MQTTTransport:
         self.published.append((topic, payload))
         if not self.reply:
             return
-        if topic.endswith("/get/config/system/info"):
+        if topic.endswith("/get/config/system/uptime"):
+            self.receive(
+                topic.replace("/get/", "/getAnswer/"),
+                {
+                    "header": {"httpStatus": 200},
+                    "systemUptimeResponse": {"uptime": 40201},
+                },
+            )
+        elif topic.endswith("/get/config/system/info") and self.reply_info:
             self.receive(
                 topic.replace("/get/", "/getAnswer/"),
                 {"model": "GreenNet Bridge", "version": "test"},
             )
         elif topic.endswith("/get/devices"):
-            self.receive(topic.replace("/get/", "/getAnswer/"), self.devices)
+            self.receive(
+                topic.replace("/get/", "/getAnswer/"),
+                {"header": {"httpStatus": 200}, "devices": self.devices},
+            )
         elif "/put/" in topic:
             self.receive(
                 topic.replace("/put/", "/putAnswer/"),

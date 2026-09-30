@@ -179,11 +179,14 @@ entries automatically retry when the gateway is unavailable during startup.
 
 ## Availability and command behavior
 
-The integration uses push updates, with a gateway health check approximately
+The integration uses push updates, with a fresh MQTT uptime health check approximately
 every 60 seconds. MQTT disconnects and the optional bridge-status topic update
 availability immediately; a failed health check also marks entities unavailable.
 Batteryless EnOcean devices are not marked offline just because they are quiet.
 On reconnection, the integration requests a fresh device list and gateway data.
+Gateway system information is optional: some firmware responds to MQTT uptime
+and device requests but does not answer the system-information endpoint. Device
+snapshots and indexed stream updates support both map and list state formats.
 
 Commands wait for the gateway's acknowledgement. Status `200` means the gateway
 sent the telegram; `201` means it accepted deferred delivery. Neither confirms
@@ -262,7 +265,11 @@ EnOcean/{EAG-Identifier}/getAnswer/devices/{Device-Identifier}     # Discovery r
 
 ### Enable debug logging
 
-Add to `configuration.yaml`:
+For temporary troubleshooting, open **Settings → Devices & services →
+Opus GreenNet Bridge → three-dot menu → Enable debug logging**. Disable it
+after reproducing the problem and save the downloaded log.
+
+For persistent logging, add to `configuration.yaml`:
 
 ```yaml
 logger:
@@ -280,6 +287,10 @@ main handoff points:
 - `OPUS update latency finalized`: debounced MQTT fragments were converted into state functions
 - `OPUS update latency dispatch`: the coordinator notified Home Assistant entities
 - `OPUS update latency entity_write`: the entity wrote its Home Assistant state
+
+Retained device-model properties are not logged individually during reconnects;
+large cached snapshots would otherwise flood the log and delay startup. Live
+updates keep their latency markers.
 
 Download a redacted diagnostic report from **Settings → Devices & services →
 Opus GreenNet Bridge → three-dot menu → Download diagnostics**. It includes the
@@ -346,7 +357,7 @@ pytest -v --cov
 Use Python 3.14 for development. Tests cover device properties, telegram parsing,
 ordered multi-channel commands, gateway errors, entity behavior, rocker events,
 diagnostic redaction, and real Home Assistant configuration and lifecycle paths.
-CI resolves dependencies separately for Home Assistant 2026.8.2 and 2026.9.1 and
+CI resolves dependencies separately for Home Assistant 2026.8.2 and 2026.9.4 and
 also runs Ruff and Hassfest. MQTT transport is simulated in automated tests;
 physical-device verification remains part of beta testing.
 
@@ -358,7 +369,9 @@ Check physical controls, low brightness, both actuator channels, cover position
 and tilt, climate activity, and rapid rocker presses. Also test a gateway outage
 and reconnection, then reload the integration during a pending request. Report
 your gateway firmware, device EEP, and the observed result with redacted
-diagnostics. REST/HTTP streaming is a separate future investigation.
+diagnostics. The [H11 live test report](docs/h11-beta-test-2026-09-30.md) records
+the firmware-specific findings and limited actuator checks. HTTP reads and
+streaming were verified there; HTTP control remains a separate investigation.
 
 ## References
 

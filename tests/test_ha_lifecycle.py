@@ -35,6 +35,62 @@ async def test_config_flow_creates_and_unloads_entry(
     assert mqtt_transport.subscriptions == []
 
 
+async def test_setup_uses_uptime_when_gateway_has_no_system_info_response(
+    hass: HomeAssistant, mqtt_transport
+):
+    """Firmware 1.21.31 can load and discover list-form states without system/info."""
+    mqtt_transport.reply_info = False
+    mqtt_transport.devices = [
+        {
+            "deviceId": "AABB1122",
+            "friendlyId": "Desk switch",
+            "eeps": [{"eep": "D2-01-00"}],
+            "states": [{"key": "switch", "value": "off"}],
+        }
+    ]
+    result = await configure_bridge(hass)
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    await hass.async_block_till_done()
+    entry = result["result"]
+    assert entry.state is config_entries.ConfigEntryState.LOADED
+    assert entry.runtime_data.coordinator.gateway_uptime == "40201"
+    entity_id = await wait_for_entity(hass, "switch", "AABB0011_AABB1122")
+    assert hass.states.get(entity_id).state == "off"
+    assert any(
+        topic.endswith("/get/config/system/uptime")
+        for topic, _ in mqtt_transport.published
+    )
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    assert mqtt_transport.subscriptions == []
+
+
+async def test_cover_snapshot_configuration_disables_tilt_for_roller_shutter(
+    hass: HomeAssistant, mqtt_transport
+):
+    """Firmware configuration parameters identify a shutter without tilt support."""
+    mqtt_transport.devices = [
+        {
+            "deviceId": "AABB1122",
+            "friendlyId": "Living room shutter",
+            "eeps": [{"eep": "D2-05-02"}],
+            "configuration": {"parameters": [{"key": "rotationTime", "value": 0.0}]},
+            "states": [
+                {"key": "position", "value": 78.0},
+                {"key": "angle", "value": "unknown"},
+                {"key": "lockingMode", "value": "unblock"},
+            ],
+        }
+    ]
+    result = await configure_bridge(hass)
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    await hass.async_block_till_done()
+    entity_id = await wait_for_entity(hass, "cover", "AABB0011_AABB1122")
+    state = hass.states.get(entity_id)
+    assert state.state == "open"
+    assert state.attributes["current_position"] == 22
+    assert state.attributes["supported_features"] == 15
+
+
 async def test_config_flow_rejects_invalid_id(hass: HomeAssistant, mqtt_transport):
     """Validation errors are attached to the correct user input field."""
     result = await configure_bridge(hass, "not-a-bridge")
@@ -266,7 +322,7 @@ async def test_bridge_reconnect_restarts_an_interrupted_health_probe(
     probe_sent = asyncio.Event()
 
     async def delay_first_health_answer(hass, topic, payload, **kwargs):
-        if topic.endswith("/get/config/system/info") and not probe_sent.is_set():
+        if topic.endswith("/get/config/system/uptime") and not probe_sent.is_set():
             probe_sent.set()
             return
         await mqtt_transport.publish(hass, topic, payload, **kwargs)

@@ -36,7 +36,6 @@ from .const import (
     TOPIC_GET_DEVICE_PROFILE,
     TOPIC_GET_DEVICES,
     TOPIC_GET_SYSTEM_INFO,
-    TOPIC_GET_SYSTEM_UPTIME,
     TOPIC_PUT_ANSWER_DEVICE_CONFIGURATION,
     TOPIC_PUT_DEVICE_CONFIGURATION,
     TOPIC_PUT_STATE,
@@ -48,8 +47,10 @@ from .const import (
 from .enocean_device import EnOceanDevice
 from .mqtt_transport import (
     MQTTRequestManager,
+    async_get_gateway_uptime,
     async_wait_for_subscriptions,
     decode_response,
+    gateway_uptime_value,
     request_error,
 )
 
@@ -151,13 +152,20 @@ class OpusGreenNetCoordinator:
             )
         )
         try:
+            # Probe an exact response topic before wildcard subscriptions start
+            # replaying the gateway's large retained device-model snapshot.
+            # The normal refresh below rechecks health after their SUBACKs and
+            # requests a fresh snapshot only once every listener is ready.
+            uptime_response = await async_get_gateway_uptime(
+                self._requests, self.eag_id
+            )
+            self.gateway_uptime = gateway_uptime_value(uptime_response)
             for pattern, handler in subscriptions:
                 topic = pattern.format(base=TOPIC_BASE, eag_id=self.eag_id)
                 self._subscriptions.append(
                     await mqtt.async_subscribe(self.hass, topic, handler, qos=1)
                 )
                 self._subscription_topics.append(topic)
-            await async_wait_for_subscriptions(self.hass, self._subscription_topics)
             await self._async_refresh_gateway(resync=True)
             self._started = True
             self._subscriptions.append(
@@ -226,7 +234,10 @@ class OpusGreenNetCoordinator:
         ):
             return
         self._refresh_task = self._create_task(
-            self._async_refresh_gateway_background(resync=resync)
+            self._async_refresh_gateway_background(resync=resync),
+            # HA emits its connected callback before queuing resubscriptions.
+            # Wait until that callback returns before checking SUBACK readiness.
+            eager_start=False,
         )
 
     async def _async_refresh_gateway_background(self, *, resync: bool) -> None:
@@ -242,26 +253,19 @@ class OpusGreenNetCoordinator:
     async def _async_refresh_gateway(self, *, resync: bool) -> None:
         if self._bridge_connected is False:
             raise request_error("gateway_unavailable", self.eag_id)
-        self.gateway_info = await self._requests.async_request(
-            TOPIC_GET_SYSTEM_INFO.format(base=TOPIC_BASE, eag_id=self.eag_id),
-            TOPIC_GET_ANSWER_SYSTEM_INFO.format(base=TOPIC_BASE, eag_id=self.eag_id),
-            self.eag_id,
-        )
+        if resync:
+            # This also covers HA's automatic wildcard resubscriptions after a
+            # broker reconnect. Do not spend the request deadline on replay.
+            await async_wait_for_subscriptions(self.hass, self._subscription_topics)
+        uptime_response = await async_get_gateway_uptime(self._requests, self.eag_id)
+        self.gateway_uptime = gateway_uptime_value(uptime_response)
         if self._unloaded or self._bridge_connected is False:
             raise request_error("gateway_unavailable", self.eag_id)
         if resync:
-            await async_wait_for_subscriptions(self.hass, self._subscription_topics)
             self._resync_requested_at = monotonic()
             await mqtt.async_publish(
                 self.hass,
                 TOPIC_GET_DEVICES.format(base=TOPIC_BASE, eag_id=self.eag_id),
-                "",
-                qos=1,
-                retain=False,
-            )
-            await mqtt.async_publish(
-                self.hass,
-                TOPIC_GET_SYSTEM_UPTIME.format(base=TOPIC_BASE, eag_id=self.eag_id),
                 "",
                 qos=1,
                 retain=False,
@@ -271,10 +275,25 @@ class OpusGreenNetCoordinator:
                     self.hass, 2, self._finalize_discovery
                 )
         self._set_gateway_available(True)
+        if resync:
+            # Some firmware answers uptime and discovery but never system/info.
+            # Request optional metadata without awaiting an application response.
+            try:
+                await mqtt.async_publish(
+                    self.hass,
+                    TOPIC_GET_SYSTEM_INFO.format(base=TOPIC_BASE, eag_id=self.eag_id),
+                    "",
+                    qos=1,
+                    retain=False,
+                )
+            except HomeAssistantError:
+                _LOGGER.debug("Could not request optional OPUS system information")
 
-    def _create_task(self, coroutine: Coroutine) -> asyncio.Task:
+    def _create_task(
+        self, coroutine: Coroutine, *, eager_start: bool = True
+    ) -> asyncio.Task:
         """Own every coordinator background operation until unload."""
-        task = self.hass.async_create_task(coroutine)
+        task = self.hass.async_create_task(coroutine, eager_start=eager_start)
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
         return task
@@ -348,9 +367,10 @@ class OpusGreenNetCoordinator:
                 return
 
             received_at = monotonic()
-            self._log_latency_received(
-                "stream/devices", device_id, property_path, received_at
-            )
+            if not getattr(msg, "retain", False):
+                self._log_latency_received(
+                    "stream/devices", device_id, property_path, received_at
+                )
 
             if device_id not in self._device_data:
                 self._device_data[device_id] = {"deviceId": device_id}
@@ -365,6 +385,14 @@ class OpusGreenNetCoordinator:
             self._set_nested_property(
                 self._device_data[device_id], property_path, payload
             )
+
+            if self.get_device(device_id) is not None and re.match(
+                r"(?:states|configuration/parameters)/\d+/", property_path
+            ):
+                self._buffer_device_stream_property(
+                    device_id, property_path, payload, received_at
+                )
+                return
 
             if self._apply_known_device_state_property(
                 device_id, property_path, payload, received_at
@@ -403,42 +431,42 @@ class OpusGreenNetCoordinator:
                 return
 
             received_at = monotonic()
-            self._device_stream_received_at.setdefault(device_id, received_at)
-            self._log_latency_received(
-                "stream/device", device_id, property_path, received_at
-            )
-
-            if device_id not in self._device_stream_data:
-                self._device_stream_data[device_id] = {"deviceId": device_id}
+            if not getattr(msg, "retain", False):
+                self._log_latency_received(
+                    "stream/device", device_id, property_path, received_at
+                )
 
             payload = (
                 msg.payload.decode()
                 if isinstance(msg.payload, bytes)
                 else str(msg.payload)
             )
-            self._set_nested_property(
-                self._device_stream_data[device_id], property_path, payload
-            )
-
-            # Reset stream timer for this device - finalize after short delay
-            if (
-                device_id in self._pending_device_streams
-                and self._pending_device_streams[device_id]
-            ):
-                self._pending_device_streams[device_id]()
-
-            @callback
-            def finalize_callback(_now, did=device_id):
-                self._finalize_device_stream(did)
-
-            # Short debounce: gateway publishes all properties within ms,
-            # so this is ample to collect a full delta while keeping UI snappy.
-            self._pending_device_streams[device_id] = async_call_later(
-                self.hass, DEVICE_STREAM_FINALIZE_DELAY, finalize_callback
+            self._buffer_device_stream_property(
+                device_id, property_path, payload, received_at
             )
 
         except Exception as err:
             _LOGGER.exception("Error handling device stream message: %s", err)
+
+    def _buffer_device_stream_property(
+        self, device_id: str, property_path: str, payload: str, received_at: float
+    ) -> None:
+        """Collect indexed state metadata before applying its value and channel."""
+        self._device_stream_received_at.setdefault(device_id, received_at)
+        stream_data = self._device_stream_data.setdefault(
+            device_id, {"deviceId": device_id}
+        )
+        self._set_nested_property(stream_data, property_path, payload)
+        if cancel := self._pending_device_streams.get(device_id):
+            cancel()
+
+        @callback
+        def finalize_callback(_now):
+            self._finalize_device_stream(device_id)
+
+        self._pending_device_streams[device_id] = async_call_later(
+            self.hass, DEVICE_STREAM_FINALIZE_DELAY, finalize_callback
+        )
 
     @callback
     def _finalize_device_stream(self, device_id: str) -> None:
@@ -466,7 +494,43 @@ class OpusGreenNetCoordinator:
             if device is None:
                 return
 
-        functions = self._device_state_functions(stream_data)
+        # Indexed device-model deltas may contain only states/N/value. Resolve
+        # their unchanged key/channel metadata from the accumulated snapshot.
+        states_delta = stream_data.get("states")
+        cached_states = cached_data.get("states")
+        if isinstance(states_delta, list) and isinstance(cached_states, list):
+            changed_states = self._indexed_changed_functions(
+                states_delta, cached_states
+            )
+            functions = self._device_state_functions({"states": changed_states})
+        else:
+            functions = self._device_state_functions(
+                {
+                    key: value
+                    for key, value in stream_data.items()
+                    if key != "configuration"
+                }
+            )
+
+        configuration = stream_data.get("configuration")
+        cached_configuration = cached_data.get("configuration")
+        if isinstance(configuration, dict) and isinstance(cached_configuration, dict):
+            parameters = configuration.get("parameters")
+            cached_parameters = cached_configuration.get("parameters")
+            if isinstance(parameters, list) and isinstance(cached_parameters, list):
+                parameters = self._indexed_changed_functions(
+                    parameters,
+                    cached_parameters,
+                    default_channel=cached_configuration.get("channel", 0),
+                )
+                configuration = {**configuration, "parameters": parameters}
+            functions.extend(
+                self._configuration_state_functions(
+                    {
+                        "configuration": configuration,
+                    }
+                )
+            )
 
         if functions:
             self._log_latency_finalized(
@@ -621,12 +685,10 @@ class OpusGreenNetCoordinator:
     def _handle_system_uptime(self, msg: ReceiveMessage) -> None:
         """Handle gateway uptime response."""
         try:
-            payload = msg.payload
-            if isinstance(payload, bytes):
-                payload = payload.decode()
-            self.gateway_uptime = payload
-            _LOGGER.debug("Gateway uptime: %s", payload)
-        except UnicodeDecodeError as err:
+            data = decode_response(msg.payload, require_status=True)
+            self.gateway_uptime = gateway_uptime_value(data)
+            _LOGGER.debug("Gateway uptime: %s", self.gateway_uptime)
+        except ValueError as err:
             _LOGGER.debug("Could not parse system uptime: %s", err)
 
     # ──────────────────────────────────────────────────────────────────────
@@ -636,6 +698,12 @@ class OpusGreenNetCoordinator:
     def _log_raw_mqtt_message(self, source: str, msg: ReceiveMessage) -> None:
         """Log raw OPUS MQTT message details when debug logging is enabled."""
         if not _LOGGER.isEnabledFor(logging.DEBUG):
+            return
+        if source in ("stream/devices", "stream/device") and getattr(
+            msg, "retain", False
+        ):
+            # A startup replay can contain tens of thousands of properties.
+            # Discovery/finalization logs summarize these; retain live details.
             return
 
         payload = msg.payload
@@ -757,6 +825,10 @@ class OpusGreenNetCoordinator:
             return False
 
         state_key = property_path.removeprefix("states/").split("/", 1)[0]
+        if state_key in BUTTON_KEYS:
+            # Device-model state is cached and may be retained. Only incoming
+            # radio telegrams represent a new rocker occurrence.
+            return True
         if state_key not in KNOWN_STATE_KEYS:
             return False
 
@@ -1056,16 +1128,63 @@ class OpusGreenNetCoordinator:
             _LOGGER.exception("Error creating device from data: %s", err)
 
     @staticmethod
+    def _indexed_changed_functions(
+        delta: list, cached: list, *, default_channel: Any = 0
+    ) -> list[dict[str, Any]]:
+        """Attach cached channel context to changed indexed values only."""
+        changed_indices = {
+            index
+            for index, function in enumerate(delta)
+            if isinstance(function, dict) and "value" in function
+        }
+        changed = []
+        channel = default_channel
+        for index, function in enumerate(cached):
+            if not isinstance(function, dict):
+                continue
+            if function.get("key") == KEY_CHANNEL:
+                channel = function.get("value")
+            elif index in changed_indices:
+                changed.append({"channel": channel, **function})
+        return changed
+
+    @staticmethod
+    def _configuration_state_functions(data: dict) -> list[dict[str, Any]]:
+        """Read explicitly reported cover rotation, never parameter defaults."""
+        configuration = data.get("configuration")
+        if not isinstance(configuration, dict):
+            return []
+        parameters = configuration.get("parameters")
+        if not isinstance(parameters, list):
+            return []
+        channel = configuration.get("channel", 0)
+        functions = []
+        for parameter in parameters:
+            if not isinstance(parameter, dict):
+                continue
+            if parameter.get("key") == KEY_CHANNEL:
+                channel = parameter.get("value")
+            elif parameter.get("key") == KEY_ROTATION_TIME and "value" in parameter:
+                functions.append({"channel": channel, **parameter})
+        return functions
+
+    @staticmethod
     def _device_state_functions(data: dict) -> list[dict[str, Any]]:
-        """Read cached state from function arrays or OPUS's flat states map."""
+        """Read function arrays and both OPUS device-state representations."""
         state = data.get("state", {})
-        if isinstance(state, dict):
-            functions = state.get("functions", [])
+        states = data.get("states", {})
+        sources = [state.get("functions", [])] if isinstance(state, dict) else []
+        sources.append(states)
+        state_functions = []
+        for functions in sources:
             if isinstance(functions, dict):
                 functions = [
                     functions[index]
                     for index in sorted(
-                        functions, key=lambda x: int(x) if str(x).isdigit() else x
+                        functions,
+                        key=lambda key: (
+                            (0, int(key)) if str(key).isdigit() else (1, str(key))
+                        ),
                     )
                 ]
             if isinstance(functions, list):
@@ -1074,18 +1193,22 @@ class OpusGreenNetCoordinator:
                     for function in functions
                     if isinstance(function, dict)
                     and isinstance(function.get("key"), str)
+                    and function["key"] not in BUTTON_KEYS
                     and "value" in function
                 ]
                 if complete:
-                    return complete
-        states = data.get("states", {})
-        if isinstance(states, dict):
-            return [
+                    state_functions = complete
+                    break
+        if not state_functions and isinstance(states, dict):
+            state_functions = [
                 {"key": key, "value": value}
                 for key, value in states.items()
-                if key in KNOWN_STATE_KEYS or key == KEY_CHANNEL
+                if (key in KNOWN_STATE_KEYS or key == KEY_CHANNEL)
+                and key not in BUTTON_KEYS
             ]
-        return []
+        return state_functions + OpusGreenNetCoordinator._configuration_state_functions(
+            data
+        )
 
     @staticmethod
     def _has_operational_state(functions: list[dict[str, Any]]) -> bool:

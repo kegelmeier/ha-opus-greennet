@@ -15,7 +15,18 @@ from custom_components.opus_greennet.enocean_device import EnOceanDevice
 from custom_components.opus_greennet.mqtt_transport import (
     MQTTRequestManager,
     async_probe_gateway,
+    async_wait_for_subscriptions,
 )
+
+UPTIME_RESPONSE = {
+    "header": {
+        "httpStatus": 200,
+        "content": "Uptime",
+        "gateway": "OPUS-GW v1.21.31",
+        "timestamp": "2026-09-30T12:00:00+0200",
+    },
+    "systemUptimeResponse": {"uptime": 40201},
+}
 
 
 class Broker:
@@ -26,6 +37,7 @@ class Broker:
         self.auto_ack = True
         self.auto_respond = True
         self.response = {"header": {"httpStatus": 200}}
+        self.responses = {}
         self.subscriptions = {}
         self.acknowledgements = {}
         self.published = []
@@ -55,10 +67,13 @@ class Broker:
         self.published.append((topic, payload, kwargs))
         self.events.append(("publish", topic))
         if self.auto_respond:
+            response = self.responses.get(topic, self.response)
+            if response is None:
+                return
             answer = topic.replace("/get/", "/getAnswer/").replace(
                 "/put/", "/putAnswer/"
             )
-            self.receive(answer, self.response)
+            self.receive(answer, response)
 
     def receive(self, topic, payload, *, retain=False):
         if not isinstance(payload, (str, bytes)):
@@ -275,11 +290,171 @@ async def test_read_response_validation(broker, connected_coordinator, response)
 
 
 async def test_probe_verifies_gateway_and_cleans_subscription(broker):
-    broker.response = {"gateway": "OPUS-IQ-DOT"}
+    broker.response = UPTIME_RESPONSE
     result = await async_probe_gateway(MagicMock(), "AABB0011")
     assert result == broker.response
-    assert broker.published[0][0] == "EnOcean/AABB0011/get/config/system/info"
+    assert broker.published[0][0] == "EnOcean/AABB0011/get/config/system/uptime"
+    assert len(broker.published) == 1
     broker.assert_clean()
+
+
+@pytest.mark.parametrize("uptime", [None, True, -1, "NaN", "inf", "invalid", {}])
+async def test_probe_rejects_invalid_uptime_response(broker, uptime):
+    broker.response = {
+        "header": {"httpStatus": 200},
+        "systemUptimeResponse": {"uptime": uptime},
+    }
+    with pytest.raises(HomeAssistantError) as raised:
+        await async_probe_gateway(MagicMock(), "AABB0011")
+    assert raised.value.translation_key == "gateway_unavailable"
+    broker.assert_clean()
+
+
+async def test_health_uses_uptime_without_waiting_for_optional_system_info(
+    broker, connected_coordinator
+):
+    broker.responses = {
+        "EnOcean/AABB0011/get/config/system/uptime": UPTIME_RESPONSE,
+        "EnOcean/AABB0011/get/config/system/info": None,
+    }
+    await connected_coordinator._async_refresh_gateway(resync=True)
+    assert connected_coordinator.available is True
+    assert connected_coordinator.gateway_uptime == "40201"
+    assert [entry[0] for entry in broker.published] == [
+        "EnOcean/AABB0011/get/config/system/uptime",
+        "EnOcean/AABB0011/get/devices",
+        "EnOcean/AABB0011/get/config/system/info",
+    ]
+    # Regular health checks only use the responsive endpoint, so firmware that
+    # omits system/info never incurs its former application-response timeout.
+    broker.published.clear()
+    await connected_coordinator._async_refresh_gateway(resync=False)
+    assert [entry[0] for entry in broker.published] == [
+        "EnOcean/AABB0011/get/config/system/uptime"
+    ]
+    await connected_coordinator.async_unload()
+    broker.assert_clean()
+
+
+async def test_startup_probes_before_retained_streams_and_discovers_after_suback(
+    broker, connected_coordinator, monkeypatch
+):
+    broker.response = UPTIME_RESPONSE
+    module = "custom_components.opus_greennet.coordinator"
+    monkeypatch.setattr(f"{module}.mqtt.async_subscribe_connection_status", MagicMock())
+    monkeypatch.setattr(f"{module}.async_track_time_interval", MagicMock())
+    monkeypatch.setattr(f"{module}.async_call_later", MagicMock())
+
+    assert await connected_coordinator.async_setup() is True
+    first_probe = broker.events.index(
+        (
+            "publish",
+            "EnOcean/AABB0011/get/config/system/uptime",
+        )
+    )
+    discovery = broker.events.index(("publish", "EnOcean/AABB0011/get/devices"))
+    wildcard_subscriptions = [
+        (index, topic)
+        for index, (event, topic) in enumerate(broker.events)
+        if event == "subscribe" and ("#" in topic or "+" in topic)
+    ]
+    assert wildcard_subscriptions
+    for index, topic in wildcard_subscriptions:
+        assert first_probe < index
+        assert broker.events.index(("suback", topic)) < discovery
+    assert (
+        sum(
+            event == ("publish", "EnOcean/AABB0011/get/config/system/uptime")
+            for event in broker.events
+        )
+        == 2
+    )
+    await connected_coordinator.async_unload()
+    broker.assert_clean()
+
+
+async def test_bulk_subscription_wait_has_independent_longer_deadline(
+    broker, monkeypatch
+):
+    monkeypatch.setattr(
+        "custom_components.opus_greennet.mqtt_transport.REQUEST_TIMEOUT", 0.01
+    )
+    monkeypatch.setattr(
+        "custom_components.opus_greennet.mqtt_transport.SUBSCRIPTION_TIMEOUT", 0.1
+    )
+    broker.auto_ack = False
+    task = asyncio.create_task(
+        async_wait_for_subscriptions(MagicMock(), ["retained/#"])
+    )
+    await asyncio.sleep(0.025)
+    assert not task.done()
+    broker.acknowledgements["retained/#"][0]()
+    await task
+    broker.assert_clean()
+
+
+async def test_bulk_subscription_timeout_remains_bounded_and_cleans_listeners(
+    broker, monkeypatch
+):
+    monkeypatch.setattr(
+        "custom_components.opus_greennet.mqtt_transport.SUBSCRIPTION_TIMEOUT", 0.01
+    )
+    broker.auto_ack = False
+    with pytest.raises(TimeoutError):
+        await async_wait_for_subscriptions(MagicMock(), ["retained/#"])
+    broker.assert_clean()
+
+
+async def test_reconnect_waiter_starts_after_ha_queues_resubscriptions(
+    hass, broker, monkeypatch
+):
+    """HA synchronously announces connect before marking subscriptions pending."""
+    coord = OpusGreenNetCoordinator(hass, "AABB0011")
+    coord._started = True
+    stream_topic = "EnOcean/AABB0011/stream/devices/#"
+    coord._subscription_topics = [stream_topic]
+    broker.response = UPTIME_RESPONSE
+    pending = False
+    waiting = []
+    observations = []
+
+    def subscription_done(hass, topic, qos, callback):
+        observations.append((topic, pending))
+        if pending:
+            waiting.append(callback)
+            return lambda: waiting.remove(callback)
+        # Model async_on_subscribe_done's already-active fast path exactly:
+        # readiness is queued now and does not recheck later pending flags.
+        return hass.loop.call_soon(callback).cancel
+
+    monkeypatch.setattr(
+        "custom_components.opus_greennet.mqtt_transport.mqtt.async_on_subscribe_done",
+        subscription_done,
+    )
+    coord._handle_connection_status(True)
+    assert observations == []
+    pending = True  # HA queues wildcard resubscriptions after the callback.
+    await asyncio.sleep(0)
+    assert observations == [(stream_topic, True)]
+    assert not broker.published
+
+    pending = False
+    for callback in waiting.copy():
+        callback()
+    await coord._refresh_task
+    assert coord.available is True
+    assert broker.published[0][0].endswith("/get/config/system/uptime")
+    await coord.async_unload()
+    broker.assert_clean()
+
+
+def test_system_uptime_callback_extracts_observed_response(connected_coordinator):
+    connected_coordinator._handle_system_uptime(
+        SimpleNamespace(
+            payload=json.dumps(UPTIME_RESPONSE).encode(),
+        )
+    )
+    assert connected_coordinator.gateway_uptime == "40201"
 
 
 async def test_publish_exception_is_propagated_and_cleaned(
