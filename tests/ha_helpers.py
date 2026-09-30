@@ -55,7 +55,7 @@ class MQTTTransport:
                 topic.replace("/get/", "/getAnswer/"),
                 {
                     "header": {"httpStatus": 200},
-                    "systemUptimeResponse": {"uptime": 40201},
+                    "systemUptimeResponse": {"uptime": 3600},
                 },
             )
         elif topic.endswith("/get/config/system/info") and self.reply_info:

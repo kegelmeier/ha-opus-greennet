@@ -8,7 +8,7 @@
           "eag_id": "EAG identifier"
         },
         "data_description": {
-          "eag_id": "The eight-character bridge identifier used in MQTT topics, for example 050B4DFA."
+          "eag_id": "The eight-character bridge identifier used in MQTT topics, for example A1B2C3D4 (fictional)."
         }
       }
     },

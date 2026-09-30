@@ -234,7 +234,7 @@ class MQTTRequestManager:
 
 
 def gateway_uptime_value(data: dict[str, Any]) -> str:
-    """Read the uptime response observed on OPUS-GW firmware 1.21.31."""
+    """Read and validate the gateway's system uptime response."""
     response = data.get("systemUptimeResponse")
     value = response.get("uptime") if isinstance(response, dict) else None
     if isinstance(value, bool) or not isinstance(value, (str, int, float)):

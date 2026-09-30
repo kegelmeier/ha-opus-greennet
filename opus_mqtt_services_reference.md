@@ -49,7 +49,7 @@ All topics are prefixed with:
 EnOcean/<GW_EURID>/
 ```
 
-Where `<GW_EURID>` is the gateway's EnOcean Unique Radio Identifier (e.g., `0528C9BA`).
+Where `<GW_EURID>` is the gateway's EnOcean Unique Radio Identifier (fictional example: `A1B2C3D4`).
 
 ---
 
@@ -63,7 +63,7 @@ Where `<GW_EURID>` is the gateway's EnOcean Unique Radio Identifier (e.g., `0528
 
 **Full path example:**
 ```
-EnOcean/0528C9BA/stream/telegram/05985C39
+EnOcean/A1B2C3D4/stream/telegram/AABB1122
 ```
 
 The telegram stream has sub-topics for direction:

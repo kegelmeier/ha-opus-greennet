@@ -22,10 +22,10 @@ UPTIME_RESPONSE = {
     "header": {
         "httpStatus": 200,
         "content": "Uptime",
-        "gateway": "OPUS-GW v1.21.31",
-        "timestamp": "2026-09-30T12:00:00+0200",
+        "gateway": "OPUS-GW v1.0.0",
+        "timestamp": "2026-01-01T12:00:00+0000",
     },
-    "systemUptimeResponse": {"uptime": 40201},
+    "systemUptimeResponse": {"uptime": 3600},
 }
 
 
@@ -319,7 +319,7 @@ async def test_health_uses_uptime_without_waiting_for_optional_system_info(
     }
     await connected_coordinator._async_refresh_gateway(resync=True)
     assert connected_coordinator.available is True
-    assert connected_coordinator.gateway_uptime == "40201"
+    assert connected_coordinator.gateway_uptime == "3600"
     assert [entry[0] for entry in broker.published] == [
         "EnOcean/AABB0011/get/config/system/uptime",
         "EnOcean/AABB0011/get/devices",
@@ -448,13 +448,13 @@ async def test_reconnect_waiter_starts_after_ha_queues_resubscriptions(
     broker.assert_clean()
 
 
-def test_system_uptime_callback_extracts_observed_response(connected_coordinator):
+def test_system_uptime_callback_extracts_response(connected_coordinator):
     connected_coordinator._handle_system_uptime(
         SimpleNamespace(
             payload=json.dumps(UPTIME_RESPONSE).encode(),
         )
     )
-    assert connected_coordinator.gateway_uptime == "40201"
+    assert connected_coordinator.gateway_uptime == "3600"
 
 
 async def test_publish_exception_is_propagated_and_cleaned(

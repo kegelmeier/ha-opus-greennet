@@ -271,8 +271,8 @@ def test_discovery_rssi_accepts_only_finite_integers(coord, raw, expected):
     assert coord.devices["DEV1"].dbm == expected
 
 
-def test_observed_device_states_list_initializes_dimmer(coord):
-    """The H11 MQTT snapshot uses descriptors, rather than a flat states map."""
+def test_device_states_list_initializes_dimmer(coord):
+    """MQTT snapshots can use state descriptors instead of a flat states map."""
     coord._create_device_from_data(
         "DEV1",
         {
@@ -283,7 +283,7 @@ def test_observed_device_states_list_initializes_dimmer(coord):
                 {
                     "key": "dimValue",
                     "value": 0.0,
-                    "timestamp": "2026-09-30T12:00:00+0200",
+                    "timestamp": "2026-01-01T12:00:00+0000",
                 },
                 {"key": "localControl", "value": "on"},
             ],

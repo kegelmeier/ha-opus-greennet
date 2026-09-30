@@ -4,7 +4,6 @@ All notable changes to this project will be documented in this file.
 
 ## [0.3.3b1] - 2026-09-30
 
-Beta verified on H11 with Home Assistant 2026.9.4 and OPUS-GW firmware 1.21.31.
 Existing entity IDs and configured MQTT routes are preserved.
 
 ### Fixed
@@ -18,9 +17,8 @@ Existing entity IDs and configured MQTT routes are preserved.
 
 ### Changed
 
-- README, MQTT protocol reference, and the H11 test report document command confirmation, Stop encoding, live findings, and test limits. MQTT remains the integration transport; HTTP reads and streaming were evaluated separately.
+- README and the MQTT protocol reference document command confirmation and Stop encoding. MQTT remains the integration transport.
 - All **612 tests pass** on both Home Assistant 2026.8.2 and 2026.9.4, with **90.88% coverage** on 2026.9.4. Ruff and Hassfest validation pass.
-- Live checks cover five Keller lights, one one-percentage-point shutter movement and restoration, stationary Stop acceptance with fresh position feedback, Home Assistant restart, and MQTT broker recovery. All 138 entity IDs were preserved and original device states/settings restored. Braking during shutter movement, tilt, other rooms, and climate control were not tested.
 
 ## [0.3.3b0] - 2026-09-11
 
@@ -43,7 +41,7 @@ Beta release for physical-device testing. Existing entity IDs and rocker event n
 ## [0.3.2] - 2026-09-11
 
 ### Fixed
-- **Duplicate signal-strength entities** (#26): Repeated discovery no longer causes duplicate unique-ID errors at startup, while newly recognized sensor types can still be added. The reporter confirmed the official beta across two restarts, with all 59 signal-strength sensors present and updating.
+- **Duplicate signal-strength entities** (#26): Repeated discovery no longer causes duplicate unique-ID errors at startup, while newly recognized sensor types can still be added.
 - **Tilt controls on roller shutters** (#28): Tilt controls are hidden when the bridge reports `rotationTime` as `0` or `noRotation`. Existing discovery and state updates refresh this setting without extra configuration queries; ordinary position controls remain available, and devices without a valid rotation-time value retain their existing EEP behavior.
 
 ## [0.3.2b0] - 2026-08-31
@@ -233,7 +231,7 @@ Beta release for physical-device testing. Existing entity IDs and rocker event n
 ## [0.0.4] - 2024-11-24
 
 ### Fixed
-- **Commands now use correct device ID**: Fixed critical bug where commands were sent using the friendly name (e.g., `KG_Vorrat-1K-1`) instead of the actual EnOcean device ID (e.g., `01A02F6C`). This prevented lights, switches, and covers from responding to commands.
+- **Commands now use correct device ID**: Fixed critical bug where commands were sent using the friendly name instead of the actual EnOcean device ID. This prevented lights, switches, and covers from responding to commands.
 - **Updated repository URLs**: Fixed documentation and issue tracker URLs in manifest to point to the correct repository (`opus_homeassistant`).
 
 ## [0.0.3] - 2024-11-24

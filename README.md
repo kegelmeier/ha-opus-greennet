@@ -93,7 +93,7 @@ The Opus GreenNet Bridge runs its own MQTT broker. To connect it to Home Assista
    - `<OPUS_BRIDGE_IP>` with your Opus GreenNet Bridge's IP address
    - `<EAG-ID>` with its eight-character uppercase identifier, in every occurrence
    - `<username>`: `admin`
-   - `<password>`: Your gateway's EURID in uppercase (e.g., `050B4DFA`)
+   - `<password>`: Your gateway's EURID in uppercase (fictional example: `A1B2C3D4`)
 
 3. Reference this config file in the Mosquitto add-on configuration:
 
@@ -169,7 +169,7 @@ After installing, add the integration:
 
 …or go to **Settings → Devices & Services → Add Integration → “Opus GreenNet Bridge”**, then:
 
-1. Enter your **EAG Identifier** (Bridge ID, e.g., `050B4DFA`)
+1. Enter your **EAG Identifier** (Bridge ID; fictional example: `A1B2C3D4`)
 2. Click **Submit**
 
 Setup waits for a response from that specific gateway. A connected Home Assistant
@@ -221,7 +221,7 @@ device management, accessible via **Developer Tools** → **Actions**:
 | `opus_greennet.get_device_parameters` | `device_id` | Retrieve DDF parameters for an EnOcean device via ReCom API |
 | `opus_greennet.reload_entry` | _(optional)_ `config_entry_id` | Re-run integration setup/teardown without restarting HA |
 
-The `device_id` is the EURID of the target device (e.g., `01A02F6C`). Select a
+The `device_id` is the EURID of the target device (fictional example: `AABB1122`). Select a
 gateway when more than one Opus GreenNet config entry is loaded. The two read
 actions return their response data directly in Home Assistant.
 
@@ -239,11 +239,13 @@ EnOcean/{EAG-Identifier}/getAnswer/devices/{Device-Identifier}     # Discovery r
 
 ## Telegram Payload Format
 
+The identifiers and values below are fictional examples.
+
 ```json
 {
   "telegram": {
-    "deviceId": "01843197",
-    "friendlyId": "LivingRoom_Light",
+    "deviceId": "AABB1122",
+    "friendlyId": "Example_Light",
     "timestamp": "2024-01-15T10:30:00.000+0100",
     "direction": "from",
     "functions": [
@@ -376,9 +378,7 @@ Check physical controls, low brightness, both actuator channels, cover position
 and tilt, climate activity, and rapid rocker presses. Also test a gateway outage
 and reconnection, then reload the integration during a pending request. Report
 your gateway firmware, device EEP, and the observed result with redacted
-diagnostics. The [H11 live test report](docs/h11-beta-test-2026-09-30.md) records
-the firmware-specific findings and limited actuator checks. HTTP reads and
-streaming were verified there; HTTP control remains a separate investigation.
+diagnostics.
 
 ## References
 

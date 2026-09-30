@@ -38,7 +38,7 @@ async def test_config_flow_creates_and_unloads_entry(
 async def test_setup_uses_uptime_when_gateway_has_no_system_info_response(
     hass: HomeAssistant, mqtt_transport
 ):
-    """Firmware 1.21.31 can load and discover list-form states without system/info."""
+    """A gateway can load and discover list-form states without system/info."""
     mqtt_transport.reply_info = False
     mqtt_transport.devices = [
         {
@@ -53,7 +53,7 @@ async def test_setup_uses_uptime_when_gateway_has_no_system_info_response(
     await hass.async_block_till_done()
     entry = result["result"]
     assert entry.state is config_entries.ConfigEntryState.LOADED
-    assert entry.runtime_data.coordinator.gateway_uptime == "40201"
+    assert entry.runtime_data.coordinator.gateway_uptime == "3600"
     entity_id = await wait_for_entity(hass, "switch", "AABB0011_AABB1122")
     assert hass.states.get(entity_id).state == "off"
     assert any(
