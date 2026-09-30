@@ -171,13 +171,13 @@ def test_embedded_channel_report_cancels_only_matching_reconciliation(coord):
 @pytest.mark.parametrize("channel", [-1, True, "NaN", "inf", "1.5", None])
 def test_malformed_channels_do_not_reconcile_channel_zero(coord, channel):
     assert (
-        coord._channels_from_functions(
+        coord._command_fields_by_channel(
             [
                 {"key": "channel", "value": channel},
                 {"key": "switch", "value": "on"},
             ]
         )
-        == set()
+        == {}
     )
 
 

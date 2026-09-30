@@ -146,6 +146,7 @@ class MQTTRequestManager:
         *,
         require_status: bool = False,
         is_available: Callable[[], bool] | None = None,
+        before_publish: Callable[[], None] | None = None,
     ) -> dict[str, Any]:
         """Subscribe, await SUBACK, publish, and validate one fresh response."""
         # The OPUS response has no request ID. Only one local operation may use
@@ -210,6 +211,8 @@ class MQTTRequestManager:
                         raise request_error("mqtt_unavailable", device_id)
                     if is_available is not None and not is_available():
                         raise request_error("gateway_unavailable", device_id)
+                    if before_publish is not None:
+                        before_publish()
                     sent = True
                     await mqtt.async_publish(
                         self.hass, topic, payload, qos=1, retain=False

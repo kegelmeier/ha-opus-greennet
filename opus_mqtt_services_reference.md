@@ -252,8 +252,24 @@ Multiple key/value pairs can be sent in the `functions` array simultaneously.
 |--------|-----|-------|
 | Set angle | `angle` | `0` to `100` |
 | Set position | `position` | `0` to `100` |
+| Stop movement | `stop` | `"true"` (string) |
 
-Both can be sent together or individually.
+Position and angle can be sent together or individually.
+
+Stop is a separate function; `position: "stop"` is invalid. Preserve the channel
+selector for multi-channel actuators, including channel zero. After the gateway
+accepts Stop, request status to obtain the actual final position and tilt where
+supported.
+
+**Example payload (stop):**
+```json
+{"state":{"functions":[{"key":"stop","value":"true"}]}}
+```
+
+The dedicated command is defined by the official
+[D2-05-00](https://tools.enocean-alliance.org/EEPViewer/profiles/D2/05/00/D2-05-00.json)
+and [D2-05-02](https://tools.enocean-alliance.org/EEPViewer/profiles/D2/05/02/D2-05-02.json)
+IP profiles.
 
 **Example payload (angle 80, position 20):**
 ```json

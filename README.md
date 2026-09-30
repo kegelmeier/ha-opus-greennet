@@ -193,6 +193,11 @@ sent the telegram; `201` means it accepted deferred delivery. Neither confirms
 that the physical actuator has completed the operation. Device reports and
 subsequent channel-specific status queries reconcile the state. Requests fail
 when the gateway is known to be unavailable and are cancelled during reload.
+Interim `unknown`/`invalid` readings and unrelated metadata do not cancel the
+5- and 20-second checks. Confirmation must report a valid value for the requested
+field on its channel. Cover Stop sends the profile's dedicated stop command and
+then checks the reported position and, when supported, tilt; it does not assume
+a new position.
 
 OPUS acknowledgement topics do not include request identifiers. Requests to the
 same endpoint are serialized, but a late reply after a timeout or a simultaneous
@@ -337,6 +342,8 @@ tests/
 ├── test_coordinator_mqtt.py     # MQTT finalization tests
 ├── test_coordinator_parsing.py  # JSON telegrams, fragments, and late discovery
 ├── test_coordinator_transport.py # Subscription, request, and recovery tests
+├── test_cover_stop.py           # Stop command encoding and follow-up queries
+├── test_reconciliation_feedback.py # Valid feedback, channels, and command timing
 ├── test_event_entity.py         # Rocker switch event entity tests
 ├── test_entities.py             # Entity state and Home Assistant service tests
 ├── test_init.py                 # Entry setup, unloading, and service routing

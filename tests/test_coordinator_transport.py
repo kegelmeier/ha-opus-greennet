@@ -491,7 +491,7 @@ async def test_accepted_local_command_reconciles_even_without_echo(
         connected_coordinator, "_schedule_reconciliation_queries", schedule
     )
     await connected_coordinator.async_turn_on("DEV1", channel=1)
-    schedule.assert_called_once_with("DEV1", 1)
+    schedule.assert_called_once_with("DEV1", 1, fields={"switch"})
     schedule.reset_mock()
     await connected_coordinator.async_query_device_status("DEV1", channel=1)
     schedule.assert_not_called()
@@ -509,8 +509,14 @@ async def test_report_before_ack_does_not_schedule_redundant_query(
     )
     task = asyncio.create_task(connected_coordinator.async_turn_on("DEV1", channel=1))
     await asyncio.sleep(0)
-    device.update_from_telegram(
-        {"functions": [{"key": "switch", "value": "on", "channel": 1}]}
+    connected_coordinator._handle_telegram_property_message(
+        SimpleNamespace(
+            topic="EnOcean/AABB0011/stream/telegram/DEV1/from",
+            payload=json.dumps(
+                {"functions": [{"key": "switch", "value": "on", "channel": 1}]}
+            ),
+            retain=False,
+        )
     )
     broker.receive(
         "EnOcean/AABB0011/putAnswer/devices/DEV1/state", {"header": {"httpStatus": 200}}

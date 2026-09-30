@@ -126,6 +126,7 @@ ENTITY_PLATFORMS: Final = {
 KEY_SWITCH: Final = "switch"
 KEY_DIMMER: Final = "dimValue"
 KEY_POSITION: Final = "position"
+KEY_STOP: Final = "stop"
 KEY_ANGLE: Final = "angle"
 KEY_ROTATION_TIME: Final = "rotationTime"
 KEY_CHANNEL: Final = "channel"

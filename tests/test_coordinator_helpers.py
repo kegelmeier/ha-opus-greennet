@@ -206,7 +206,7 @@ class TestCommandBuilding:
     async def test_stop_cover(self, coordinator):
         await coordinator.async_stop_cover("DEV1")
         coordinator.async_send_command.assert_called_once_with(
-            "DEV1", [{"key": "position", "value": "stop"}]
+            "DEV1", [{"key": "stop", "value": "true"}]
         )
 
     @pytest.mark.asyncio

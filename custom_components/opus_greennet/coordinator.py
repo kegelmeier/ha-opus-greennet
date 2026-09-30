@@ -23,6 +23,7 @@ from .const import (
     DOMAIN,
     KEY_CHANNEL,
     KEY_ROTATION_TIME,
+    KEY_STOP,
     KNOWN_STATE_KEYS,
     TOPIC_BASE,
     TOPIC_GET_ANSWER_DEVICE_CONFIGURATION,
@@ -108,6 +109,8 @@ class OpusGreenNetCoordinator:
         self._pending_reconciliation_queries: dict[
             tuple[str, int], list[Callable[[], None]]
         ] = {}
+        self._pending_reconciliation_fields: dict[tuple[str, int], set[str]] = {}
+        self._feedback_revisions: dict[tuple[str, int, str], int] = {}
         self._discovery_timer: Callable | None = None
         self._requests = MQTTRequestManager(hass)
         self._tasks: set[asyncio.Task] = set()
@@ -536,9 +539,7 @@ class OpusGreenNetCoordinator:
             self._log_latency_finalized(
                 "stream/device", device_id, received_at, finalized_at, len(functions)
             )
-            if self._has_operational_state(functions):
-                for channel_id in self._channels_from_functions(functions):
-                    self._cancel_reconciliation_queries(device_id, channel_id)
+            if self._record_confirmed_feedback(device_id, functions):
                 device.last_command_error = None
             telegram = {"functions": functions}
             device.update_from_telegram(telegram)
@@ -834,8 +835,9 @@ class OpusGreenNetCoordinator:
 
         _, device = device_entry
         value = self._parse_value(payload)
-        if state_key != KEY_ROTATION_TIME:
-            self._cancel_reconciliation_queries(device_id)
+        if self._record_confirmed_feedback(
+            device_id, [{"key": state_key, "value": value}]
+        ):
             device.last_command_error = None
         device.update_from_telegram(
             {
@@ -874,14 +876,24 @@ class OpusGreenNetCoordinator:
             if key[0] == device_id and (channel_id is None or key[1] == channel_id)
         ]
         for key in keys:
+            self._pending_reconciliation_fields.pop(key, None)
             for cancel in self._pending_reconciliation_queries.pop(key, []):
                 cancel()
 
-    def _schedule_reconciliation_queries(self, device_id: str, channel_id: int) -> None:
+    def _schedule_reconciliation_queries(
+        self, device_id: str, channel_id: int, *, fields: set[str] | None = None
+    ) -> None:
         """Schedule delayed status checks after an optimistic state update."""
         key = (device_id, channel_id)
+        # Position and tilt commands can overlap. A later command must not
+        # discard an earlier field whose final reading is still unknown.
+        expected = self._pending_reconciliation_fields.get(key, set()).union(
+            fields or ()
+        )
         self._cancel_reconciliation_queries(device_id, channel_id)
         self._pending_reconciliation_queries[key] = []
+        if expected:
+            self._pending_reconciliation_fields[key] = expected
 
         for delay in OUTBOUND_STATE_RECONCILIATION_DELAYS:
 
@@ -906,21 +918,6 @@ class OpusGreenNetCoordinator:
             await self.async_query_device_status(device_id, channel_id)
         except HomeAssistantError:
             _LOGGER.debug("Could not reconcile OPUS state for %s", device_id)
-
-    @staticmethod
-    def _channels_from_functions(functions: list[dict[str, Any]]) -> set[int]:
-        """Resolve every addressed channel using the device model's routing."""
-        default = OpusGreenNetCoordinator._channel_from_functions(functions)
-        channels = set()
-        for function in functions:
-            if function.get("key") not in KNOWN_STATE_KEYS:
-                continue
-            channel = EnOceanDevice._parse_number(
-                function.get("channel", default), minimum=0, integer=True
-            )
-            if channel is not None:
-                channels.add(int(channel))
-        return channels
 
     @staticmethod
     def _channel_from_functions(functions: list[dict[str, Any]]) -> int | None:
@@ -1212,12 +1209,81 @@ class OpusGreenNetCoordinator:
 
     @staticmethod
     def _has_operational_state(functions: list[dict[str, Any]]) -> bool:
-        """Exclude rotation metadata from movement/status reconciliation."""
-        return any(
-            function.get("key") in KNOWN_STATE_KEYS
-            and function.get("key") != KEY_ROTATION_TIME
-            for function in functions
-        )
+        """Require usable actuator feedback, not interim values or metadata."""
+        return bool(OpusGreenNetCoordinator._confirmed_fields_by_channel(functions))
+
+    @staticmethod
+    def _confirmed_fields_by_channel(
+        functions: list[dict[str, Any]],
+    ) -> dict[int, set[str]]:
+        """Validate the fields that can confirm an actuator command."""
+        default = OpusGreenNetCoordinator._channel_from_functions(functions)
+        confirmed: dict[int, set[str]] = {}
+        for function in functions:
+            key, value = function.get("key"), function.get("value")
+            if key in ("dimValue", "position", "angle", "temperatureSetpoint"):
+                maximum = 40 if key == "temperatureSetpoint" else 100
+                valid = (
+                    EnOceanDevice._parse_number(
+                        value,
+                        minimum=0,
+                        maximum=maximum,
+                        integer=key != "temperatureSetpoint",
+                    )
+                    is not None
+                )
+            elif key == "switch":
+                valid = value in ("on", "off")
+            elif key == "heaterMode":
+                valid = value in ("heating", "on", "off", "autoOff")
+            else:
+                continue
+            channel = EnOceanDevice._parse_number(
+                function.get("channel", default), minimum=0, integer=True
+            )
+            if valid and channel is not None:
+                confirmed.setdefault(int(channel), set()).add(key)
+        return confirmed
+
+    @staticmethod
+    def _command_fields_by_channel(
+        functions: list[dict[str, Any]],
+        device: EnOceanDevice | None = None,
+    ) -> dict[int, set[str]]:
+        """Stop needs final position/tilt feedback, not an estimated position."""
+        expected = OpusGreenNetCoordinator._confirmed_fields_by_channel(functions)
+        default = OpusGreenNetCoordinator._channel_from_functions(functions)
+        for function in functions:
+            if function.get("key") != KEY_STOP or function.get("value") != "true":
+                continue
+            channel = EnOceanDevice._parse_number(
+                function.get("channel", default), minimum=0, integer=True
+            )
+            if channel is None:
+                continue
+            channel_id = int(channel)
+            fields = expected.setdefault(channel_id, set())
+            fields.add("position")
+            if device is not None and device.supports_tilt_for_channel(channel_id):
+                fields.add("angle")
+        return expected
+
+    def _record_confirmed_feedback(
+        self, device_id: str, functions: list[dict[str, Any]]
+    ) -> bool:
+        """Confirm only reported fields on their own channel, including during ACK."""
+        confirmed = self._confirmed_fields_by_channel(functions)
+        for channel_id, fields in confirmed.items():
+            for field in fields:
+                key = (device_id, channel_id, field)
+                self._feedback_revisions[key] = self._feedback_revisions.get(key, 0) + 1
+            pending_key = (device_id, channel_id)
+            expected = self._pending_reconciliation_fields.get(pending_key)
+            if expected is not None:
+                expected.difference_update(fields)
+            if not expected:
+                self._cancel_reconciliation_queries(device_id, channel_id)
+        return bool(confirmed)
 
     def _apply_initial_state(self, device: EnOceanDevice, data: dict) -> None:
         """Apply initial state from device discovery data."""
@@ -1433,7 +1499,8 @@ class OpusGreenNetCoordinator:
             state_functions = [
                 func
                 for func in functions
-                if func.get("key") in KNOWN_STATE_KEYS or func.get("key") == KEY_CHANNEL
+                if func.get("key") in KNOWN_STATE_KEYS
+                or func.get("key") in (KEY_CHANNEL, KEY_STOP)
             ]
             ignored_count = len(functions) - len(state_functions)
             if ignored_count:
@@ -1445,7 +1512,9 @@ class OpusGreenNetCoordinator:
                 )
             functions = state_functions
             if not any(
-                function.get("key") in KNOWN_STATE_KEYS for function in functions
+                function.get("key") in KNOWN_STATE_KEYS
+                or function.get("key") == KEY_STOP
+                for function in functions
             ):
                 _LOGGER.debug(
                     "Ignoring outbound telegram for %s because it has no "
@@ -1458,9 +1527,8 @@ class OpusGreenNetCoordinator:
                 device_id,
                 functions,
             )
-        if not is_outbound_command and self._has_operational_state(functions):
-            for channel_id in self._channels_from_functions(functions):
-                self._cancel_reconciliation_queries(device_id, channel_id)
+        if not is_outbound_command:
+            self._record_confirmed_feedback(device_id, functions)
 
         update_source = (
             "stream/telegram/to" if is_outbound_command else "stream/telegram/from"
@@ -1523,9 +1591,13 @@ class OpusGreenNetCoordinator:
         )
         async_dispatcher_send(self.hass, signal, device)
 
-        if is_outbound_command and self._has_operational_state(functions):
-            for channel_id in self._channels_from_functions(functions):
-                self._schedule_reconciliation_queries(device_id, channel_id)
+        if is_outbound_command:
+            for channel_id, fields in self._command_fields_by_channel(
+                functions, device
+            ).items():
+                self._schedule_reconciliation_queries(
+                    device_id, channel_id, fields=fields
+                )
 
     # ──────────────────────────────────────────────────────────────────────
     # Command sending
@@ -1553,17 +1625,23 @@ class OpusGreenNetCoordinator:
         if not self.available:
             raise request_error("gateway_unavailable", device_id)
         device = self.get_device(device_id)
-        channels = self._channels_from_functions(functions)
-        revisions = (
-            {
-                channel_id: getattr(
-                    device.channels.get(channel_id), "state_revision", None
-                )
-                for channel_id in channels
-            }
-            if device
-            else {}
-        )
+        fields_by_channel = self._command_fields_by_channel(functions, device)
+        revisions: dict[tuple[int, str], int] = {}
+
+        @callback
+        def snapshot_feedback() -> None:
+            # Run inside the request manager's endpoint lock, immediately before
+            # publish. Feedback for an earlier queued command cannot confirm this one.
+            revisions.update(
+                {
+                    (channel_id, field): self._feedback_revisions.get(
+                        (device_id, channel_id, field), 0
+                    )
+                    for channel_id, fields in fields_by_channel.items()
+                    for field in fields
+                }
+            )
+
         self._command_waiters[device_id] = self._command_waiters.get(device_id, 0) + 1
         try:
             await self._requests.async_request(
@@ -1573,14 +1651,22 @@ class OpusGreenNetCoordinator:
                 payload,
                 require_status=True,
                 is_available=lambda: self.available,
+                before_publish=snapshot_feedback,
             )
-            if device is not None and self._has_operational_state(functions):
-                for channel_id in channels:
-                    if (
-                        getattr(device.channels.get(channel_id), "state_revision", None)
-                        == revisions[channel_id]
-                    ):
-                        self._schedule_reconciliation_queries(device_id, channel_id)
+            if device is not None:
+                for channel_id, fields in fields_by_channel.items():
+                    unconfirmed = {
+                        field
+                        for field in fields
+                        if self._feedback_revisions.get(
+                            (device_id, channel_id, field), 0
+                        )
+                        == revisions[channel_id, field]
+                    }
+                    if unconfirmed:
+                        self._schedule_reconciliation_queries(
+                            device_id, channel_id, fields=unconfirmed
+                        )
         finally:
             remaining = self._command_waiters[device_id] - 1
             if remaining:
@@ -1658,7 +1744,7 @@ class OpusGreenNetCoordinator:
 
     async def async_stop_cover(self, device_id: str, channel: int = 0) -> None:
         """Stop cover movement."""
-        functions = [{"key": "position", "value": "stop"}]
+        functions = [{"key": KEY_STOP, "value": "true"}]
         functions = self._with_channel_if_needed(device_id, functions, channel)
         await self.async_send_command(device_id, functions)
 
