@@ -440,6 +440,13 @@ class OpusGreenNetCoordinator:
     async def _async_refresh_gateway(self, *, resync: bool) -> None:
         if self._bridge_connected is False:
             raise request_error("gateway_unavailable", self.eag_id)
+        # A quick reconnect can interrupt phase two before its subscriptions
+        # and first snapshot finish. Debounce only a completed discovery setup.
+        resync = (
+            resync
+            or self._resync_requested_at is None
+            or len(self._stream_topics) < len(self._stream_subscriptions())
+        )
         # Always re-establish answer routing: HA resubscribes after every
         # broker reconnect, and already-subscribed topics are skipped cheaply.
         # This also resumes an interrupted phase 2.

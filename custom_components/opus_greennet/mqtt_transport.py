@@ -101,7 +101,7 @@ def topic_matches(pattern: str, topic: str) -> bool:
 async def async_wait_for_subscriptions(
     hass: HomeAssistant,
     topics: list[str],
-    timeout: float = SUBSCRIPTION_TIMEOUT,
+    timeout: float | None = None,
     qos: int = 1,
     *,
     required: bool = True,
@@ -114,6 +114,8 @@ async def async_wait_for_subscriptions(
     marks waits whose timeout is advisory: the caller continues without the
     SUBACK instead of failing the whole operation.
     """
+    if timeout is None:
+        timeout = SUBSCRIPTION_TIMEOUT
     pending = set(topics)
     ready = asyncio.get_running_loop().create_future()
     cancellations: list[Callable[[], None]] = []
@@ -301,8 +303,8 @@ class MQTTRequestManager:
         is_available: Callable[[], bool] | None = None,
         before_publish: Callable[[], None] | None = None,
         priority: int = PRIORITY_COMMAND,
-        timeout: float = REQUEST_TIMEOUT,
-        subscribe_timeout: float = SUBSCRIPTION_TIMEOUT,
+        timeout: float | None = None,
+        subscribe_timeout: float | None = None,
     ) -> dict[str, Any]:
         """Subscribe, await SUBACK, queue globally, publish, validate one answer."""
         # The OPUS response has no request ID. Only one local operation may use
@@ -324,8 +326,12 @@ class MQTTRequestManager:
                 is_available=is_available,
                 before_publish=before_publish,
                 priority=priority,
-                timeout=timeout,
-                subscribe_timeout=subscribe_timeout,
+                timeout=REQUEST_TIMEOUT if timeout is None else timeout,
+                subscribe_timeout=(
+                    SUBSCRIPTION_TIMEOUT
+                    if subscribe_timeout is None
+                    else subscribe_timeout
+                ),
             )
         finally:
             lock.release()
@@ -489,8 +495,8 @@ async def async_get_gateway_uptime(
     eag_id: str,
     *,
     priority: int = PRIORITY_QUERY,
-    timeout: float = REQUEST_TIMEOUT,
-    subscribe_timeout: float = SUBSCRIPTION_TIMEOUT,
+    timeout: float | None = None,
+    subscribe_timeout: float | None = None,
 ) -> dict[str, Any]:
     """Probe a working MQTT endpoint without requiring optional system info."""
     data = await manager.async_request(

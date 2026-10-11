@@ -376,8 +376,7 @@ def test_moisture_sensor_values_and_metadata() -> None:
         coordinator, EAG_ID, GATEWAY_DEVICE_ID, device, BINARY_SENSOR_DESCRIPTIONS[0]
     )
 
-    # F6-05-01 starts dry (off) instead of unknown until the first telegram.
-    assert moisture.is_on is False
+    assert moisture.is_on is None
     assert moisture.device_class is BinarySensorDeviceClass.MOISTURE
     assert moisture.unique_id == f"{EAG_ID}_DEV1_liquid_detected"
 

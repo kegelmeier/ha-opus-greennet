@@ -57,9 +57,7 @@ async def test_description_inventory_matches_stable(hass, make_device, eep, keys
         ) == METADATA[key]
         assert entity.entity_registry_enabled_default is True
         assert entity.should_poll is False
-        # Leakage sensors (F6-05-01) start dry; other detectors stay unknown.
-        expected = False if device.primary_eep == "F6-05-01" else None
-        assert entity.is_on is expected
+        assert entity.is_on is None
         assert entity.available is True
     coordinator.available = False
     assert all(entity.available is False for entity in entities)

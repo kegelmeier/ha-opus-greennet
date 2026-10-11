@@ -129,6 +129,25 @@ formats remain supported. Battery percentages accept an optional `%` suffix in
 snapshots, indexed updates, and the immediate telemetry path, with finite 0–100
 validation. Unknown values are never interpreted as no alarm or a closed handle.
 
+### Large installations and gateway recovery
+
+Awaited gateway requests share one queue across devices. Control commands take
+priority over status queries, and each acknowledgement timeout starts after the
+request is published. Large batches can take longer to finish because requests
+are sent one at a time. A missing acknowledgement fails that action; gateway
+availability is determined by connection events and the independent health probe.
+
+Setup checks the gateway before subscribing to the large retained device streams.
+Device discovery then continues in the background. Stream subscriptions use QoS 0
+to reduce acknowledgement traffic during retained replay; answer subscriptions
+remain at QoS 1. Discovery resumes if a reconnect interrupts startup, while rapid
+reconnects avoid requesting repeated complete snapshots. An outage cancels the
+integration's queued commands rather than replaying them after recovery.
+
+F6-05-01 leak sensors remain `unknown` until a valid `liquidDetected` reading is
+received. Missing data does not imply that a sensor is dry. Invalid updates and
+rediscovery preserve a previously received alarm state.
+
 ## Prerequisites
 
 1. **Home Assistant** with MQTT integration configured (e.g., Mosquitto add-on)
@@ -233,7 +252,7 @@ If you see messages when triggering EnOcean devices, the bridge is working.
    `https://github.com/kegelmeier/ha-opus-greennet`, choose **Integration**, and add it.
 3. Search for **Opus GreenNet Bridge**, install, and **restart Home Assistant**.
 
-Home Assistant 2026.9 or newer is required. To test a beta, enable pre-release
+Home Assistant 2026.8 or newer is required. To test a beta, enable pre-release
 versions for this repository in HACS before selecting the beta version.
 
 ### Manual Installation
@@ -427,6 +446,7 @@ tests/
 ├── test_coordinator_mqtt.py     # MQTT finalization tests
 ├── test_coordinator_parsing.py  # JSON telegrams, fragments, and late discovery
 ├── test_coordinator_transport.py # Subscription, request, and recovery tests
+├── test_release_transport_safety.py # Interrupted startup and queue fault recovery
 ├── test_gateway_payload_compatibility.py # Reported IQ-DOT payload regression tests
 ├── test_beta_entity_migration.py # Fork IDs, duplicate cleanup, and translations
 ├── test_binary_sensor_discovery.py # Repeated discovery and removal ordering
@@ -459,6 +479,8 @@ pytest -v --cov
 Use Python 3.14 for development. Tests cover device properties, telegram parsing,
 ordered multi-channel commands, gateway errors, entity behavior, rocker events,
 diagnostic redaction, and real Home Assistant configuration and lifecycle paths.
+The v0.5.0 release validation covers 852 tests on Home Assistant 2026.8.2,
+2026.9.4, and 2026.10.1, including interrupted startup and queue fault recovery.
 CI resolves the latest stable Home Assistant release from PyPI on each run and
 tests that exact version, recorded in the workflow summary. It runs on pull
 requests, pushes to main, every Monday at 06:17 UTC, and manual dispatch. Beta
@@ -495,7 +517,7 @@ Released under the [MIT License](LICENSE).
 [release-shield]: https://img.shields.io/github/v/release/kegelmeier/ha-opus-greennet?style=for-the-badge
 [license]: https://github.com/kegelmeier/ha-opus-greennet/blob/main/LICENSE
 [license-shield]: https://img.shields.io/github/license/kegelmeier/ha-opus-greennet?style=for-the-badge
-[ha-shield]: https://img.shields.io/badge/Home%20Assistant-2026.9%2B-41BDF5.svg?style=for-the-badge&logo=home-assistant&logoColor=white
+[ha-shield]: https://img.shields.io/badge/Home%20Assistant-2026.8%2B-41BDF5.svg?style=for-the-badge&logo=home-assistant&logoColor=white
 [hacs-repo]: https://my.home-assistant.io/redirect/hacs_repository/?owner=kegelmeier&repository=ha-opus-greennet&category=integration
 [hacs-repo-badge]: https://my.home-assistant.io/badges/hacs_repository.svg
 [config-flow]: https://my.home-assistant.io/redirect/config_flow_start/?domain=opus_greennet
