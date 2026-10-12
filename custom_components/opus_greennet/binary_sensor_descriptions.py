@@ -36,13 +36,6 @@ def diagnostic_value(device: EnOceanDevice, attribute: str) -> bool | None:
 
 BINARY_SENSOR_DESCRIPTIONS = (
     OpusBinarySensorDescription(
-        key="contact",
-        translation_key="contact",
-        applies_to=lambda device: device.is_contact_sensor,
-        value_fn=lambda device: channel_boolean(device, "contact"),
-        device_class=BinarySensorDeviceClass.OPENING,
-    ),
-    OpusBinarySensorDescription(
         key="liquid_detected",
         translation_key="water_leak",
         applies_to=lambda device: device.primary_eep == "F6-05-01",
@@ -95,5 +88,12 @@ BINARY_SENSOR_DESCRIPTIONS = (
         value_fn=lambda device: diagnostic_value(device, "circuit_in_use"),
         device_class=BinarySensorDeviceClass.PROBLEM,
         entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    OpusBinarySensorDescription(
+        key="contact",
+        translation_key="contact",
+        applies_to=lambda device: device.is_contact_sensor,
+        value_fn=lambda device: channel_boolean(device, "contact"),
+        device_class=BinarySensorDeviceClass.OPENING,
     ),
 )
