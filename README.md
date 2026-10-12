@@ -459,6 +459,7 @@ tests/
 ├── test_binary_sensor_discovery.py # Repeated discovery and removal ordering
 ├── test_binary_sensor_descriptions.py # Stable sensor inventory and metadata
 ├── test_detector_support.py     # Sensor discovery and live MQTT updates
+├── test_temperature_humidity_sensor.py # A5-04-03 readings, ranges, and HA entities
 ├── test_contact_sensor.py       # D5-00-01 states, MQTT updates, and reload
 ├── test_scalar_telemetry.py      # Immediate battery and signal-strength updates
 ├── test_window_handles.py        # Handle positions and protected AutoLock actions
@@ -489,8 +490,8 @@ ordered multi-channel commands, gateway errors, entity behavior, rocker events,
 diagnostic redaction, and real Home Assistant configuration and lifecycle paths.
 The v0.5.0 release validation covers 852 tests on Home Assistant 2026.8.2,
 2026.9.4, and 2026.10.1, including interrupted startup and queue fault recovery.
-D5-00-01 contact support adds 33 tests, for 885 tests validated on Home Assistant
-2026.10.1, including snapshot values, live telegrams, reloads, and discovery.
+The v0.6.0b0 candidate adds 24 A5-04-03 tests and 33 D5-00-01 tests, for 909 total
+tests validated on Home Assistant 2026.8.2 and 2026.10.1.
 CI resolves the latest stable Home Assistant release from PyPI on each run and
 tests that exact version, recorded in the workflow summary. It runs on pull
 requests, pushes to main, every Monday at 06:17 UTC, and manual dispatch. Beta

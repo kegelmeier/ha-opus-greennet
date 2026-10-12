@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0b0] - 2026-10-12
+
+Beta for the device-support requests #64 and #70, built on v0.5.0 with its gateway queue and startup fixes. The feature PRs and issues remain open for review and installation feedback.
+
+### Added
+- Temperature, humidity and battery-level sensors for A5-04-03 devices (PR #65 / #64), including the reported Jaeger Direkt sensors.
+- A5-04-03 temperature readings from -20 to +60 °C, matching the [EnOcean Alliance profile](https://www.enocean-alliance.org/products/eeps/). Existing HeatArea temperature limits remain 0 to 40 °C.
+- A Contact binary sensor for D5-00-01 single input contacts (#70), including window contacts. Reported `open` is `on`, reported `closed` is `off`, and missing or unrecognized values are `unknown`. No battery reading is invented when none is supplied.
+- English and German names for the new temperature and contact entities. Heartbeat/trigger messages do not create an entity.
+
+### Beta testing
+- Enable pre-release versions for this repository in HACS, install **v0.6.0b0**, and restart Home Assistant. Home Assistant 2026.8 or newer is supported.
+- For A5-04-03: confirm temperature (°C), humidity (%) and battery (%) entities; compare them with the gateway; check incoming telegrams and battery updates. Negative temperatures have automated coverage but have not been verified on hardware.
+- For D5-00-01: open and close each contact and confirm the entity follows the physical state. Check initial state after restart. Missing data must remain unknown, and gateway outages must show unavailable.
+- Restart or reload the integration and check for duplicate entities or changed entity IDs. Verify existing HeatArea devices, dashboards and automations still work.
+- Post results on [PR #65](https://github.com/kegelmeier/ha-opus-greennet/pull/65), [issue #64](https://github.com/kegelmeier/ha-opus-greennet/issues/64), or [issue #70](https://github.com/kegelmeier/ha-opus-greennet/issues/70). Include Home Assistant version, gateway firmware, device profile and redacted logs if something differs.
+
+### Validation
+- 909 tests pass on Home Assistant 2026.8.2 and 2026.10.1. Ruff, dependency compatibility, coverage and integration metadata checks pass.
+- The A5-04-03 contributor reports testing three Jaeger Direkt devices on OPUS-GW v1.21.31. The contact implementation uses the gateway snapshots and live values reported in #70. The combined candidate has automated validation; no additional local hardware test was performed.
+
+Thanks to florian-hartung for the A5-04-03 implementation, contact request, gateway examples and device testing.
+
 ## [0.5.0] - 2026-10-11
 
 Stable release of the cover movement and discovery improvements from v0.5.0b0, plus the reviewed gateway fixes for larger installations.
