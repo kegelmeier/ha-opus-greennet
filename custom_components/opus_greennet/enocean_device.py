@@ -16,6 +16,7 @@ from .const import (
     KEY_ANGLE,
     KEY_CHANNEL,
     KEY_CIRCUIT_IN_USE,
+    KEY_CONTACT,
     KEY_DIMMER,
     KEY_ENERGY,
     KEY_ENERGY_CONSUMPTION,
@@ -58,6 +59,7 @@ class EnOceanChannel:
     energy: float | None = None
     power: float | None = None
     liquid_detected: bool | None = None
+    contact: bool | None = None
     smoke_alarm: bool | None = None
     battery_low: bool | None = None
     battery_level: float | None = None
@@ -182,6 +184,11 @@ class EnOceanDevice:
     def is_presence_detector(self) -> bool:
         """Return whether this is a supported SMS presence detector."""
         return self.primary_eep in ("A5-07-01", "A5-07-03")
+
+    @property
+    def is_contact_sensor(self) -> bool:
+        """Return whether this is a D5-00-01 single input contact."""
+        return self.primary_eep == "D5-00-01"
 
     @property
     def is_window_handle(self) -> bool:
@@ -440,6 +447,9 @@ class EnOceanDevice:
                 liquid_detected = self._parse_boolean(value)
                 if liquid_detected is not None:
                     channel.liquid_detected = liquid_detected
+
+            elif key == KEY_CONTACT and self.is_contact_sensor:
+                channel.contact = self._parse_enum_boolean(value, "open", "closed")
 
             elif key == "smokeAlarm" or (key == "alarm" and self.is_smoke_detector):
                 channel.smoke_alarm = (

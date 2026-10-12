@@ -110,6 +110,7 @@ EEP_MAPPINGS: Final = {
     "F6-05-02": ("binary_sensor", "OPUS RWM Smoke Detector"),
     "A5-07-01": ("binary_sensor", "OPUS SMS Presence Detector"),
     "A5-07-03": ("binary_sensor", "OPUS SMS Presence Detector"),
+    "D5-00-01": ("binary_sensor", "Single Input Contact"),
     "D2-06-40": ("lock", "HOPPE SecureConnect Window Handle"),
     "F6-10-00": ("sensor", "HOPPE Window Handle"),
     "D2-03-10": ("sensor", "HOPPE Window Handle"),
@@ -136,6 +137,7 @@ KEY_LOCAL_CONTROL: Final = "localControl"
 KEY_ENERGY: Final = "energy"
 KEY_POWER: Final = "power"
 KEY_LIQUID_DETECTED: Final = "liquidDetected"
+KEY_CONTACT: Final = "contact"
 
 # Climate function keys
 KEY_TEMPERATURE: Final = "temperature"
@@ -199,6 +201,7 @@ KNOWN_STATE_KEYS: Final = frozenset(
         "energy",
         "power",
         "liquidDetected",
+        KEY_CONTACT,
         "handleState",
         "handle",
         "unlock",
