@@ -1,4 +1,4 @@
-"""Established moisture and HeatArea sensor identities and state semantics."""
+"""Binary sensor identities and state semantics for supported device profiles."""
 
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -35,6 +35,13 @@ def diagnostic_value(device: EnOceanDevice, attribute: str) -> bool | None:
 
 
 BINARY_SENSOR_DESCRIPTIONS = (
+    OpusBinarySensorDescription(
+        key="contact",
+        translation_key="contact",
+        applies_to=lambda device: device.is_contact_sensor,
+        value_fn=lambda device: channel_boolean(device, "contact"),
+        device_class=BinarySensorDeviceClass.OPENING,
+    ),
     OpusBinarySensorDescription(
         key="liquid_detected",
         translation_key="water_leak",

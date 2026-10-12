@@ -25,6 +25,9 @@
   },
   "entity": {
     "binary_sensor": {
+      "contact": {
+        "name": "Contact"
+      },
       "actuator_battery": {
         "name": "Actuator battery"
       },
