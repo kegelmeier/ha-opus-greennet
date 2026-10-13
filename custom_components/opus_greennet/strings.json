@@ -25,6 +25,9 @@
   },
   "entity": {
     "binary_sensor": {
+      "contact": {
+        "name": "Contact"
+      },
       "actuator_battery": {
         "name": "Actuator battery"
       },
@@ -81,6 +84,9 @@
     "sensor": {
       "feed_temperature": {
         "name": "Feed temperature"
+      },
+      "temperature": {
+        "name": "Temperature"
       },
       "humidity": {
         "name": "Humidity"

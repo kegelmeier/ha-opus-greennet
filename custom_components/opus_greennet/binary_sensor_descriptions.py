@@ -1,4 +1,4 @@
-"""Established moisture and HeatArea sensor identities and state semantics."""
+"""Binary sensor identities and state semantics for supported device profiles."""
 
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -88,5 +88,12 @@ BINARY_SENSOR_DESCRIPTIONS = (
         value_fn=lambda device: diagnostic_value(device, "circuit_in_use"),
         device_class=BinarySensorDeviceClass.PROBLEM,
         entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    OpusBinarySensorDescription(
+        key="contact",
+        translation_key="contact",
+        applies_to=lambda device: device.is_contact_sensor,
+        value_fn=lambda device: channel_boolean(device, "contact"),
+        device_class=BinarySensorDeviceClass.OPENING,
     ),
 )

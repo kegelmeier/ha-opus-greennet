@@ -41,8 +41,8 @@ A custom Home Assistant integration for the Opus GreenNet Bridge, enabling contr
 | **Switch** | D2-01-00, D2-01-01, D2-01-04, D2-01-05, D2-01-08, D2-01-09, D2-01-0C, D2-01-0D, D2-01-0E, D2-01-11 | On/Off switches and actuators |
 | **Cover** | D2-05-00, D2-05-01, D2-05-02 | Blinds, shades, and shutters |
 | **Climate** | D1-4B-05, D1-4B-06, D1-4B-07 | OPUS HeatArea thermostats (Valve, CosiTherm, Electro Heating) |
-| **Sensor** | A5-07-01, A5-07-03, _(from climate devices)_ | Illuminance, supply voltage, battery level, humidity, feed temperature, power consumption, signal strength |
-| **Binary Sensor** | F6-05-01, F6-05-02, A5-07-01, A5-07-03, _(from climate devices)_ | SMS motion detection, water leak detection, RWM smoke alarm and low battery, window open, actuator errors, battery low |
+| **Sensor** | A5-04-03, A5-07-01, A5-07-03, _(from climate devices)_ | Temperature and humidity (A5-04-03), illuminance, supply voltage, battery level, humidity, feed temperature, power consumption, signal strength |
+| **Binary Sensor** | D5-00-01, F6-05-01, F6-05-02, A5-07-01, A5-07-03, _(from climate devices)_ | Contact open/closed state, SMS motion detection, water leak detection, RWM smoke alarm and low battery, window open, actuator errors, battery low |
 | **Handle sensors** | D2-06-40, F6-10-00, D2-03-10 | Handle position plus separate open, tilted and closed binary sensors |
 | **Lock** | D2-06-40 | Read-only AutoLock status, unlock-request sensor and mechanics-fault binary sensor |
 | **Event** | F6-02-01, F6-02-02, F6-02-03, F6-03-01, F6-03-02 | Rocker switch press/release events, per button (`buttonA0_pressed`, `buttonA0_released`, …, `multipleButtons_released`) with `button` and `action` event attributes |
@@ -242,6 +242,13 @@ EnOcean/<EAG-ID>/stream/telegram/#
 ```
 
 If you see messages when triggering EnOcean devices, the bridge is working.
+
+### Single input contacts
+
+D5-00-01 contacts expose a Contact binary sensor with the opening device class.
+The gateway values `open` and `closed` appear as `on` and `off`. Missing or
+unrecognized contact values remain `unknown`; a gateway outage makes the entity
+`unavailable`. No battery percentage is inferred when the gateway publishes none.
 
 ## Installation
 
@@ -457,6 +464,8 @@ tests/
 ├── test_binary_sensor_discovery.py # Repeated discovery and removal ordering
 ├── test_binary_sensor_descriptions.py # Stable sensor inventory and metadata
 ├── test_detector_support.py     # Sensor discovery and live MQTT updates
+├── test_temperature_humidity_sensor.py # A5-04-03 readings, ranges, and HA entities
+├── test_contact_sensor.py       # D5-00-01 states, MQTT updates, and reload
 ├── test_scalar_telemetry.py      # Immediate battery and signal-strength updates
 ├── test_window_handles.py        # Handle positions and protected AutoLock actions
 
@@ -486,6 +495,8 @@ ordered multi-channel commands, gateway errors, entity behavior, rocker events,
 diagnostic redaction, and real Home Assistant configuration and lifecycle paths.
 The v0.5.0 release validation covers 852 tests on Home Assistant 2026.8.2,
 2026.9.4, and 2026.10.1, including interrupted startup and queue fault recovery.
+The v0.6.0b0 candidate adds 24 A5-04-03 tests and 33 D5-00-01 tests, for 909 total
+tests validated on Home Assistant 2026.8.2 and 2026.10.1.
 Thirteen additional regression cases cover retained answers at startup and
 reconnect, message ordering, missing state, and retained device-stream discovery.
 CI resolves the latest stable Home Assistant release from PyPI on each run and
