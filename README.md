@@ -41,7 +41,7 @@ A custom Home Assistant integration for the Opus GreenNet Bridge, enabling contr
 | **Switch** | D2-01-00, D2-01-01, D2-01-04, D2-01-05, D2-01-08, D2-01-09, D2-01-0C, D2-01-0D, D2-01-0E, D2-01-11 | On/Off switches and actuators |
 | **Cover** | D2-05-00, D2-05-01, D2-05-02 | Blinds, shades, and shutters |
 | **Climate** | D1-4B-05, D1-4B-06, D1-4B-07 | OPUS HeatArea thermostats (Valve, CosiTherm, Electro Heating) |
-| **Sensor** | A5-07-01, A5-07-03, _(from climate devices)_ | Illuminance, supply voltage, battery level, humidity, feed temperature, power consumption, signal strength |
+| **Sensor** | A5-04-03, A5-07-01, A5-07-03, _(from climate devices)_ | Temperature and humidity (A5-04-03), illuminance, supply voltage, battery level, humidity, feed temperature, power consumption, signal strength |
 | **Binary Sensor** | F6-05-01, F6-05-02, A5-07-01, A5-07-03, _(from climate devices)_ | SMS motion detection, water leak detection, RWM smoke alarm and low battery, window open, actuator errors, battery low |
 | **Handle sensors** | D2-06-40, F6-10-00, D2-03-10 | Handle position plus separate open, tilted and closed binary sensors |
 | **Lock** | D2-06-40 | Read-only AutoLock status, unlock-request sensor and mechanics-fault binary sensor |

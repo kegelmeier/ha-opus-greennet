@@ -184,6 +184,11 @@ class EnOceanDevice:
         return self.primary_eep in ("A5-07-01", "A5-07-03")
 
     @property
+    def is_temperature_humidity_sensor(self) -> bool:
+        """Return whether this is an A5-04-03 temperature/humidity sensor."""
+        return self.primary_eep == "A5-04-03"
+
+    @property
     def is_window_handle(self) -> bool:
         """Return whether this profile reports HOPPE handle positions."""
         return self.primary_eep in ("D2-06-40", "F6-10-00", "D2-03-10")
@@ -502,8 +507,17 @@ class EnOceanDevice:
 
             # Climate keys
             elif key == KEY_TEMPERATURE:
+                # A5-04-03 covers -20..+60 degC; heating profiles stay at 0..40.
+                minimum, maximum = (
+                    (-20, 60) if self.is_temperature_humidity_sensor else (0, 40)
+                )
                 self._update_numeric_field(
-                    channel, "temperature", value, 0, 40, allow_unavailable=True
+                    channel,
+                    "temperature",
+                    value,
+                    minimum,
+                    maximum,
+                    allow_unavailable=True,
                 )
 
             elif key == KEY_TEMPERATURE_SETPOINT:

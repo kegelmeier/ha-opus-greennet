@@ -82,6 +82,9 @@
       "feed_temperature": {
         "name": "Feed temperature"
       },
+      "temperature": {
+        "name": "Temperature"
+      },
       "humidity": {
         "name": "Humidity"
       },
