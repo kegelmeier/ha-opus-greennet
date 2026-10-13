@@ -74,7 +74,7 @@ class MQTTTransport:
                 {"header": {"httpStatus": 200}},
             )
 
-    def receive(self, topic: str, payload: object) -> None:
+    def receive(self, topic: str, payload: object, *, retain: bool = False) -> None:
         """Deliver a message using Home Assistant's MQTT message type."""
         for subscribed_topic, callback in list(self.subscriptions):
             if topic_matches_sub(subscribed_topic, topic):
@@ -85,7 +85,7 @@ class MQTTTransport:
                         if isinstance(payload, str | bytes)
                         else json.dumps(payload),
                         qos=1,
-                        retain=False,
+                        retain=retain,
                         subscribed_topic=subscribed_topic,
                         timestamp=monotonic(),
                     )

@@ -144,6 +144,10 @@ remain at QoS 1. Discovery resumes if a reconnect interrupts startup, while rapi
 reconnects avoid requesting repeated complete snapshots. An outage cancels the
 integration's queued commands rather than replaying them after recovery.
 
+Retained `getAnswer/devices` responses are ignored to prevent stale RPC replies
+from restoring old sensor states. Retained `stream/devices` snapshots remain
+supported.
+
 F6-05-01 leak sensors remain `unknown` until a valid `liquidDetected` reading is
 received. Missing data does not imply that a sensor is dry. Invalid updates and
 rediscovery preserve a previously received alarm state.
@@ -445,6 +449,7 @@ tests/
 ├── test_coordinator_helpers.py  # Pure helper and command tests
 ├── test_coordinator_mqtt.py     # MQTT finalization tests
 ├── test_coordinator_parsing.py  # JSON telegrams, fragments, and late discovery
+├── test_retained_device_answers.py # Retained response and entity state regressions
 ├── test_coordinator_transport.py # Subscription, request, and recovery tests
 ├── test_release_transport_safety.py # Interrupted startup and queue fault recovery
 ├── test_gateway_payload_compatibility.py # Reported IQ-DOT payload regression tests
@@ -481,6 +486,8 @@ ordered multi-channel commands, gateway errors, entity behavior, rocker events,
 diagnostic redaction, and real Home Assistant configuration and lifecycle paths.
 The v0.5.0 release validation covers 852 tests on Home Assistant 2026.8.2,
 2026.9.4, and 2026.10.1, including interrupted startup and queue fault recovery.
+Thirteen additional regression cases cover retained answers at startup and
+reconnect, message ordering, missing state, and retained device-stream discovery.
 CI resolves the latest stable Home Assistant release from PyPI on each run and
 tests that exact version, recorded in the workflow summary. It runs on pull
 requests, pushes to main, every Monday at 06:17 UTC, and manual dispatch. Beta

@@ -817,6 +817,12 @@ class OpusGreenNetCoordinator:
     @callback
     def _handle_get_answer_devices(self, msg: ReceiveMessage) -> None:
         """Handle getAnswer/devices response with device data."""
+        # RPC answers are responses to current requests, not retained snapshots.
+        # Replaying an old answer can restore stale state or rediscover a device
+        # that the gateway no longer reports. Retained stream/devices discovery
+        # remains supported by its separate handler.
+        if getattr(msg, "retain", False):
+            return
         # The wildcard also receives profile/configuration responses, which are
         # owned by request waiters and must never enter device discovery.
         prefix = f"{TOPIC_BASE}/{self.eag_id}/getAnswer/devices"
