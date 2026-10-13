@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.0b1] - 2026-10-13
+
+Second v0.6.0 beta, retaining A5-04-03 temperature/humidity/battery and D5-00-01 contact support from v0.6.0b0.
+
+### Fixed
+- Ignore retained MQTT device-answer responses that could restore stale sensor state (#73, follow-up to #62). Regression tests reproduced old dry leak-sensor state overwriting wet state, changing unknown to dry, or surviving a fresh response with no state. Retained device-stream snapshots remain supported.
+
+### Beta feedback and testing
+- Community testing on v0.6.0b0 confirmed three A5-04-03 sensors with live readings and stable entity IDs, and ten D5-00-01 contacts with stable IDs and one observed open/close cycle. No startup errors were reported on an installation with about 80 devices.
+- Enable pre-releases in HACS, install **v0.6.0b1**, and restart Home Assistant. Check leak-sensor startup state, integration reload, broker reconnect, and continued live updates. Missing readings should remain unknown; a known alarm must not be cleared by an old retained answer.
+- Please continue checking contact open/close behavior, temperature/humidity against the gateway, repeated restart/reload, and HeatArea compatibility. Negative temperatures remain unverified on hardware.
+- Report results on #62, #64, or #70 with Home Assistant version and gateway firmware. No production broker messages were injected during automated validation.
+
+### Validation
+- 922 tests pass on Home Assistant 2026.9.4 for the combined beta. Ruff lint and formatting checks pass.
+- The isolated fix passed 865 tests on Home Assistant 2026.9.4 and 2026.10.1, plus GitHub integration metadata checks. All 13 new regression cases fail on the original beta and pass with the fix.
+
+Thanks to @florian-hartung for the hardware feedback and the retained-answer observation.
+
 ## [0.6.0b0] - 2026-10-12
 
 Beta for the device-support requests #64 and #70, built on v0.5.0 with its gateway queue and startup fixes. The feature PRs and issues remain open for review and installation feedback.

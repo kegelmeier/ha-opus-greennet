@@ -499,6 +499,7 @@ The v0.6.0b0 candidate adds 24 A5-04-03 tests and 33 D5-00-01 tests, for 909 tot
 tests validated on Home Assistant 2026.8.2 and 2026.10.1.
 Thirteen additional regression cases cover retained answers at startup and
 reconnect, message ordering, missing state, and retained device-stream discovery.
+The combined v0.6.0b1 beta has 922 tests validated on Home Assistant 2026.9.4.
 CI resolves the latest stable Home Assistant release from PyPI on each run and
 tests that exact version, recorded in the workflow summary. It runs on pull
 requests, pushes to main, every Monday at 06:17 UTC, and manual dispatch. Beta
