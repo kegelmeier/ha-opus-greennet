@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.components.light import (
+from homeassistant.components.light import LightEntity
+from homeassistant.components.light.const import (
     ATTR_BRIGHTNESS,
     ColorMode,
-    LightEntity,
 )
-from homeassistant.components.light import (
+from homeassistant.components.light.const import (
     DOMAIN as LIGHT_DOMAIN,
 )
 from homeassistant.core import HomeAssistant, callback
@@ -143,7 +143,7 @@ class OpusGreenNetLight(OpusGreenNetEntity, LightEntity):
         if brightness == 0 and self._device.is_dimmable:
             await self.async_turn_off()
             return
-        snapshot = self._channel_state_snapshot()
+        snapshot = self._device.snapshot_channel_state(self._channel_id)
 
         if brightness is not None and self._device.is_dimmable:
             brightness_pct = max(1, round(brightness_to_value((1, 100), brightness)))
@@ -160,30 +160,26 @@ class OpusGreenNetLight(OpusGreenNetEntity, LightEntity):
                 is_dimmable=self._device.is_dimmable,
             )
 
-        if not self._channel_state_matches(snapshot):
-            return
-        channel = self._device.get_or_create_channel(self._channel_id)
-        if brightness is not None and self._device.is_dimmable:
-            channel.brightness = brightness_pct
-            channel.is_on = brightness_pct > 0
+        if self._device.is_dimmable:
+            applied = self._device.apply_dim_estimate(
+                snapshot, 100 if brightness is None else brightness_pct
+            )
         else:
-            channel.is_on = True
-            if self._device.is_dimmable:
-                channel.brightness = 100
-        self.async_write_ha_state()
+            applied = self._device.apply_switch_estimate(snapshot, True)
+        if applied:
+            self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the light off."""
-        snapshot = self._channel_state_snapshot()
+        snapshot = self._device.snapshot_channel_state(self._channel_id)
         await self._coordinator.async_turn_off(
             self._device.device_id,
             self._channel_id,
             is_dimmable=self._device.is_dimmable,
         )
-        if not self._channel_state_matches(snapshot):
-            return
-        channel = self._device.get_or_create_channel(self._channel_id)
-        channel.is_on = False
         if self._device.is_dimmable:
-            channel.brightness = 0
-        self.async_write_ha_state()
+            applied = self._device.apply_dim_estimate(snapshot, 0)
+        else:
+            applied = self._device.apply_switch_estimate(snapshot, False)
+        if applied:
+            self.async_write_ha_state()

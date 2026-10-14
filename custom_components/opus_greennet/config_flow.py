@@ -6,7 +6,7 @@ import logging
 import re
 from typing import Any
 
-import voluptuous as vol
+import probatio as vol
 from homeassistant.components import mqtt
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.core import HomeAssistant

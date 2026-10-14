@@ -312,6 +312,27 @@ switches remain unknown until their state is reported or a command is accepted.
 Climate activity uses actuator feedback where available; enabling a heating
 zone does not by itself prove that it is currently heating.
 
+## Known limitations
+
+- OPUS acknowledgement topics carry no request identifier. Requests to the same
+  answer topic are serialized; a reply that arrives after the 10-second timeout
+  cannot be attributed with certainty.
+- An acknowledgement (`200` or `201`) confirms the gateway, not the radio
+  actuator. Physical completion is only known from device feedback or a later
+  status query.
+- Cover positions during movement are estimates based on the reported travel
+  time. The final position comes from the device report or status query.
+- The HOPPE AutoLock entity is read-only; lock and unlock actions are rejected.
+- The gateway is not discovered automatically; the EAG identifier is entered
+  manually. There is no options or reconfigure flow; a different gateway is a
+  new integration entry.
+- Quiet or batteryless devices are never removed automatically, because the
+  gateway cannot confirm that a device is gone (see
+  [Removing or replacing a device](#removing-or-replacing-a-device)).
+- Commands and configuration writes are never retried automatically after a
+  timeout or an outage.
+- Automated tests simulate MQTT. They do not verify physical hardware.
+
 ## Services
 
 The integration exposes the following administrator-only actions for advanced
@@ -373,6 +394,62 @@ The identifiers and values below are fictional examples.
 3. Check Home Assistant logs for MQTT subscription errors
 4. Ensure your Opus GreenNet Bridge is publishing to the expected topics
 
+### Broker, gateway or radio actuator
+
+Three independent links are involved. Identify which one fails before changing
+the configuration:
+
+| Link | Symptom | Check |
+|------|---------|-------|
+| Home Assistant MQTT broker | All entities unavailable; actions fail with "The Home Assistant MQTT connection is unavailable" | State of the MQTT integration and the broker log |
+| Bridge to the OPUS gateway | All entities unavailable; actions fail with "The OPUS gateway is unavailable" | `opus_greennet/<EAG-ID>/bridge/status` (`1` connected, `0` disconnected); the uptime health check runs about every 60 seconds |
+| EnOcean radio actuator | Entities available, but the physical device does not follow | Range, power and pairing of the actuator; the debug log of the follow-up status queries |
+
+A broker or bridge outage makes the gateway unavailable and cancels queued
+commands. They are not replayed after recovery. A quiet radio device does not
+make any entity unavailable.
+
+### Acknowledgements 200 and 201
+
+After a command, the gateway answers on `putAnswer`. `200` means the gateway
+sent the telegram; `201` means it accepted the command for deferred delivery.
+Both count as an accepted command. Neither proves that the actuator executed
+it. The integration then shows the expected state and checks it with status
+queries 5 and 20 seconds later; for covers, 10 and 20 seconds after the
+estimated end of the movement. Any other status fails the action.
+
+### Retained state
+
+The broker keeps retained copies of OPUS topics. Retained device snapshots on
+`stream/devices` restore the last known state after a restart or reconnect.
+Retained `getAnswer/devices` and `putAnswer` messages are ignored because they
+answer earlier requests. Retained radio telegrams never fire rocker events.
+After a reconnect a fresh device list is requested at most once every 60
+seconds.
+
+### Estimated values
+
+Cover position and tilt during a movement are estimated from the reported
+travel time plus a 5-second grace period. After an accepted command the
+expected state is shown until a device report or status query confirms or
+corrects it.
+
+### Timeouts without a request ID
+
+If an action times out after 10 seconds, the gateway may still execute it, and
+a late reply cannot be matched to the request. Check the physical state before
+repeating the command. The integration does not retry automatically.
+
+### Recovery
+
+- If the gateway does not answer at startup, Home Assistant retries the setup
+  automatically.
+- After an MQTT or bridge reconnect, subscriptions are restored and the device
+  list is refreshed.
+- Run the `opus_greennet.reload_entry` action to restart the integration
+  without restarting Home Assistant. Pending requests are cancelled.
+- Download diagnostics (see below) before reporting a problem.
+
 ### Enable debug logging
 
 For temporary troubleshooting, open **Settings → Devices & services →
@@ -413,6 +490,19 @@ For local switch tests, press the physical control and compare the time between
 lag is before this integration. If `received` is fast but `entity_write` is slow,
 the lag is inside Home Assistant or this integration.
 
+## Removing the integration
+
+1. Go to **Settings → Devices & services → Opus GreenNet Bridge**, open the
+   three-dot menu of the entry and select **Delete**. Home Assistant removes the
+   entry, its devices and entities. The gateway and the pairing of the EnOcean
+   devices are not changed.
+2. When no other entry uses the gateway, remove its connection block from the
+   Mosquitto configuration (for example `/share/mosquitto/opus_bridge.conf`)
+   and restart the broker. Otherwise the broker keeps bridging the OPUS topics.
+3. Remove the integration in HACS, or delete
+   `custom_components/opus_greennet` for a manual installation, and restart
+   Home Assistant.
+
 ## Development
 
 ### Project Structure
@@ -449,27 +539,41 @@ tests/
 ├── test_coordinator_helpers.py  # Pure helper and command tests
 ├── test_coordinator_mqtt.py     # MQTT finalization tests
 ├── test_coordinator_parsing.py  # JSON telegrams, fragments, and late discovery
+├── test_coordinator_edge_cases.py # Malformed payloads, timers, and availability logging
 ├── test_retained_device_answers.py # Retained response and entity state regressions
 ├── test_coordinator_transport.py # Subscription, request, and recovery tests
+├── test_transport_edge_cases.py # Request queue, subscription and probe edge cases
 ├── test_release_transport_safety.py # Interrupted startup and queue fault recovery
+├── test_background_efficiency.py # Superseded background work and redundant writes
 ├── test_gateway_payload_compatibility.py # Reported IQ-DOT payload regression tests
+├── test_state_ownership.py      # State ownership between reports and commands
+├── test_strict_typing_boundaries.py # Typed wire-value boundaries
 ├── test_beta_entity_migration.py # Fork IDs, duplicate cleanup, and translations
 ├── test_binary_sensor_discovery.py # Repeated discovery and removal ordering
 ├── test_binary_sensor_descriptions.py # Stable sensor inventory and metadata
 ├── test_detector_support.py     # Sensor discovery and live MQTT updates
-├── test_scalar_telemetry.py      # Immediate battery and signal-strength updates
-├── test_window_handles.py        # Handle positions and protected AutoLock actions
-
-├── test_device_removal.py        # Child removal, rediscovery and request isolation
+├── test_scalar_telemetry.py     # Immediate battery and signal-strength updates
+├── test_window_handles.py       # Handle positions and protected AutoLock actions
+├── test_device_removal.py       # Child removal, rediscovery and request isolation
 ├── test_cover_stop.py           # Stop command encoding and follow-up queries
 ├── test_cover_movement.py       # Estimated travel, feedback, timing and cleanup
 ├── test_reconciliation_feedback.py # Valid feedback, channels, and command timing
 ├── test_event_entity.py         # Rocker switch event entity tests
+├── test_event_lifecycle.py      # Transient button fields are never replayed
 ├── test_entities.py             # Entity state and Home Assistant service tests
+├── test_platform_edge_cases.py  # Platform setup and entity edge cases
 ├── test_init.py                 # Entry setup, unloading, and service routing
+├── test_service_actions.py      # Actions through the real Home Assistant service registry
 ├── test_diagnostics.py          # Diagnostic redaction tests
-├── test_ha_lifecycle.py          # Real Home Assistant lifecycle and config flows
-└── test_config_flow.py          # Config flow validation tests
+├── test_diagnostics_edge_cases.py # Diagnostics for partial and missing data
+├── test_ha_lifecycle.py         # Real Home Assistant lifecycle and config flows
+├── test_config_flow.py          # Config flow validation tests
+├── test_config_flow_recovery.py # Recovery after every config flow error
+├── test_translations.py         # Translation, exception key and service consistency
+├── test_quality_scale.py        # quality_scale.yaml schema and rule evidence
+└── test_coverage_gate.py        # Per-module coverage gate
+script/
+└── check_coverage.py            # Per-module coverage gate used by CI
 ```
 
 ### Testing
@@ -478,7 +582,9 @@ tests/
 python -m pip install -r requirements_test.txt
 ruff check .
 ruff format --check .
-pytest -v --cov
+python -m mypy
+pytest -v --cov --cov-report=json:coverage.json
+python script/check_coverage.py coverage.json
 ```
 
 Use Python 3.14 for development. Tests cover device properties, telegram parsing,
@@ -493,9 +599,15 @@ tests that exact version, recorded in the workflow summary. It runs on pull
 requests, pushes to main, every Monday at 06:17 UTC, and manual dispatch. Beta
 releases and older HA versions are excluded from the test matrix. If a future
 stable release requires a newer Python version, CI fails explicitly until the
-runner is updated rather than silently testing an older HA release. Ruff,
-dependency compatibility, coverage, and Hassfest checks remain enabled. MQTT
-transport is simulated; physical-device verification remains part of beta testing.
+runner is updated rather than silently testing an older HA release. CI enforces
+Ruff, dependency compatibility, strict mypy typing, Hassfest, a total coverage of
+at least 97 %, more than 95 % for every integration module and 100 % for the
+config flow (`script/check_coverage.py`). Lifecycle and race regression suites
+run three more times. `quality_scale.yaml` is validated against the official
+rule keys and schema by `tests/test_quality_scale.py`; it is a self-assessment,
+not an official quality scale rating (see
+[the evidence matrix](docs/quality/quality-scale-evidence.md)). MQTT transport is
+simulated; physical-device verification remains part of beta testing.
 
 ### Beta testing
 

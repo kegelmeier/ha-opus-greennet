@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import cast
 
-import voluptuous as vol
+import probatio as vol
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import Platform
 from homeassistant.core import (
@@ -102,7 +101,7 @@ def _loaded_entry(
                 translation_key="config_entry_not_loaded",
                 translation_placeholders={"config_entry_id": config_entry_id},
             )
-        return cast(OpusGreenNetConfigEntry, entry)
+        return entry
 
     loaded_entries = hass.config_entries.async_loaded_entries(DOMAIN)
     if not loaded_entries:
@@ -115,7 +114,7 @@ def _loaded_entry(
             translation_domain=DOMAIN,
             translation_key="config_entry_required",
         )
-    return cast(OpusGreenNetConfigEntry, loaded_entries[0])
+    return loaded_entries[0]
 
 
 def _coordinator_for_call(

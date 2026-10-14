@@ -5,15 +5,19 @@ from __future__ import annotations
 import json
 import logging
 import re
+from collections.abc import Mapping
 from dataclasses import asdict
 from time import monotonic
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.redact import REDACTED
 
 from .enocean_device import EnOceanDevice
+from .wire import JsonList, JsonObject, parse_json
+
+if TYPE_CHECKING:
+    from . import OpusGreenNetConfigEntry
 
 TO_REDACT = {
     "accesstoken",
@@ -41,23 +45,25 @@ TO_REDACT = {
 }
 
 
-def _redact_diagnostics(data: dict[str, Any], identifiers: set[str]) -> dict[str, Any]:
+def _redact_diagnostics(
+    data: Mapping[str, object], identifiers: set[str]
+) -> dict[str, object]:
     """Redact both structured fields and identifiers embedded in gateway errors."""
 
-    def sensitive_key(key: Any) -> bool:
+    def sensitive_key(key: object) -> bool:
         return re.sub(r"[^a-z0-9]", "", str(key).casefold()) in TO_REDACT
 
-    def json_container(value: Any) -> dict | list | None:
+    def json_container(value: object) -> JsonObject | JsonList | None:
         if isinstance(value, str) and value.lstrip().startswith(("{", "[")):
             try:
-                decoded = json.loads(value)
+                decoded = parse_json(value)
             except ValueError:
                 return None
-            if isinstance(decoded, (dict, list)):
+            if isinstance(decoded, dict | list):
                 return decoded
         return None
 
-    def collect(value: Any) -> None:
+    def collect(value: object) -> None:
         if isinstance(value, dict):
             for key, item in value.items():
                 if sensitive_key(key) and isinstance(item, str) and item:
@@ -69,7 +75,7 @@ def _redact_diagnostics(data: dict[str, Any], identifiers: set[str]) -> dict[str
         elif (decoded := json_container(value)) is not None:
             collect(decoded)
 
-    def identifier_pattern(values: set[str]) -> re.Pattern:
+    def identifier_pattern(values: set[str]) -> re.Pattern[str]:
         return re.compile(
             "|".join(
                 re.escape(value)
@@ -85,12 +91,15 @@ def _redact_diagnostics(data: dict[str, Any], identifiers: set[str]) -> dict[str
     collect(data)
     pattern = identifier_pattern(identifiers)
 
-    def redact_key(key: Any) -> Any:
-        if isinstance(key, str) and key_pattern.pattern:
+    def redact_text_key(key: str) -> str:
+        if key_pattern.pattern:
             return key_pattern.sub(lambda _: REDACTED, key)
         return key
 
-    def redact(value: Any) -> Any:
+    def redact_key(key: object) -> object:
+        return redact_text_key(key) if isinstance(key, str) else key
+
+    def redact(value: object) -> object:
         if isinstance(value, dict):
             return {
                 redact_key(key): REDACTED if sensitive_key(key) else redact(item)
@@ -104,7 +113,10 @@ def _redact_diagnostics(data: dict[str, Any], identifiers: set[str]) -> dict[str
             return pattern.sub(lambda _: REDACTED, value)
         return value
 
-    return redact(data)
+    return {
+        redact_text_key(key): REDACTED if sensitive_key(key) else redact(item)
+        for key, item in data.items()
+    }
 
 
 def _duration_ms(start: float | None, end: float) -> str:
@@ -116,7 +128,7 @@ def _duration_ms(start: float | None, end: float) -> str:
 
 def log_entity_state_write(
     logger: logging.Logger,
-    entity_name: str,
+    entity_name: str | None,
     device: EnOceanDevice,
     channel_id: int | None = None,
 ) -> None:
@@ -140,7 +152,7 @@ def log_entity_state_write(
 
 
 async def async_get_config_entry_diagnostics(
-    hass: HomeAssistant, entry: ConfigEntry
+    hass: HomeAssistant, entry: OpusGreenNetConfigEntry
 ) -> dict[str, Any]:
     """Return redacted diagnostics for one gateway."""
     runtime_data = entry.runtime_data

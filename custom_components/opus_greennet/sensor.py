@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Final
+
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -10,6 +13,7 @@ from homeassistant.components.sensor import (
 from homeassistant.const import (
     LIGHT_LUX,
     SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
+    EntityCategory,
     UnitOfElectricPotential,
     UnitOfPower,
     UnitOfRatio,
@@ -17,7 +21,6 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import OpusGreenNetConfigEntry
@@ -27,11 +30,19 @@ from .coordinator import (
     SIGNAL_DEVICE_REMOVED,
     OpusGreenNetCoordinator,
 )
-from .enocean_device import EnOceanDevice
+from .enocean_device import EnOceanChannel, EnOceanDevice
 from .entity import OpusGreenNetEntity, migrate_legacy_entity_suffix
 
 # Sensor state is pushed by the coordinator.
 PARALLEL_UPDATES = 0
+
+
+# Numeric channel readings exposed by OpusGreenNetMeasurementSensor.
+MEASUREMENT_READINGS: Final[dict[str, Callable[[EnOceanChannel], float | None]]] = {
+    "illuminance": lambda channel: channel.illuminance,
+    "supply_voltage": lambda channel: channel.supply_voltage,
+    "battery_level": lambda channel: channel.battery_level,
+}
 
 
 async def async_setup_entry(
@@ -337,7 +348,8 @@ class OpusGreenNetMeasurementSensor(OpusGreenNetBaseSensor):
         unit: str,
     ) -> None:
         super().__init__(coordinator, eag_id, gateway_device_id, device, suffix, suffix)
-        self._state_attribute = suffix
+        # Typed accessor instead of getattr(); an unknown suffix fails at setup.
+        self._read_value = MEASUREMENT_READINGS[suffix]
         self._attr_device_class = device_class
         self._attr_native_unit_of_measurement = unit
 
@@ -345,7 +357,7 @@ class OpusGreenNetMeasurementSensor(OpusGreenNetBaseSensor):
     def native_value(self) -> float | None:
         """Return the parsed value, or unknown before the first valid reading."""
         channel = self._device.channels.get(DEFAULT_CHANNEL)
-        return getattr(channel, self._state_attribute, None)
+        return self._read_value(channel) if channel is not None else None
 
 
 class OpusGreenNetHandleSensor(OpusGreenNetBaseSensor):
@@ -360,7 +372,7 @@ class OpusGreenNetHandleSensor(OpusGreenNetBaseSensor):
         suffix: str,
     ) -> None:
         super().__init__(coordinator, eag_id, gateway_device_id, device, suffix, suffix)
-        self._state_attribute = suffix
+        self._suffix = suffix
         if suffix == "handle_state":
             self._attr_device_class = SensorDeviceClass.ENUM
             self._attr_options = ["open", "closed", "tilted"]
@@ -372,7 +384,12 @@ class OpusGreenNetHandleSensor(OpusGreenNetBaseSensor):
     def native_value(self) -> str | None:
         """Return the reported value independently of other handle attributes."""
         channel = self._device.channels.get(DEFAULT_CHANNEL)
-        value = getattr(channel, self._state_attribute, None)
-        if self._state_attribute == "unlock_request" and value is not None:
-            return "requested" if value else "not_requested"
-        return value
+        if channel is None:
+            return None
+        if self._suffix == "unlock_request":
+            if channel.unlock_request is None:
+                return None
+            return "requested" if channel.unlock_request else "not_requested"
+        if self._suffix == "handle_state":
+            return channel.handle_state
+        return None

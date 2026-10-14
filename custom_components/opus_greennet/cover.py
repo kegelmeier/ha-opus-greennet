@@ -162,27 +162,21 @@ class OpusGreenNetCover(OpusGreenNetEntity, CoverEntity):
 
     async def async_open_cover(self, **kwargs: Any) -> None:
         """Open the cover."""
-        snapshot = self._channel_state_snapshot()
+        snapshot = self._device.snapshot_channel_state(self._channel_id)
         await self._coordinator.async_set_cover_position(
             self._device.device_id, 0, self._channel_id
         )
-        if not self._channel_state_matches(snapshot):
-            return
-        channel = self._device.get_or_create_channel(self._channel_id)
-        channel.position = 0
-        self.async_write_ha_state()
+        if self._device.apply_cover_position_estimate(snapshot, 0):
+            self.async_write_ha_state()
 
     async def async_close_cover(self, **kwargs: Any) -> None:
         """Close the cover."""
-        snapshot = self._channel_state_snapshot()
+        snapshot = self._device.snapshot_channel_state(self._channel_id)
         await self._coordinator.async_set_cover_position(
             self._device.device_id, 100, self._channel_id
         )
-        if not self._channel_state_matches(snapshot):
-            return
-        channel = self._device.get_or_create_channel(self._channel_id)
-        channel.position = 100
-        self.async_write_ha_state()
+        if self._device.apply_cover_position_estimate(snapshot, 100):
+            self.async_write_ha_state()
 
     async def async_stop_cover(self, **kwargs: Any) -> None:
         """Stop the cover."""
@@ -194,17 +188,14 @@ class OpusGreenNetCover(OpusGreenNetEntity, CoverEntity):
         """Move the cover to a specific position."""
         position = kwargs.get(ATTR_POSITION)
         if position is not None:
-            snapshot = self._channel_state_snapshot()
+            snapshot = self._device.snapshot_channel_state(self._channel_id)
             # Invert: HA position (0=closed,100=open) → OPUS (0=open,100=closed)
             opus_position = 100 - position
             await self._coordinator.async_set_cover_position(
                 self._device.device_id, opus_position, self._channel_id
             )
-            if not self._channel_state_matches(snapshot):
-                return
-            channel = self._device.get_or_create_channel(self._channel_id)
-            channel.position = opus_position
-            self.async_write_ha_state()
+            if self._device.apply_cover_position_estimate(snapshot, opus_position):
+                self.async_write_ha_state()
 
     async def async_set_cover_tilt_position(self, **kwargs: Any) -> None:
         """Set the cover tilt position."""
@@ -212,12 +203,9 @@ class OpusGreenNetCover(OpusGreenNetEntity, CoverEntity):
             return
         tilt = kwargs.get(ATTR_TILT_POSITION)
         if tilt is not None:
-            snapshot = self._channel_state_snapshot()
+            snapshot = self._device.snapshot_channel_state(self._channel_id)
             await self._coordinator.async_set_cover_tilt(
                 self._device.device_id, tilt, self._channel_id
             )
-            if not self._channel_state_matches(snapshot):
-                return
-            channel = self._device.get_or_create_channel(self._channel_id)
-            channel.angle = tilt
-            self.async_write_ha_state()
+            if self._device.apply_cover_tilt_estimate(snapshot, tilt):
+                self.async_write_ha_state()

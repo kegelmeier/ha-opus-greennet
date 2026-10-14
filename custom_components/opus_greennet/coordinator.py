@@ -6,11 +6,10 @@ import asyncio
 import json
 import logging
 import re
-from collections.abc import Callable, Coroutine
+from collections.abc import Callable, Coroutine, Sequence
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from time import monotonic
-from typing import Any
 
 from homeassistant.components import mqtt
 from homeassistant.components.mqtt import ReceiveMessage
@@ -65,9 +64,47 @@ from .mqtt_transport import (
     decode_response,
     gateway_uptime_value,
     request_error,
+    response_status,
+)
+from .wire import (
+    JsonList,
+    JsonObject,
+    JsonScalar,
+    JsonValue,
+    WireFunction,
+    WireMapping,
+    as_list,
+    as_object,
+    object_items,
+    parse_json,
+    payload_text,
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# Synchronous MQTT message callback registered via mqtt.async_subscribe.
+type MessageHandler = Callable[[ReceiveMessage], None]
+
+
+def _metadata_text(value: object) -> str:
+    """Return a device metadata field as text.
+
+    Strings pass through unchanged. Flattened MQTT properties are parsed by
+    ``_parse_value``, so a numeric name such as ``friendlyId = "123"`` arrives
+    as a number and is rendered back to its text. Other types (null, booleans,
+    containers) are not names and fall back to an empty string.
+    """
+    if isinstance(value, str):
+        return value
+    if isinstance(value, int | float) and not isinstance(value, bool):
+        return str(value)
+    return ""
+
+
+def _index_sort_key(key: str) -> tuple[int, int, str]:
+    """Order flattened index keys numerically, other keys after them by name."""
+    return (0, int(key), "") if key.isdigit() else (1, 0, key)
+
 
 # Dispatcher signals
 SIGNAL_DEVICE_REMOVED = f"{DOMAIN}_device_removed"
@@ -80,6 +117,8 @@ DEVICE_STREAM_FINALIZE_DELAY = 0.02
 TELEGRAM_FINALIZE_DELAY = 0.15
 RAW_MQTT_DEBUG_PAYLOAD_LIMIT = 500
 OUTBOUND_STATE_RECONCILIATION_DELAYS = (5, 20)
+# Internal reason for a background status check dropped before publish.
+SUPERSEDED = "superseded"
 GATEWAY_HEALTH_INTERVAL = timedelta(seconds=60)
 # Each broker/bridge reconnect re-requests the full device snapshot so
 # entities catch up without live telegrams. A flapping connection must not
@@ -135,16 +174,17 @@ class OpusGreenNetCoordinator:
         self.hass = hass
         self.eag_id = eag_id
         self.devices: dict[str, EnOceanDevice] = {}
-        self._device_data: dict[str, dict[str, Any]] = {}  # Raw device properties
-        self._telegram_data: dict[str, dict[str, Any]] = {}  # Raw telegram properties
-        self._device_stream_data: dict[str, dict[str, Any]] = {}  # Device stream deltas
+        # Raw wire data (JSON objects assembled from MQTT), kept apart from the
+        # normalised domain model in ``self.devices``.
+        self._device_data: dict[str, JsonObject] = {}  # Raw device properties
+        self._telegram_data: dict[str, JsonObject] = {}  # Raw telegram properties
+        self._device_stream_data: dict[str, JsonObject] = {}  # Device stream deltas
         self._subscriptions: list[Callable[[], None]] = []
         self._discovery_complete = False
         self._pending_devices: set[str] = set()
-        self._pending_telegrams: dict[str, Callable | None] = {}  # Timers per device
-        self._pending_device_streams: dict[
-            str, Callable | None
-        ] = {}  # Timers per device
+        # Debounce timer cancel callbacks per device.
+        self._pending_telegrams: dict[str, Callable[[], None] | None] = {}
+        self._pending_device_streams: dict[str, Callable[[], None] | None] = {}
         self._telegram_received_at: dict[str, float] = {}
         self._device_stream_received_at: dict[str, float] = {}
         self._pending_reconciliation_queries: dict[
@@ -153,24 +193,28 @@ class OpusGreenNetCoordinator:
         self._cover_movements: dict[tuple[str, int], CoverMovement] = {}
         self._pending_reconciliation_fields: dict[tuple[str, int], set[str]] = {}
         self._feedback_revisions: dict[tuple[str, int, str], int] = {}
-        self._discovery_timer: Callable | None = None
+        self._discovery_timer: Callable[[], None] | None = None
         self._requests = MQTTRequestManager(hass)
-        self._tasks: set[asyncio.Task] = set()
+        self._tasks: set[asyncio.Task[None]] = set()
         self._gateway_available = False
         self._bridge_connected: bool | None = None
         self._unloaded = False
         self._started = False
-        self._refresh_task: asyncio.Task | None = None
+        self._refresh_task: asyncio.Task[None] | None = None
         self._subscription_topics: list[str] = []
         self._resync_requested_at: float | None = None
         self._telegram_paths: dict[str, set[str]] = {}
         self._command_waiters: dict[str, int] = {}
         self._reconciling: set[tuple[str, int]] = set()
+        # Channels whose delayed status check is still wanted. A queued
+        # background check is published only while its channel is listed here;
+        # feedback or a newer command removes it before the request is sent.
+        self._reconcile_needed: set[tuple[str, int]] = set()
         self._control_topics: list[str] = []
         self._stream_topics: list[str] = []
         self._last_reconnect_at: float | None = None
         # Gateway info
-        self.gateway_info: dict[str, Any] = {}
+        self.gateway_info: JsonObject = {}
         self.gateway_uptime: str | None = None
 
     @callback
@@ -212,7 +256,7 @@ class OpusGreenNetCoordinator:
             and mqtt.is_connected(self.hass)
         )
 
-    def _control_subscriptions(self) -> tuple[tuple[str, Callable, int], ...]:
+    def _control_subscriptions(self) -> tuple[tuple[str, MessageHandler, int], ...]:
         """Small, non-retained answer/status topics needed for the probe."""
         return (
             ("opus_greennet/{eag_id}/bridge/status", self._handle_bridge_status, 1),
@@ -221,7 +265,7 @@ class OpusGreenNetCoordinator:
             (TOPIC_SUB_PUT_ANSWER_STATE, self._handle_put_answer_state, 1),
         )
 
-    def _stream_subscriptions(self) -> tuple[tuple[str, Callable, int], ...]:
+    def _stream_subscriptions(self) -> tuple[tuple[str, MessageHandler, int], ...]:
         """Heavy wildcard topics, ordered by importance for discovery.
 
         stream/# replays a retained snapshot of up to ~30,000 topics. Each
@@ -250,7 +294,7 @@ class OpusGreenNetCoordinator:
 
     async def _async_subscribe_group(
         self,
-        group: tuple[tuple[str, Callable, int], ...],
+        group: tuple[tuple[str, MessageHandler, int], ...],
         target: list[str],
         *,
         staggered: bool,
@@ -407,7 +451,7 @@ class OpusGreenNetCoordinator:
             self._schedule_gateway_refresh(resync=self._reconnect_requires_snapshot())
 
     @callback
-    def _async_health_tick(self, _now) -> None:
+    def _async_health_tick(self, _now: datetime) -> None:
         """Probe the gateway independently of quiet or batteryless devices."""
         if mqtt.is_connected(self.hass) and self._bridge_connected is not False:
             self._schedule_gateway_refresh(resync=not self._gateway_available)
@@ -436,6 +480,10 @@ class OpusGreenNetCoordinator:
             _LOGGER.debug(
                 "OPUS gateway %s did not answer its health probe", self.eag_id
             )
+
+    def _bridge_reported_offline(self) -> bool:
+        """Return whether the bridge explicitly reported itself offline."""
+        return self._bridge_connected is False
 
     async def _async_refresh_gateway(self, *, resync: bool) -> None:
         if self._bridge_connected is False:
@@ -473,7 +521,9 @@ class OpusGreenNetCoordinator:
             subscribe_timeout=SETUP_SUBSCRIPTION_TIMEOUT,
         )
         self.gateway_uptime = gateway_uptime_value(uptime_response)
-        if self._unloaded or self._bridge_connected is False:
+        # Re-read through a method: the bridge status may change while the
+        # uptime request is awaited, which attribute narrowing cannot see.
+        if self._unloaded or self._bridge_reported_offline():
             raise request_error("gateway_unavailable", self.eag_id)
         if resync:
             self._resync_requested_at = monotonic()
@@ -504,8 +554,8 @@ class OpusGreenNetCoordinator:
                 _LOGGER.debug("Could not request optional OPUS system information")
 
     def _create_task(
-        self, coroutine: Coroutine, *, eager_start: bool = True
-    ) -> asyncio.Task:
+        self, coroutine: Coroutine[object, object, None], *, eager_start: bool = True
+    ) -> asyncio.Task[None]:
         """Own every coordinator background operation until unload."""
         task = self.hass.async_create_task(coroutine, eager_start=eager_start)
         self._tasks.add(task)
@@ -520,6 +570,7 @@ class OpusGreenNetCoordinator:
             task.cancel()
         for device_id, channel_id in list(self._pending_reconciliation_queries):
             self._cancel_reconciliation_queries(device_id, channel_id)
+        self._reconcile_needed.clear()
         for pending in (self._pending_telegrams, self._pending_device_streams):
             for cancel in pending.values():
                 if cancel:
@@ -597,11 +648,7 @@ class OpusGreenNetCoordinator:
                 if self._find_device_by_id(device_id) is None:
                     self._pending_devices.add(device_id)
 
-            payload = (
-                msg.payload.decode()
-                if isinstance(msg.payload, bytes)
-                else str(msg.payload)
-            )
+            payload = payload_text(msg.payload)
             self._set_nested_property(
                 self._device_data[device_id], property_path, payload
             )
@@ -656,11 +703,7 @@ class OpusGreenNetCoordinator:
                     "stream/device", device_id, property_path, received_at
                 )
 
-            payload = (
-                msg.payload.decode()
-                if isinstance(msg.payload, bytes)
-                else str(msg.payload)
-            )
+            payload = payload_text(msg.payload)
             if self._apply_scalar_telemetry(
                 device_id, property_path, payload, received_at
             ):
@@ -679,27 +722,31 @@ class OpusGreenNetCoordinator:
         device = self.devices.get(device_id)
         if device is None or property_path not in FAST_PATH_PROPERTIES:
             return False
-        value = self._parse_value(payload)
+        raw: object = self._parse_value(payload)
         if property_path == "batteryLevel":
-            value = EnOceanDevice._normalize_battery_level(value)
-        if value != "notAvailable":
-            parsed = EnOceanDevice._parse_number(
-                value,
+            raw = EnOceanDevice._normalize_battery_level(raw)
+        value: JsonScalar
+        number: float | None = None
+        if raw == "notAvailable":
+            value = "notAvailable"
+        else:
+            number = EnOceanDevice._parse_number(
+                raw,
                 minimum=0 if property_path == "batteryLevel" else None,
                 maximum=100 if property_path == "batteryLevel" else None,
                 integer=property_path == "dbm",
             )
-            if parsed is None:
+            if number is None:
                 return True
-            value = parsed
+            value = number
         cached = self._device_data.setdefault(device_id, {"deviceId": device_id})
         cached[property_path] = value
         # A buffered older scalar must not overwrite this newer reading later.
         self._device_stream_data.get(device_id, {}).pop(property_path, None)
         if property_path == "dbm":
-            previous = device.dbm
-            device.dbm = None if value == "notAvailable" else int(value)
-            changed = previous != device.dbm
+            previous_dbm = device.dbm
+            device.dbm = None if number is None else int(number)
+            changed = previous_dbm != device.dbm
         else:
             channel = device.get_or_create_channel()
             previous = channel.battery_level
@@ -728,7 +775,7 @@ class OpusGreenNetCoordinator:
             cancel()
 
         @callback
-        def finalize_callback(_now):
+        def finalize_callback(_now: datetime) -> None:
             self._finalize_device_stream(device_id)
 
         self._pending_device_streams[device_id] = async_call_later(
@@ -763,34 +810,37 @@ class OpusGreenNetCoordinator:
 
         # Indexed device-model deltas may contain only states/N/value. Resolve
         # their unchanged key/channel metadata from the accumulated snapshot.
-        state_delta = {
+        state_delta: dict[str, object] = {
             key: value for key, value in stream_data.items() if key != "configuration"
         }
         for container in INDEXED_STATE_CONTAINERS:
             delta = stream_data.get(container)
             cached = cached_data.get(container)
             if isinstance(delta, list) and isinstance(cached, list):
+                cached_view: Sequence[object] = cached
                 if container == "transmitModes" and device.is_smoke_detector:
-                    cached = self._rwm_transmit_modes(cached)
-                state_delta[container] = self._indexed_changed_functions(delta, cached)
+                    cached_view = self._rwm_transmit_modes(cached)
+                state_delta[container] = self._indexed_changed_functions(
+                    delta, cached_view
+                )
         functions = self._device_state_functions(state_delta)
 
-        configuration = stream_data.get("configuration")
-        cached_configuration = cached_data.get("configuration")
-        if isinstance(configuration, dict) and isinstance(cached_configuration, dict):
-            parameters = configuration.get("parameters")
-            cached_parameters = cached_configuration.get("parameters")
-            if isinstance(parameters, list) and isinstance(cached_parameters, list):
-                parameters = self._indexed_changed_functions(
+        configuration = as_object(stream_data.get("configuration"))
+        cached_configuration = as_object(cached_data.get("configuration"))
+        if configuration is not None and cached_configuration is not None:
+            configuration_view: dict[str, object] = dict(configuration)
+            parameters = as_list(configuration.get("parameters"))
+            cached_parameters = as_list(cached_configuration.get("parameters"))
+            if parameters is not None and cached_parameters is not None:
+                configuration_view["parameters"] = self._indexed_changed_functions(
                     parameters,
                     cached_parameters,
                     default_channel=cached_configuration.get("channel", 0),
                 )
-                configuration = {**configuration, "parameters": parameters}
             functions.extend(
                 self._configuration_state_functions(
                     {
-                        "configuration": configuration,
+                        "configuration": configuration_view,
                     }
                 )
             )
@@ -834,23 +884,23 @@ class OpusGreenNetCoordinator:
         try:
             self._log_raw_mqtt_message("getAnswer/devices", msg)
 
-            payload = msg.payload
-            if isinstance(payload, bytes):
-                payload = payload.decode()
+            payload = payload_text(msg.payload)
 
-            data = json.loads(payload)
-            if isinstance(data, dict) and "header" in data:
+            data = parse_json(payload)
+            response = as_object(data)
+            if response is not None and "header" in response:
                 decode_response(payload)
 
             # Response may be a list of devices or a single device object
+            devices_list: JsonValue
             if isinstance(data, list):
                 devices_list = data
-            elif isinstance(data, dict):
+            elif response is not None:
                 # Could be a single device or a wrapper with device list
-                if "devices" in data:
-                    devices_list = data["devices"]
+                if "devices" in response:
+                    devices_list = response["devices"]
                 else:
-                    devices_list = [data]
+                    devices_list = [response]
             else:
                 return
 
@@ -858,10 +908,11 @@ class OpusGreenNetCoordinator:
                 return
 
             for raw_device_data in devices_list:
-                if not isinstance(raw_device_data, dict):
+                device_object = as_object(raw_device_data)
+                if device_object is None:
                     continue
-                device_data = raw_device_data.get("device", raw_device_data)
-                if not isinstance(device_data, dict):
+                device_data = as_object(device_object.get("device", device_object))
+                if device_data is None:
                     continue
                 device_id = str(device_data.get("deviceId", ""))
                 if device_id:
@@ -902,7 +953,7 @@ class OpusGreenNetCoordinator:
         error = "Gateway rejected the state command"
         try:
             response = decode_response(payload, require_status=True)
-            status = int(response["header"]["httpStatus"])
+            status = response_status(response)
         except ValueError as err:
             error = str(err)
 
@@ -1167,7 +1218,7 @@ class OpusGreenNetCoordinator:
             # assignment after its ACK, just like the first request does.
             channel.state_revision += 1
             return previous
-        current = channel.position
+        current: float | None = channel.position
         now = monotonic()
         if previous is not None:
             current = previous.start_position
@@ -1205,7 +1256,7 @@ class OpusGreenNetCoordinator:
         self._cover_movements[key] = movement
 
         @callback
-        def finished(_now):
+        def finished(_now: datetime) -> None:
             self._finish_cover_movement(device.device_id, channel_id, movement)
 
         movement.cancel = async_call_later(
@@ -1233,9 +1284,9 @@ class OpusGreenNetCoordinator:
             self._dispatch_cover_estimate(device_id)
 
     def _start_cover_commands(
-        self, device: EnOceanDevice | None, functions: list[dict[str, Any]]
+        self, device: EnOceanDevice | None, functions: Sequence[WireFunction]
     ) -> dict[int, CoverMovement]:
-        started = {}
+        started: dict[int, CoverMovement] = {}
         if device is None or device.entity_type != "cover":
             return started
         default = self._channel_from_functions(functions)
@@ -1274,6 +1325,15 @@ class OpusGreenNetCoordinator:
             self._pending_reconciliation_fields.pop(key, None)
             for cancel in self._pending_reconciliation_queries.pop(key, []):
                 cancel()
+        # A check already waiting in the send queue is superseded as well;
+        # it is dropped before publish unless a later timer wants it again.
+        self._reconcile_needed.difference_update(
+            {
+                key
+                for key in self._reconcile_needed
+                if key[0] == device_id and (channel_id is None or key[1] == channel_id)
+            }
+        )
 
     def _schedule_reconciliation_queries(
         self, device_id: str, channel_id: int, *, fields: set[str] | None = None
@@ -1290,21 +1350,29 @@ class OpusGreenNetCoordinator:
         if expected:
             self._pending_reconciliation_fields[key] = expected
 
-        delays = OUTBOUND_STATE_RECONCILIATION_DELAYS
+        delays: tuple[float, ...] = OUTBOUND_STATE_RECONCILIATION_DELAYS
         if "position" in expected and (movement := self._cover_movements.get(key)):
             remaining = max(0.0, movement.ends_at - monotonic())
             delays = tuple(remaining + delay for delay in COVER_RECONCILIATION_DELAYS)
         for delay in delays:
 
             @callback
-            def query_callback(_now, did=device_id, channel=channel_id, seconds=delay):
+            def query_callback(
+                _now: datetime,
+                did: str = device_id,
+                channel: int = channel_id,
+                seconds: float = delay,
+            ) -> None:
                 _LOGGER.debug(
                     "Querying OPUS status for %s channel %s %.0fs after command",
                     did,
                     channel,
                     seconds,
                 )
-                if not self.available or (did, channel) in self._reconciling:
+                if not self.available:
+                    return
+                self._reconcile_needed.add((did, channel))
+                if (did, channel) in self._reconciling:
                     # Coalesce: one queued background query per channel is
                     # enough; never pile up behind a command burst.
                     return
@@ -1319,15 +1387,33 @@ class OpusGreenNetCoordinator:
             return
         key = (device_id, channel_id)
         self._reconciling.add(key)
+
+        def still_needed() -> bool:
+            # Evaluated once, immediately before publish. Consuming the flag
+            # lets a timer firing during the in-flight query start a new one.
+            if key not in self._reconcile_needed:
+                return False
+            self._reconcile_needed.discard(key)
+            return True
+
         try:
-            await self.async_query_device_status(device_id, channel_id, background=True)
-        except HomeAssistantError:
-            _LOGGER.debug("Could not reconcile OPUS state for %s", device_id)
+            await self.async_query_device_status(
+                device_id, channel_id, background=True, still_needed=still_needed
+            )
+        except HomeAssistantError as err:
+            if (err.translation_placeholders or {}).get("reason") == SUPERSEDED:
+                _LOGGER.debug(
+                    "Dropped superseded OPUS status check for %s channel %s",
+                    device_id,
+                    channel_id,
+                )
+            else:
+                _LOGGER.debug("Could not reconcile OPUS state for %s", device_id)
         finally:
             self._reconciling.discard(key)
 
     @staticmethod
-    def _channel_from_functions(functions: list[dict[str, Any]]) -> int | None:
+    def _channel_from_functions(functions: Sequence[WireFunction]) -> int | None:
         """Return the telegram channel selector, defaulting to channel zero."""
         for function in functions:
             if function.get("key") != KEY_CHANNEL:
@@ -1338,7 +1424,7 @@ class OpusGreenNetCoordinator:
             return int(value) if value is not None else None
         return 0
 
-    def _set_nested_property(self, data: dict, path: str, value: str) -> None:
+    def _set_nested_property(self, data: JsonObject, path: str, value: str) -> None:
         """Set a nested property in a dict using a path like 'eeps/0/eep'."""
         parts = path.split("/")
         if len(parts) > 16 or any(
@@ -1351,44 +1437,68 @@ class OpusGreenNetCoordinator:
             len(parts) == 2
             and parts[0] == "states"
             and not parts[1].isdigit()
-            and isinstance(data.get("states"), list)
+            and isinstance(states := data.get("states"), list)
         ):
-            for function in data["states"]:
+            for function in states:
                 if isinstance(function, dict) and function.get("key") == parts[1]:
                     function["value"] = self._parse_value(value)
                     return
-            data["states"].append({"key": parts[1], "value": self._parse_value(value)})
+            states.append({"key": parts[1], "value": self._parse_value(value)})
             return
-        current = data
-
+        # Walk/create the containers along the path. A container conflict
+        # (e.g. a key into a list or a scalar in the middle of the path) raises
+        # ValueError without mutating anything; the message handlers log and
+        # drop such a property exactly where the untyped walk failed before.
+        current: JsonObject | JsonList = data
         for i, part in enumerate(parts[:-1]):
-            # Check if next part is a number (array index)
+            child: JsonValue
             if parts[i + 1].isdigit():
+                if not isinstance(current, dict):
+                    raise ValueError(f"MQTT property path conflicts at {part!r}")
                 if part not in current:
                     current[part] = []
-                current = current[part]
+                child = current[part]
             elif part.isdigit():
                 # This is an array index
+                if not isinstance(current, list):
+                    raise ValueError(f"MQTT property path conflicts at {part!r}")
                 idx = int(part)
                 while len(current) <= idx:
                     current.append({})
-                current = current[idx]
+                child = current[idx]
             else:
+                if not isinstance(current, dict):
+                    raise ValueError(f"MQTT property path conflicts at {part!r}")
                 if part not in current:
                     current[part] = {}
-                current = current[part]
+                child = current[part]
+            if not isinstance(child, dict | list):
+                raise ValueError(f"MQTT property path conflicts at {part!r}")
+            current = child
 
         # Set the final value
         final_key = parts[-1]
         if final_key.isdigit():
             idx = int(final_key)
+            if isinstance(current, dict):
+                # An index below an existing object (e.g. an unknown numeric
+                # top-level property) was previously stored under an integer
+                # key once the object had more entries than the index. JSON
+                # object keys are strings, so the same entry is kept under
+                # the index text; diagnostics serialise it identically.
+                if len(current) <= idx:
+                    raise ValueError(f"MQTT property path conflicts at {final_key!r}")
+                current[str(idx)] = self._parse_value(value)
+                return
             while len(current) <= idx:
                 current.append(None)
             current[idx] = self._parse_value(value)
         else:
+            if not isinstance(current, dict):
+                raise ValueError(f"MQTT property path conflicts at {final_key!r}")
             current[final_key] = self._parse_value(value)
 
-    def _parse_value(self, value: str) -> Any:
+    def _parse_value(self, value: str) -> JsonScalar:
         """Parse a string value to appropriate type."""
         if value.startswith('"'):
             try:
@@ -1413,23 +1523,22 @@ class OpusGreenNetCoordinator:
         return value
 
     @staticmethod
-    def _merge_device_data(target: dict, delta: dict) -> None:
+    def _merge_device_data(target: JsonObject, delta: JsonObject) -> None:
         """Preserve metadata while assembling separately arriving device deltas."""
         for key, value in delta.items():
-            if isinstance(value, dict) and isinstance(target.get(key), dict):
-                OpusGreenNetCoordinator._merge_device_data(target[key], value)
-            elif isinstance(value, list) and isinstance(target.get(key), list):
+            existing = target.get(key)
+            if isinstance(value, dict) and isinstance(existing, dict):
+                OpusGreenNetCoordinator._merge_device_data(existing, value)
+            elif isinstance(value, list) and isinstance(existing, list):
                 for index, entry in enumerate(value):
-                    if index >= len(target[key]):
-                        target[key].append(entry)
-                    elif isinstance(entry, dict) and isinstance(
-                        target[key][index], dict
-                    ):
-                        OpusGreenNetCoordinator._merge_device_data(
-                            target[key][index], entry
-                        )
+                    if index >= len(existing):
+                        existing.append(entry)
+                        continue
+                    current = existing[index]
+                    if isinstance(entry, dict) and isinstance(current, dict):
+                        OpusGreenNetCoordinator._merge_device_data(current, entry)
                     else:
-                        target[key][index] = entry
+                        existing[index] = entry
             else:
                 target[key] = value
 
@@ -1438,7 +1547,7 @@ class OpusGreenNetCoordinator:
     # ──────────────────────────────────────────────────────────────────────
 
     @callback
-    def _finalize_discovery(self, *args) -> None:
+    def _finalize_discovery(self, *_args: object) -> None:
         """Finalize device discovery after receiving all properties."""
         self._discovery_timer = None
         _LOGGER.info(
@@ -1452,22 +1561,21 @@ class OpusGreenNetCoordinator:
 
         self._discovery_complete = True
 
-    def _create_device_from_data(self, device_id: str, data: dict) -> None:
+    def _create_device_from_data(self, device_id: str, data: JsonObject) -> None:
         """Create an EnOceanDevice from collected property data."""
         try:
-            friendly_id = data.get("friendlyId", device_id)
+            friendly_id = _metadata_text(data.get("friendlyId", device_id))
             existing_entry = self._find_device_by_id(device_id)
             existing_device = existing_entry[1] if existing_entry else None
 
             # Build EEPs list
-            eeps = []
+            eeps: list[JsonObject] = []
             eeps_data = data.get("eeps", {})
             if isinstance(eeps_data, list):
-                eeps = eeps_data
+                # Object entries keep their order; other entry types are dropped.
+                eeps = object_items(eeps_data)
             elif isinstance(eeps_data, dict):
-                for idx in sorted(
-                    eeps_data.keys(), key=lambda x: int(x) if x.isdigit() else x
-                ):
+                for idx in sorted(eeps_data, key=_index_sort_key):
                     eep_entry = eeps_data[idx]
                     if isinstance(eep_entry, dict):
                         eeps.append(eep_entry)
@@ -1481,11 +1589,11 @@ class OpusGreenNetCoordinator:
                 device_id=device_id,
                 friendly_id=friendly_id,
                 eeps=eeps,
-                manufacturer=data.get("manufacturer", ""),
-                physical_device=data.get("physicalDevice", ""),
+                manufacturer=_metadata_text(data.get("manufacturer", "")),
+                physical_device=_metadata_text(data.get("physicalDevice", "")),
                 first_seen=str(data.get("firstSeen", "")),
                 last_seen=str(data.get("lastSeen", "")),
-                dbm=EnOceanDevice._parse_number(data.get("dbm"), integer=True),
+                dbm=EnOceanDevice._parse_integer(data.get("dbm")),
             )
 
             # Preserve existing channel state or apply initial state from discovery
@@ -1555,15 +1663,18 @@ class OpusGreenNetCoordinator:
 
     @staticmethod
     def _indexed_changed_functions(
-        delta: list, cached: list, *, default_channel: Any = 0
-    ) -> list[dict[str, Any]]:
+        delta: Sequence[object],
+        cached: Sequence[object],
+        *,
+        default_channel: object = 0,
+    ) -> list[WireFunction]:
         """Attach cached channel context to changed indexed values only."""
         changed_indices = {
             index
             for index, function in enumerate(delta)
             if isinstance(function, dict) and ("value" in function or "key" in function)
         }
-        changed = []
+        changed: list[WireFunction] = []
         channel = default_channel
         for index, function in enumerate(cached):
             if not isinstance(function, dict):
@@ -1575,7 +1686,7 @@ class OpusGreenNetCoordinator:
         return changed
 
     @staticmethod
-    def _configuration_state_functions(data: dict) -> list[dict[str, Any]]:
+    def _configuration_state_functions(data: WireMapping) -> list[WireFunction]:
         """Read reported cover movement times, never parameter defaults."""
         configuration = data.get("configuration")
         if not isinstance(configuration, dict):
@@ -1584,7 +1695,7 @@ class OpusGreenNetCoordinator:
         if not isinstance(parameters, list):
             return []
         channel = configuration.get("channel", 0)
-        functions = []
+        functions: list[WireFunction] = []
         for parameter in parameters:
             if not isinstance(parameter, dict):
                 continue
@@ -1598,7 +1709,7 @@ class OpusGreenNetCoordinator:
         return functions
 
     @staticmethod
-    def _device_state_functions(data: dict) -> list[dict[str, Any]]:
+    def _device_state_functions(data: WireMapping) -> list[WireFunction]:
         """Read function arrays and both OPUS device-state representations."""
         state = data.get("state", {})
         states = data.get("states", {})
@@ -1662,7 +1773,7 @@ class OpusGreenNetCoordinator:
         )
 
     @staticmethod
-    def _rwm_transmit_modes(modes: list) -> list:
+    def _rwm_transmit_modes(modes: Sequence[object]) -> list[object]:
         """Resolve the RWM's documented value-only slots, scoped to F6-05-02."""
         keys = ("smokeAlarm", "batteryLow")
         resolved = []
@@ -1677,13 +1788,13 @@ class OpusGreenNetCoordinator:
         return resolved
 
     @staticmethod
-    def _has_operational_state(functions: list[dict[str, Any]]) -> bool:
+    def _has_operational_state(functions: Sequence[WireFunction]) -> bool:
         """Require usable actuator feedback, not interim values or metadata."""
         return bool(OpusGreenNetCoordinator._confirmed_fields_by_channel(functions))
 
     @staticmethod
     def _confirmed_fields_by_channel(
-        functions: list[dict[str, Any]],
+        functions: Sequence[WireFunction],
     ) -> dict[int, set[str]]:
         """Validate the fields that can confirm an actuator command."""
         default = OpusGreenNetCoordinator._channel_from_functions(functions)
@@ -1716,7 +1827,7 @@ class OpusGreenNetCoordinator:
 
     @staticmethod
     def _command_fields_by_channel(
-        functions: list[dict[str, Any]],
+        functions: Sequence[WireFunction],
         device: EnOceanDevice | None = None,
     ) -> dict[int, set[str]]:
         """Stop needs final position/tilt feedback, not an estimated position."""
@@ -1738,7 +1849,7 @@ class OpusGreenNetCoordinator:
         return expected
 
     def _record_confirmed_feedback(
-        self, device_id: str, functions: list[dict[str, Any]]
+        self, device_id: str, functions: Sequence[WireFunction]
     ) -> bool:
         """Confirm only reported fields on their own channel, including during ACK."""
         confirmed = self._confirmed_fields_by_channel(functions)
@@ -1756,7 +1867,7 @@ class OpusGreenNetCoordinator:
                 self._cancel_reconciliation_queries(device_id, channel_id)
         return bool(confirmed)
 
-    def _apply_initial_state(self, device: EnOceanDevice, data: dict) -> None:
+    def _apply_initial_state(self, device: EnOceanDevice, data: WireMapping) -> None:
         """Apply initial state from device discovery data."""
         _LOGGER.debug(
             "INITIAL STATE: device=%s data_keys=%s",
@@ -1802,23 +1913,19 @@ class OpusGreenNetCoordinator:
             if eag_id != self.eag_id:
                 return
 
-            payload = (
-                msg.payload.decode()
-                if isinstance(msg.payload, bytes)
-                else str(msg.payload)
-            )
+            payload = payload_text(msg.payload)
 
             if property_path in (None, "from", "to"):
                 # OPUS documents complete JSON at /to; accept the equivalent
                 # complete inbound shape as well as flattened property topics.
-                document = json.loads(payload)
-                if not isinstance(document, dict):
+                outer = as_object(parse_json(payload))
+                if outer is None:
                     return
-                document = document.get("telegram", document)
-                if not isinstance(document, dict):
+                document = as_object(outer.get("telegram", outer))
+                if document is None:
                     return
-                if isinstance(document.get("state"), dict):
-                    document = {**document, **document["state"]}
+                if (state := as_object(document.get("state"))) is not None:
+                    document = {**document, **state}
                 self._finalize_telegram(device_id)
                 self._telegram_data[device_id] = (
                     {property_path: document} if property_path else document
@@ -1830,8 +1937,12 @@ class OpusGreenNetCoordinator:
             existing = self._telegram_data.get(device_id)
             if existing:
                 paths = self._telegram_paths.get(device_id, set())
-                effective = existing.get("from") or existing.get("to") or existing
-                functions = effective.get("functions", [])
+                effective = as_object(
+                    existing.get("from") or existing.get("to") or existing
+                )
+                functions = (
+                    effective.get("functions", []) if effective is not None else []
+                )
                 has_complete = isinstance(functions, list) and any(
                     isinstance(function, dict)
                     and "key" in function
@@ -1861,14 +1972,11 @@ class OpusGreenNetCoordinator:
             )
 
             # Reset telegram timer for this device - finalize after short delay
-            if (
-                device_id in self._pending_telegrams
-                and self._pending_telegrams[device_id]
-            ):
-                self._pending_telegrams[device_id]()
+            if cancel := self._pending_telegrams.get(device_id):
+                cancel()
 
             @callback
-            def finalize_callback(_now, did=device_id):
+            def finalize_callback(_now: datetime, did: str = device_id) -> None:
                 self._finalize_telegram(did)
 
             # Telegram function key/value pairs can arrive as separate flattened
@@ -1932,7 +2040,7 @@ class OpusGreenNetCoordinator:
         )
 
         # Build functions list from the telegram data
-        functions = []
+        functions: list[JsonObject] = []
         functions_data = effective_data.get("functions", [])
 
         if isinstance(functions_data, list):
@@ -2027,8 +2135,8 @@ class OpusGreenNetCoordinator:
             # Create a basic device entry if we haven't discovered it yet
             device = EnOceanDevice(
                 device_id=device_id,
-                friendly_id=friendly_id,
-                eeps=effective_data.get("eeps", []),
+                friendly_id=_metadata_text(friendly_id) or device_id,
+                eeps=object_items(effective_data.get("eeps", [])),
             )
             self.devices[device_id] = device
             _LOGGER.info(
@@ -2077,6 +2185,9 @@ class OpusGreenNetCoordinator:
             device, update_source, signal, received_at, finalized_at
         )
         async_dispatcher_send(self.hass, signal, device)
+        # Event entities consume button fields synchronously during the dispatch
+        # above. Clear them so later dispatches cannot replay the same press.
+        device.clear_button_occurrence()
 
         if is_outbound_command:
             for channel_id, fields in self._command_fields_by_channel(
@@ -2093,15 +2204,18 @@ class OpusGreenNetCoordinator:
     async def async_send_command(
         self,
         device_id: str,
-        functions: list[dict[str, Any]],
+        functions: Sequence[WireFunction],
         *,
         background: bool = False,
+        still_needed: Callable[[], bool] | None = None,
     ) -> None:
         """Send a command to a device using JSON state message.
 
         All requests pass the transport's global send queue (one in flight).
         ``background`` marks delayed reconciliation queries, which are only
         dispatched when no user command or interactive query is waiting.
+        ``still_needed`` (background only) is checked right before publish; a
+        superseded check is dropped without being sent.
         """
         topic = TOPIC_PUT_STATE.format(
             base=TOPIC_BASE, eag_id=self.eag_id, device_id=device_id
@@ -2127,6 +2241,8 @@ class OpusGreenNetCoordinator:
         def snapshot_feedback() -> None:
             # Run inside the request manager's endpoint lock, immediately before
             # publish. Feedback for an earlier queued command cannot confirm this one.
+            if background and still_needed is not None and not still_needed():
+                raise request_error("request_cancelled", device_id, SUPERSEDED)
             started_movements.update(self._start_cover_commands(device, functions))
             for movement in started_movements.values():
                 movement.accepted = False
@@ -2209,14 +2325,14 @@ class OpusGreenNetCoordinator:
     def _with_channel_if_needed(
         self,
         device_id: str,
-        functions: list[dict[str, Any]],
+        functions: Sequence[WireFunction],
         channel: int,
-    ) -> list[dict[str, Any]]:
+    ) -> list[WireFunction]:
         """Prepend the mandatory selector for multi-channel actuator commands."""
         device = self.get_device(device_id)
         if channel > 0 or (device is not None and device.channel_count > 1):
             return [{"key": KEY_CHANNEL, "value": str(channel)}, *functions]
-        return functions
+        return list(functions)
 
     async def async_turn_on(
         self,
@@ -2226,6 +2342,7 @@ class OpusGreenNetCoordinator:
         is_dimmable: bool = False,
     ) -> None:
         """Turn on a switch or light."""
+        functions: list[WireFunction]
         if brightness is not None:
             functions = [{"key": "dimValue", "value": str(brightness)}]
         elif is_dimmable:
@@ -2244,6 +2361,7 @@ class OpusGreenNetCoordinator:
         is_dimmable: bool = False,
     ) -> None:
         """Turn off a switch or light."""
+        functions: list[WireFunction]
         if is_dimmable:
             # Dimmers use dimValue 0, not switch off — per OPUS MQTT spec section 5.3
             functions = [{"key": "dimValue", "value": "0"}]
@@ -2259,7 +2377,7 @@ class OpusGreenNetCoordinator:
         channel: int = 0,
     ) -> None:
         """Set OPUS position (0 = open, 100 = closed)."""
-        functions = [{"key": "position", "value": str(position)}]
+        functions: list[WireFunction] = [{"key": "position", "value": str(position)}]
         functions = self._with_channel_if_needed(device_id, functions, channel)
         await self.async_send_command(device_id, functions)
 
@@ -2270,7 +2388,7 @@ class OpusGreenNetCoordinator:
         channel: int = 0,
     ) -> None:
         """Set cover tilt angle."""
-        functions = [{"key": "angle", "value": str(tilt)}]
+        functions: list[WireFunction] = [{"key": "angle", "value": str(tilt)}]
         functions = self._with_channel_if_needed(device_id, functions, channel)
         await self.async_send_command(device_id, functions)
 
@@ -2278,7 +2396,7 @@ class OpusGreenNetCoordinator:
         """Stop cover movement."""
         self._clear_cover_movement(device_id, channel)
         self._cancel_reconciliation_queries(device_id, channel)
-        functions = [{"key": KEY_STOP, "value": "true"}]
+        functions: list[WireFunction] = [{"key": KEY_STOP, "value": "true"}]
         functions = self._with_channel_if_needed(device_id, functions, channel)
         await self.async_send_command(device_id, functions)
 
@@ -2288,11 +2406,17 @@ class OpusGreenNetCoordinator:
         channel: int = 0,
         *,
         background: bool = False,
+        still_needed: Callable[[], bool] | None = None,
     ) -> None:
         """Query the current device status."""
-        functions = [{"key": KEY_QUERY, "value": "status"}]
+        functions: list[WireFunction] = [{"key": KEY_QUERY, "value": "status"}]
         functions = self._with_channel_if_needed(device_id, functions, channel)
-        await self.async_send_command(device_id, functions, background=background)
+        if still_needed is None:
+            await self.async_send_command(device_id, functions, background=background)
+        else:
+            await self.async_send_command(
+                device_id, functions, background=background, still_needed=still_needed
+            )
 
     # ──────────────────────────────────────────────────────────────────────
     # Climate commands
@@ -2343,7 +2467,7 @@ class OpusGreenNetCoordinator:
         payload: str = "",
         *,
         require_status: bool = False,
-    ) -> dict[str, Any]:
+    ) -> JsonObject:
         """Request one device object or acknowledgement and surface protocol errors."""
         if not self.available:
             raise request_error("gateway_unavailable", device_id)
@@ -2358,7 +2482,7 @@ class OpusGreenNetCoordinator:
             priority=PRIORITY_QUERY,
         )
 
-    async def async_get_device_configuration(self, device_id: str) -> dict[str, Any]:
+    async def async_get_device_configuration(self, device_id: str) -> JsonObject:
         """Read device configuration, raising an actionable error on failure."""
         return await self._async_device_request(
             device_id,
@@ -2367,7 +2491,7 @@ class OpusGreenNetCoordinator:
         )
 
     async def async_set_device_configuration(
-        self, device_id: str, config: dict[str, Any]
+        self, device_id: str, config: WireMapping
     ) -> None:
         """Write configuration and wait for the gateway's acknowledgement."""
         await self._async_device_request(
@@ -2378,7 +2502,7 @@ class OpusGreenNetCoordinator:
             require_status=True,
         )
 
-    async def async_get_device_parameters(self, device_id: str) -> dict[str, Any]:
+    async def async_get_device_parameters(self, device_id: str) -> JsonObject:
         """Read a validated device-parameter response."""
         return await self._async_device_request(
             device_id,
