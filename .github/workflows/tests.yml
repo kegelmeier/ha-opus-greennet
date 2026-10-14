@@ -63,8 +63,32 @@ jobs:
           ruff check .
           ruff format --check .
 
+      - name: Check strict typing
+        # Configuration: [tool.mypy] in pyproject.toml (strict, all modules).
+        run: python -m mypy
+
       - name: Run tests
-        run: pytest -v --cov --cov-report=term-missing
+        # Total gate: fail_under in [tool.coverage.report] of pyproject.toml.
+        run: pytest -v --cov --cov-report=term-missing --cov-report=json:coverage.json
+
+      - name: Check per-module coverage
+        # Quality scale: above 95 % per module, 100 % for config_flow.py.
+        run: python script/check_coverage.py coverage.json
+
+      - name: Repeat lifecycle and race regression tests
+        # Order- and timing-sensitive suites must pass repeatedly, not once.
+        run: |
+          for run in 1 2 3; do
+            echo "Repetition $run"
+            pytest -q -p no:cacheprovider \
+              tests/test_release_transport_safety.py \
+              tests/test_ha_lifecycle.py \
+              tests/test_event_lifecycle.py \
+              tests/test_background_efficiency.py \
+              tests/test_device_removal.py \
+              tests/test_binary_sensor_discovery.py \
+              tests/test_transport_edge_cases.py || exit 1
+          done
 
   validate:
     runs-on: ubuntu-latest

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from homeassistant.components.binary_sensor import (
-    BinarySensorDeviceClass,
-    BinarySensorEntity,
-)
+from collections.abc import Callable
+from functools import partial
+from typing import Final
+
+from homeassistant.components.binary_sensor import BinarySensorEntity
+from homeassistant.components.binary_sensor.const import BinarySensorDeviceClass
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -22,11 +24,20 @@ from .coordinator import (
     SIGNAL_DEVICE_REMOVED,
     OpusGreenNetCoordinator,
 )
-from .enocean_device import EnOceanDevice
+from .enocean_device import EnOceanChannel, EnOceanDevice
 from .entity import OpusGreenNetEntity
 
 # Binary sensor state is pushed by the coordinator.
 PARALLEL_UPDATES = 0
+
+
+# Boolean channel states exposed by OpusGreenNetStateBinarySensor.
+BOOLEAN_CHANNEL_STATES: Final[dict[str, Callable[[EnOceanChannel], bool | None]]] = {
+    "motion": lambda channel: channel.motion,
+    "mechanics_fault": lambda channel: channel.mechanics_fault,
+    "smoke_alarm": lambda channel: channel.smoke_alarm,
+    "battery_low": lambda channel: channel.battery_low,
+}
 
 
 async def async_setup_entry(
@@ -68,10 +79,15 @@ async def async_setup_entry(
         """Release a reservation only after the old live entity finishes removal."""
         device_id = entity._device.device_id
         tracked = submitted.get(device_id, {})
-        if device_id not in removing or tracked.get(entity.unique_id) is not entity:
+        unique_id = entity.unique_id
+        if (
+            device_id not in removing
+            or unique_id is None
+            or tracked.get(unique_id) is not entity
+        ):
             return
-        tracked.pop(entity.unique_id)
-        added_unique_ids.discard(entity.unique_id)
+        tracked.pop(unique_id)
+        added_unique_ids.discard(unique_id)
         if not tracked:
             submitted.pop(device_id, None)
             removing.discard(device_id)
@@ -90,7 +106,7 @@ async def async_setup_entry(
                 continue
             added_unique_ids.add(unique_id)
             submitted.setdefault(entity._device.device_id, {})[unique_id] = entity
-            entity.async_on_remove(lambda entity=entity: async_removing(entity))
+            entity.async_on_remove(partial(async_removing, entity))
             new_entities.append(entity)
         if new_entities:
             async_add_entities(new_entities)
@@ -257,14 +273,15 @@ class OpusGreenNetStateBinarySensor(OpusGreenNetBaseBinarySensor):
         device_class: BinarySensorDeviceClass | None,
     ) -> None:
         super().__init__(coordinator, eag_id, gateway_device_id, device, suffix, suffix)
-        self._state_attribute = attr_name
+        # Typed accessor instead of getattr(); an unknown name fails at setup.
+        self._read_state = BOOLEAN_CHANNEL_STATES[attr_name]
         self._attr_device_class = device_class
 
     @property
     def is_on(self) -> bool | None:
         """Return unknown until a valid state has been received."""
         channel = self._device.channels.get(DEFAULT_CHANNEL)
-        return getattr(channel, self._state_attribute, None)
+        return self._read_state(channel) if channel is not None else None
 
 
 class OpusGreenNetHandlePositionSensor(OpusGreenNetBaseBinarySensor):

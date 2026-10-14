@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+Quality series (phases 1-5): internal refactoring, two behaviour fixes and strict typing. Entities, entity IDs, unique IDs, device assignments, topics, services and wire payloads are unchanged.
+
+### Fixed
+- Rocker switch events are no longer replayed by later updates of the same device (signal strength, battery, metadata, command acknowledgements, availability changes). Two identical real presses still produce two events.
+
+### Changed
+- Background status checks that are still waiting in the send queue are dropped before publishing when device feedback or a newer command has already superseded them. Delays (5 s / 20 s), timeouts and priorities are unchanged; user commands and Stop are never dropped.
+- Idle per-topic request locks are released after each gateway request instead of accumulating per device.
+- Entities skip a state write when a device update does not change their visible state or attributes, e.g. signal-strength-only updates for covers and switches. Commands and availability changes are always written.
+- Optimistic post-acknowledgement state for lights, switches and covers is handled in the device model instead of in each entity, with identical results.
+- MQTT/JSON payloads are validated per container and field at the integration boundary. Valid string and numeric representations, channel zero, `notAvailable` and the proprietary HeatArea profiles are accepted as before; malformed fields are ignored per field as before.
+- A purely numeric device name from a flattened MQTT topic (for example `friendlyId` = `123`) is now stored as text.
+
+### Development
+- All integration modules pass strict type checking (`mypy --strict`). `mypy` 2.4.0 is a test dependency and runs as a CI step.
+- Schema validation imports `probatio` directly; Home Assistant has used it in place of voluptuous since 2026.9, so runtime behaviour is unchanged.
+- Quality documentation in `docs/quality/` (implementation plan, protocol contract, per-phase reports).
+
+### Validation
+- 1094 tests pass on Home Assistant 2026.10.1 with Ruff, mypy and dependency checks; coverage 92.8 %. All tests use a mocked MQTT layer; no hardware test was performed for these changes.
+
 ## [0.5.0] - 2026-10-11
 
 Stable release of the cover movement and discovery improvements from v0.5.0b0, plus the reviewed gateway fixes for larger installations.

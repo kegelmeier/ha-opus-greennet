@@ -5,11 +5,10 @@ from __future__ import annotations
 import asyncio
 import heapq
 import itertools
-import json
 import logging
 from collections.abc import Callable
+from functools import partial
 from math import isfinite
-from typing import Any
 
 from homeassistant.components import mqtt
 from homeassistant.components.mqtt import ReceiveMessage
@@ -22,6 +21,7 @@ from .const import (
     TOPIC_GET_ANSWER_SYSTEM_UPTIME,
     TOPIC_GET_SYSTEM_UPTIME,
 )
+from .wire import JsonObject, as_object, parse_json
 
 REQUEST_TIMEOUT = 10.0
 # HA processes wildcard subscriptions before exact response topics. Large
@@ -58,30 +58,43 @@ def request_error(key: str, device_id: str, reason: str = "") -> HomeAssistantEr
     )
 
 
-def decode_response(payload: str | bytes, *, require_status: bool = False) -> dict:
+def decode_response(
+    payload: str | bytes | bytearray, *, require_status: bool = False
+) -> JsonObject:
     """Validate an OPUS object and reject a negative protocol acknowledgement."""
     try:
-        data = json.loads(payload)
+        decoded = parse_json(payload)
     except (ValueError, TypeError, UnicodeDecodeError) as err:
         raise ValueError("The gateway returned invalid JSON") from err
-    if not isinstance(data, dict) or not data:
+    data = as_object(decoded)
+    if not data:
         raise ValueError("The gateway returned an invalid response object")
-    header = data.get("header")
-    if header is not None or require_status:
-        if not isinstance(header, dict):
-            raise ValueError("The gateway response is missing its status")
-        status = header.get("httpStatus")
-        if isinstance(status, bool) or (
-            isinstance(status, float) and not status.is_integer()
-        ):
-            raise ValueError("The gateway returned an invalid status")
-        try:
-            status = int(status)
-        except (TypeError, ValueError, OverflowError) as err:
-            raise ValueError("The gateway returned an invalid status") from err
+    if data.get("header") is not None or require_status:
+        status = response_status(data)
         if status not in (200, 201):
             raise ValueError(f"The gateway returned status {status}")
     return data
+
+
+def response_status(data: JsonObject) -> int:
+    """Return ``header.httpStatus`` as an integer.
+
+    Accepted representations are an int, an integral float or a numeric
+    string (for example 200, 200.0 or "200"). Booleans, fractional or
+    non-finite floats and other types raise ValueError.
+    """
+    header = as_object(data.get("header"))
+    if header is None:
+        raise ValueError("The gateway response is missing its status")
+    raw_status = header.get("httpStatus")
+    if isinstance(raw_status, bool) or not isinstance(raw_status, int | float | str):
+        raise ValueError("The gateway returned an invalid status")
+    if isinstance(raw_status, float) and not raw_status.is_integer():
+        raise ValueError("The gateway returned an invalid status")
+    try:
+        return int(raw_status)
+    except (ValueError, OverflowError) as err:
+        raise ValueError("The gateway returned an invalid status") from err
 
 
 def topic_matches(pattern: str, topic: str) -> bool:
@@ -117,7 +130,7 @@ async def async_wait_for_subscriptions(
     if timeout is None:
         timeout = SUBSCRIPTION_TIMEOUT
     pending = set(topics)
-    ready = asyncio.get_running_loop().create_future()
+    ready: asyncio.Future[None] = asyncio.get_running_loop().create_future()
     cancellations: list[Callable[[], None]] = []
 
     @callback
@@ -130,7 +143,7 @@ async def async_wait_for_subscriptions(
         for topic in pending.copy():
             cancellations.append(
                 mqtt.async_on_subscribe_done(
-                    hass, topic, qos, lambda topic=topic: subscription_done(topic)
+                    hass, topic, qos, partial(subscription_done, topic)
                 )
             )
         if pending:
@@ -151,12 +164,16 @@ async def async_wait_for_subscriptions(
             cancel()
 
 
+# Futures owned by one request: SUBACK completion and the decoded answer.
+type _RequestFuture = asyncio.Future[None] | asyncio.Future[JsonObject]
+
+
 class PriorityLock:
     """An asyncio lock whose waiters are woken by priority, then FIFO."""
 
     def __init__(self) -> None:
         self._locked = False
-        self._waiters: list[tuple[int, int, asyncio.Future]] = []
+        self._waiters: list[tuple[int, int, asyncio.Future[None]]] = []
         self._counter = itertools.count()
 
     def locked(self) -> bool:
@@ -168,7 +185,7 @@ class PriorityLock:
         if not self._locked and not self._waiters:
             self._locked = True
             return
-        future = asyncio.get_running_loop().create_future()
+        future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
         entry = (priority, next(self._counter), future)
         heapq.heappush(self._waiters, entry)
         try:
@@ -221,7 +238,7 @@ class MQTTRequestManager:
         self._locks: dict[str, PriorityLock] = {}
         self._send_lock = PriorityLock()
         self._last_send_done = 0.0
-        self._waiters: dict[asyncio.Future, str] = {}
+        self._waiters: dict[_RequestFuture, str] = {}
         self._cleanups: set[Callable[[], None]] = set()
         # Wildcard filters already subscribed (and SUBACKed) by the owner.
         # Answers on matching topics are routed in-process instead of
@@ -305,7 +322,7 @@ class MQTTRequestManager:
         priority: int = PRIORITY_COMMAND,
         timeout: float | None = None,
         subscribe_timeout: float | None = None,
-    ) -> dict[str, Any]:
+    ) -> JsonObject:
         """Subscribe, await SUBACK, queue globally, publish, validate one answer."""
         # The OPUS response has no request ID. Only one local operation may use
         # an answer topic at a time; a late response after timeout remains an
@@ -335,6 +352,10 @@ class MQTTRequestManager:
             )
         finally:
             lock.release()
+            if not lock.locked() and self._locks.get(answer_topic) is lock:
+                # No owner and no waiter: drop the idle lock so the mapping
+                # does not grow with every answer topic ever used.
+                del self._locks[answer_topic]
 
     async def _async_request_locked(
         self,
@@ -351,7 +372,7 @@ class MQTTRequestManager:
         priority: int,
         timeout: float,
         subscribe_timeout: float,
-    ) -> dict[str, Any]:
+    ) -> JsonObject:
         """Run one request while owning its answer-topic queue slot."""
 
         def check_still_valid() -> None:
@@ -369,8 +390,8 @@ class MQTTRequestManager:
         check_still_valid()
 
         loop = asyncio.get_running_loop()
-        subscribed = loop.create_future()
-        response = loop.create_future()
+        subscribed: asyncio.Future[None] = loop.create_future()
+        response: asyncio.Future[JsonObject] = loop.create_future()
         self._waiters[subscribed] = device_id
         self._waiters[response] = device_id
         sent = False
@@ -475,7 +496,7 @@ class MQTTRequestManager:
                     future.cancel()
 
 
-def gateway_uptime_value(data: dict[str, Any]) -> str:
+def gateway_uptime_value(data: JsonObject) -> str:
     """Read and validate the gateway's system uptime response."""
     response = data.get("systemUptimeResponse")
     value = response.get("uptime") if isinstance(response, dict) else None
@@ -497,7 +518,7 @@ async def async_get_gateway_uptime(
     priority: int = PRIORITY_QUERY,
     timeout: float | None = None,
     subscribe_timeout: float | None = None,
-) -> dict[str, Any]:
+) -> JsonObject:
     """Probe a working MQTT endpoint without requiring optional system info."""
     data = await manager.async_request(
         TOPIC_GET_SYSTEM_UPTIME.format(base=TOPIC_BASE, eag_id=eag_id),
@@ -515,7 +536,7 @@ async def async_get_gateway_uptime(
     return data
 
 
-async def async_probe_gateway(hass: HomeAssistant, eag_id: str) -> dict[str, Any]:
+async def async_probe_gateway(hass: HomeAssistant, eag_id: str) -> JsonObject:
     """Verify the selected gateway using its fresh MQTT uptime response."""
     manager = MQTTRequestManager(hass)
     try:

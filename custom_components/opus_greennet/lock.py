@@ -3,6 +3,7 @@
 from typing import Any
 
 from homeassistant.components.lock import LockEntity
+from homeassistant.components.lock.const import LockEntityFeature
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -72,7 +73,7 @@ class OpusGreenNetAutoLock(OpusGreenNetEntity, LockEntity):
     """Report lock feedback; never write the unresolved AutoLock protocol."""
 
     _attr_translation_key = "autolock"
-    _attr_supported_features = 0
+    _attr_supported_features = LockEntityFeature(0)
 
     def __init__(
         self,

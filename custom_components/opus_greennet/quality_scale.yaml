@@ -1,0 +1,170 @@
+# Integration quality scale self-assessment for a CUSTOM integration.
+#
+# This file follows the official rule keys and schema of Home Assistant's
+# hassfest (script/hassfest/quality_scale.py). Hassfest validates this file
+# only for core integrations, so tests/test_quality_scale.py applies the same
+# schema and the applicable official validators in this repository's CI.
+#
+# It is not an official rating. Home Assistant assigns quality scale tiers only
+# to core integrations; manifest.json intentionally declares no quality_scale.
+# Evidence for every rule: docs/quality/quality-scale-evidence.md
+rules:
+  # Bronze
+  action-setup:
+    status: done
+    comment: Actions are registered in async_setup and validate entry and device in the handler.
+  appropriate-polling:
+    status: exempt
+    comment: >-
+      Push integration (iot_class local_push); no entity polls (should_poll is
+      False). The 60 s gateway health probe is documented under docs-data-update.
+  brands:
+    status: done
+    comment: Local brand/ folder (icon, logo, @2x), supported for custom integrations since HA 2026.3.
+  common-modules:
+    status: done
+    comment: Runtime coordinator in coordinator.py, shared base entity in entity.py.
+  config-flow:
+    status: done
+    comment: UI config flow with data_description for its only field.
+  config-flow-test-coverage:
+    status: done
+    comment: 100 % gate in CI; every error is followed by a recovering submission.
+  dependency-transparency:
+    status: done
+    comment: The integration has no Python requirements (manifest requirements is empty).
+  docs-actions:
+    status: done
+    comment: README section Services.
+  docs-conditions:
+    status: exempt
+    comment: The integration provides no conditions.
+  docs-high-level-description:
+    status: done
+    comment: README introduction and Features.
+  docs-installation-instructions:
+    status: done
+    comment: README Prerequisites, MQTT Bridge Setup and Installation.
+  docs-removal-instructions:
+    status: done
+    comment: README section Removing the integration.
+  docs-triggers:
+    status: exempt
+    comment: The integration provides no triggers.
+  entity-event-setup:
+    status: done
+    comment: Dispatcher subscriptions are created in async_added_to_hass and released with async_on_remove.
+  entity-unique-id: done
+  has-entity-name: done
+  runtime-data: done
+  test-before-configure:
+    status: done
+    comment: The config flow probes the gateway uptime endpoint before creating the entry.
+  test-before-setup:
+    status: done
+    comment: async_setup_entry raises ConfigEntryNotReady when the gateway does not answer.
+  unique-config-entry: done
+
+  # Silver
+  action-exceptions: done
+  config-entry-unloading: done
+  docs-configuration-parameters:
+    status: exempt
+    comment: The integration has no options flow and therefore no configuration parameters after setup.
+  docs-installation-parameters:
+    status: done
+    comment: README section Configuration describes the EAG identifier.
+  entity-unavailable: done
+  integration-owner: done
+  log-when-unavailable: done
+  parallel-updates:
+    status: done
+    comment: Every platform sets PARALLEL_UPDATES = 0; requests are serialised by the transport queue.
+  reauthentication-flow:
+    status: exempt
+    comment: >-
+      The config entry stores no credentials. MQTT authentication belongs to the
+      Home Assistant MQTT integration and the broker bridge configuration.
+  test-coverage:
+    status: done
+    comment: CI enforces more than 95 % per integration module and in total (script/check_coverage.py).
+
+  # Gold
+  devices: done
+  diagnostics: done
+  discovery:
+    status: todo
+    comment: >-
+      No MQTT discovery (manifest mqtt topics / async_step_mqtt). The bridge
+      publishes under EnOcean/<EAG-ID>/..., so discovery is technically possible
+      but not implemented.
+  discovery-update-info:
+    status: exempt
+    comment: >-
+      The config entry stores no network address; the gateway is reached only
+      through the Home Assistant MQTT broker by its stable EAG identifier.
+  docs-data-update:
+    status: done
+    comment: README section Availability and command behavior.
+  docs-examples:
+    status: todo
+    comment: No automation or dashboard examples are documented yet.
+  docs-known-limitations:
+    status: done
+    comment: README section Known limitations.
+  docs-supported-devices:
+    status: done
+    comment: README section Supported Device Types.
+  docs-supported-functions:
+    status: done
+    comment: README sections Features, Supported Device Types and Services.
+  docs-troubleshooting:
+    status: done
+    comment: README section Troubleshooting.
+  docs-use-cases:
+    status: todo
+    comment: No use-case section is documented yet.
+  dynamic-devices:
+    status: done
+    comment: Devices discovered after setup are added through dispatcher signals.
+  entity-category: done
+  entity-device-class: done
+  entity-disabled-by-default:
+    status: done
+    comment: The per-device signal strength sensor is disabled by default.
+  entity-translations: done
+  exception-translations: done
+  icon-translations:
+    status: todo
+    comment: No icons.json; entities rely on device-class default icons.
+  reconfiguration-flow:
+    status: exempt
+    comment: >-
+      The only configuration value is the EAG identifier, which is the config
+      entry unique ID. Changing it addresses a different gateway and requires a
+      new config entry.
+  repair-issues:
+    status: todo
+    comment: >-
+      No repair issues yet. Candidate: the one-time removal of a duplicate beta
+      entity during unique-ID migration, which currently only logs a warning.
+      Transient broker, bridge or radio outages are intentionally not issues.
+  stale-devices:
+    status: done
+    comment: >-
+      async_remove_config_entry_device allows manual removal. Devices are never
+      removed automatically because the gateway cannot confirm that a quiet
+      EnOcean device is gone.
+
+  # Platinum
+  async-dependency:
+    status: exempt
+    comment: The integration has no Python requirements; it uses Home Assistant's async MQTT API.
+  inject-websession:
+    status: exempt
+    comment: The integration makes no HTTP requests.
+  strict-typing:
+    status: done
+    comment: >-
+      mypy --strict for every module is a CI gate ([tool.mypy] in pyproject.toml).
+      The core .strict-typing file does not apply to a custom integration.
