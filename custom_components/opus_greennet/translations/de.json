@@ -82,6 +82,9 @@
       "feed_temperature": {
         "name": "Vorlauftemperatur"
       },
+      "temperature": {
+        "name": "Temperatur"
+      },
       "humidity": {
         "name": "Luftfeuchtigkeit"
       },

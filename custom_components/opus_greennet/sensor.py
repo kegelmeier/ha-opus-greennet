@@ -115,6 +115,38 @@ async def async_setup_entry(
                     )
                 )
 
+        if device.is_temperature_humidity_sensor:
+            entities.append(
+                OpusGreenNetMeasurementSensor(
+                    coordinator,
+                    eag_id,
+                    gateway_device_id,
+                    device,
+                    "temperature",
+                    SensorDeviceClass.TEMPERATURE,
+                    UnitOfTemperature.CELSIUS,
+                )
+            )
+            entities.append(
+                OpusGreenNetHumiditySensor(
+                    coordinator=coordinator,
+                    eag_id=eag_id,
+                    gateway_device_id=gateway_device_id,
+                    device=device,
+                )
+            )
+            entities.append(
+                OpusGreenNetMeasurementSensor(
+                    coordinator,
+                    eag_id,
+                    gateway_device_id,
+                    device,
+                    "battery_level",
+                    SensorDeviceClass.BATTERY,
+                    UnitOfRatio.PERCENTAGE,
+                )
+            )
+
         if device.is_window_handle:
             entities.append(
                 OpusGreenNetHandleSensor(

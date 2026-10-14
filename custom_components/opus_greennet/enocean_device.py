@@ -7,6 +7,7 @@ from math import isfinite
 from typing import Any
 
 from .const import (
+    A5_04_TEMPERATURE_RANGES,
     BUTTON_KEYS,
     DEFAULT_CHANNEL,
     EEP_MAPPINGS,
@@ -14,6 +15,8 @@ from .const import (
     KEY_ACTUATOR_LOW_BATTERY,
     KEY_ACTUATOR_NOT_RESPONDING,
     KEY_ANGLE,
+    KEY_BUTTON_MOTION,
+    KEY_BUTTON_NO_MOTION,
     KEY_CHANNEL,
     KEY_CIRCUIT_IN_USE,
     KEY_DIMMER,
@@ -37,6 +40,7 @@ from .const import (
     KEY_THERMAL_MODE,
     KEY_VERTICAL_MOVEMENT_TIME,
     KEY_WINDOW_OPEN,
+    OPUS_MOTION_DETECTOR_EEPS,
     STATE_ON,
 )
 
@@ -182,6 +186,28 @@ class EnOceanDevice:
     def is_presence_detector(self) -> bool:
         """Return whether this is a supported SMS presence detector."""
         return self.primary_eep in ("A5-07-01", "A5-07-03")
+
+    @property
+    def _eep_names(self) -> set[str]:
+        """Return all announced EEPs, not only the primary one."""
+        return {eep.get("eep") for eep in self.eeps if isinstance(eep, dict)}
+
+    @property
+    def is_opus_motion_detector(self) -> bool:
+        """Return whether this is an OPUS motion detector (F6-02-01 + A5-04-01)."""
+        return OPUS_MOTION_DETECTOR_EEPS <= self._eep_names
+
+    @property
+    def _a5_04_eep(self) -> str | None:
+        """Return the announced A5-04 temperature/humidity profile, if any."""
+        return next(
+            (eep for eep in A5_04_TEMPERATURE_RANGES if eep in self._eep_names), None
+        )
+
+    @property
+    def is_temperature_humidity_sensor(self) -> bool:
+        """Return whether the device announces an A5-04 temperature/humidity profile."""
+        return self._a5_04_eep is not None
 
     @property
     def is_window_handle(self) -> bool:
@@ -383,6 +409,12 @@ class EnOceanDevice:
                 if value in ("pressed", "released"):
                     channel.last_button = key
                     channel.last_button_action = value
+                # Release telegrams carry no button, so only presses set motion.
+                if value == "pressed" and self.is_opus_motion_detector:
+                    if key == KEY_BUTTON_MOTION:
+                        channel.motion = True
+                    elif key == KEY_BUTTON_NO_MOTION:
+                        channel.motion = False
 
             elif key == KEY_SWITCH:
                 if value in ("on", "off"):
@@ -502,8 +534,17 @@ class EnOceanDevice:
 
             # Climate keys
             elif key == KEY_TEMPERATURE:
+                # A5-04 profiles define their own range; heating stays at 0..40.
+                minimum, maximum = A5_04_TEMPERATURE_RANGES.get(
+                    self._a5_04_eep, (0, 40)
+                )
                 self._update_numeric_field(
-                    channel, "temperature", value, 0, 40, allow_unavailable=True
+                    channel,
+                    "temperature",
+                    value,
+                    minimum,
+                    maximum,
+                    allow_unavailable=True,
                 )
 
             elif key == KEY_TEMPERATURE_SETPOINT:

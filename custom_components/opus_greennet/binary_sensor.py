@@ -121,7 +121,7 @@ async def async_setup_entry(
             return
         entities: list[OpusGreenNetBaseBinarySensor] = []
 
-        if device.is_presence_detector:
+        if device.is_presence_detector or device.is_opus_motion_detector:
             entities.append(
                 OpusGreenNetStateBinarySensor(
                     coordinator,

@@ -110,12 +110,28 @@ EEP_MAPPINGS: Final = {
     "F6-05-02": ("binary_sensor", "OPUS RWM Smoke Detector"),
     "A5-07-01": ("binary_sensor", "OPUS SMS Presence Detector"),
     "A5-07-03": ("binary_sensor", "OPUS SMS Presence Detector"),
+    "A5-04-01": ("sensor", "Temperature and Humidity Sensor"),
+    "A5-04-02": ("sensor", "Temperature and Humidity Sensor"),
+    "A5-04-03": ("sensor", "Temperature and Humidity Sensor"),
     "D2-06-40": ("lock", "HOPPE SecureConnect Window Handle"),
     "F6-10-00": ("sensor", "HOPPE Window Handle"),
     "D2-03-10": ("sensor", "HOPPE Window Handle"),
     # Liquid Leakage Sensor (F6-05-01)
     "F6-05-01": ("binary_sensor", "Liquid Leakage Sensor"),
 }
+
+# Temperature range (degC) per A5-04 profile; heating profiles use 0..40.
+A5_04_TEMPERATURE_RANGES: Final = {
+    "A5-04-01": (0, 40),
+    "A5-04-02": (-20, 60),
+    "A5-04-03": (-20, 60),
+}
+
+# The OPUS motion detector announces a rocker profile for motion
+# (buttonAI = motion, buttonA0 = no motion) plus A5-04-01 for its climate data.
+OPUS_MOTION_DETECTOR_EEPS: Final = frozenset({"F6-02-01", "A5-04-01"})
+KEY_BUTTON_MOTION: Final = "buttonAI"
+KEY_BUTTON_NO_MOTION: Final = "buttonA0"
 
 INDEXED_STATE_CONTAINERS: Final = ("states", "transmitModes")
 KEY_SMOKE_ALARM: Final = "smokeAlarm"
