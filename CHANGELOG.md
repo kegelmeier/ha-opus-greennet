@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.0b0] - 2026-10-19
+
+First beta of 1.0. The integration now talks to the OPUS gateway **directly over its EnOcean over IP REST API**. The MQTT broker bridge is no longer needed. v0.7.0 remains the stable release and the MQTT fallback.
+
+### Breaking change
+- **The gateway's address is needed once.** After updating, the existing entry reports *Re-authentication required*: enter the gateway's IP address. Port (`8080`), user (`admin`) and password (the gateway's EURID in capital letters) are prefilled with the vendor defaults. All devices, entities, entity IDs, names, areas, dashboards and automations are kept.
+- The Mosquitto bridge configuration for OPUS (e.g. `/share/mosquitto/opus_bridge.conf`) is no longer used and can be removed once everything works.
+
+### Changed
+- One persistent event stream delivers every telegram as the gateway handles it (median ~20 ms from gateway to Home Assistant on a 65-device installation, previously seconds). Every reconnect resynchronises all devices; a health check runs every minute and also detects gateway restarts; battery level, signal strength and cover movement times refresh every 30 minutes.
+- Commands are acknowledged directly by the gateway's HTTP answer.
+- New **Reconfigure** option to change address or credentials; rejected credentials and a different gateway at the configured address start a re-authentication.
+
+### Added
+- Icons for HOPPE handle and lock entities and for the service actions (thanks @fubu2k, #74).
+- A repair notice when the unique-ID migration had to remove a duplicate beta entity (thanks @fubu2k, #74).
+
+### Fixed
+- **Dimmers switch to the new brightness at once** (like Apple Home); a `transition` uses the dimmer's own configured fade. Previously the gateway applied its slow default fade.
+- Commands from HomeKit or other controllers no longer reset a device's signal strength to 0 dBm.
+- Commands queued before a gateway outage are not sent after it recovers.
+
+### Changed entity defaults (new entities only)
+- HOPPE unlock request and mechanics fault are diagnostic entities and disabled by default; SMS supply voltage is a diagnostic entity; battery levels are shown in whole percent (thanks @fubu2k, #74). Existing entities keep their settings.
+
+### Beta testing
+- Enable pre-releases for this repository in HACS, install v1.0.0b0, restart Home Assistant and enter the gateway address when asked.
+- Tested on hardware: switches, dimmers, two-channel actuators, blinds and leak sensors (OPUS-GW v1.21.31). **Not yet tested on hardware:** HeatArea climate, RWM smoke detectors, SMS presence detectors, HOPPE handles, contacts, A5-04 temperature sensors, motion detectors and stand-alone rocker switches.
+- Please report in the pinned beta issue with your gateway firmware, the device EEPs and redacted diagnostics.
+
 ## [0.7.0] - 2026-10-19
 
 Stable release of the v0.7.0b1 beta: the motion-detector support from #72 and the quality phases 1–5 from #74/#75. This is the last release that connects through MQTT; the upcoming 1.0 talks to the gateway directly over its REST API.
