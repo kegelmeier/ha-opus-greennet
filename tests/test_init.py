@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from types import SimpleNamespace
 from typing import Any
@@ -177,7 +178,7 @@ async def test_entry_without_host_requires_the_gateway_address(
             "wrong_gateway",
         ),
         (
-            lambda gw: gw.status.update({"/devices": 500}),
+            lambda gw: gw.status.update({"/devices/stream": 500}),
             ConfigEntryNotReady,
             "gateway_unavailable",
         ),
@@ -187,7 +188,7 @@ async def test_entry_without_host_requires_the_gateway_address(
             "gateway_unavailable",
         ),
     ],
-    ids=["invalid_auth", "wrong_gateway", "device_list_error", "invalid_uptime"],
+    ids=["invalid_auth", "wrong_gateway", "stream_error", "invalid_uptime"],
 )
 async def test_failed_setup_raises_translated_errors(
     hass: HomeAssistant,
@@ -210,8 +211,12 @@ async def test_failed_setup_raises_translated_errors(
     assert raised.value.translation_domain == DOMAIN
     assert raised.value.translation_key == translation_key
     unload.assert_awaited_once()
-    # Nothing was left running: no event stream was opened.
-    assert gateway.requests_to("GET", "/devices/stream") == []
+    # Nothing was left running: at most the one failed stream attempt of the
+    # stream-first setup, and no further attempt afterwards.
+    attempts = len(gateway.requests_to("GET", "/devices/stream"))
+    assert attempts <= 1
+    await asyncio.sleep(1.4)
+    assert len(gateway.requests_to("GET", "/devices/stream")) == attempts
 
 
 async def test_unreachable_gateway_is_retried(

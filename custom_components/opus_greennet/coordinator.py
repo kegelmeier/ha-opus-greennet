@@ -284,12 +284,12 @@ class OpusGreenNetCoordinator:
         # gateways (OPUS-IQ-DOT 1.21.30; phase 21 hardware diagnostics: 0 of
         # 10 covers had a movement time after a stream-first start). Cover
         # movement and rotation times come only from GET /devices, so the
-        # metadata refresh runs once right away. It is not authoritative: live
-        # state stays with the stream, and newer telegram metadata is kept
-        # (B-5). No radio telegram is sent.
-        self._refresh_task = self._create_task(
-            self._async_refresh_device_list(), "device list refresh"
-        )
+        # metadata refresh runs once before setup returns, so entities start
+        # with their movement times. It is not authoritative: live state stays
+        # with the stream, and newer telegram metadata is kept (B-5). A failure
+        # is only logged; the 30 min refresh tries again. No radio telegram is
+        # sent.
+        await self._async_refresh_device_list()
 
     async def async_unload(self) -> None:
         """Stop all background work and mark the gateway unavailable."""
