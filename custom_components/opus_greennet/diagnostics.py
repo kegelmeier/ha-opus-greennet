@@ -30,6 +30,8 @@ TO_REDACT = {
     "eurid",
     "friendlyid",
     "homekitpin",
+    # The HomeKit QR setup payload (X-HM://...) encodes the same setup code.
+    "homekitqr",
     "host",
     "hostname",
     "ip",
@@ -191,6 +193,9 @@ async def async_get_config_entry_diagnostics(
                 "available": coordinator.available,
                 "info": coordinator.gateway_info,
                 "uptime": coordinator.gateway_uptime,
+                # Seconds from opening the event stream to its first device
+                # list at setup.
+                "first_device_list_seconds": coordinator.first_device_list_seconds,
             },
             "devices": devices,
         },

@@ -243,8 +243,8 @@ async def test_rest_diagnostics_redact_gateway_errors_and_report_outage(
 
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(
-            "custom_components.opus_greennet.coordinator.STREAM_RETRY_DELAYS",
-            (0.01, 0.02),
+            "custom_components.opus_greennet.coordinator.STREAM_BACKOFF_MAX",
+            0.02,
         )
         await gateway.stop()
         await wait_until(lambda: not coordinator.available)

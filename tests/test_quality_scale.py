@@ -420,6 +420,7 @@ def test_stale_devices_and_diagnostics_entry_points() -> None:
         "eagid",
         "deviceid",
         "homekitpin",
+        "homekitqr",
         "host",
         "password",
         "token",

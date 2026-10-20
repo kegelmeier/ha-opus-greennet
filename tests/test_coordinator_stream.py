@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from unittest.mock import patch
 
@@ -15,6 +16,7 @@ from custom_components.opus_greennet.coordinator import OpusGreenNetCoordinator
 from tests.fake_gateway import FakeGateway, device_object, telegram
 from tests.ha_helpers import setup_bridge, wait_for_entity, wait_until
 
+MODULE = "custom_components.opus_greennet.coordinator"
 SWITCH = "050BF714"
 COVER = "0507C89C"
 
@@ -22,8 +24,8 @@ COVER = "0507C89C"
 @pytest.fixture(autouse=True)
 def fast_retries():
     with patch(
-        "custom_components.opus_greennet.coordinator.STREAM_RETRY_DELAYS",
-        (0.01, 0.02),
+        "custom_components.opus_greennet.coordinator.STREAM_BACKOFF_MAX",
+        0.02,
     ):
         yield
 
@@ -56,8 +58,11 @@ async def test_setup_reads_identity_uptime_and_devices(
         ("GET", "/system/info"),  # config flow
         ("GET", "/system/info"),
         ("GET", "/system/uptime"),
-        ("GET", "/devices"),
+        ("GET", "/devices/stream"),
     ]
+    # State comes from the stream's device list; one GET /devices follows for
+    # the configuration the streamed list does not carry.
+    await wait_until(lambda: len(gateway.requests_to("GET", "/devices")) == 1)
     entity_id = await wait_for_entity(hass, "switch", f"AABB0011_{SWITCH}")
     assert hass.states.get(entity_id).state == "on"
 
@@ -350,3 +355,78 @@ async def test_gateway_identity_change_is_rejected(
     assert entry.state is ConfigEntryState.SETUP_ERROR
     flows = hass.config_entries.flow.async_progress_by_handler(DOMAIN)
     assert [flow["context"]["source"] for flow in flows] == ["reauth"]
+
+
+# ── Phase R4: stream lifecycle ─────────────────────────────────────────────
+
+
+async def test_gateway_closing_every_stream_after_snapshot_is_no_tight_loop(
+    hass: HomeAssistant, gateway: FakeGateway
+) -> None:
+    """Finding B-2 with a real HTTP server: bounded attempts, stays available."""
+    gateway.devices = [_switch("on")]
+    entry = await setup_bridge(hass, gateway)
+    coordinator = _coordinator(entry)
+    entity_id = await wait_for_entity(hass, "switch", f"AABB0011_{SWITCH}")
+    with (
+        patch(f"{MODULE}.STREAM_BACKOFF_INITIAL", 0.05),
+        patch(f"{MODULE}.STREAM_BACKOFF_MAX", 0.2),
+        patch(f"{MODULE}.STREAM_BACKOFF_JITTER", 0.0),
+    ):
+        gateway.close_after_snapshot = True
+        await gateway.close_streams()
+        before = len(gateway.requests_to("GET", "/devices/stream"))
+        await asyncio.sleep(0.6)
+        attempts = len(gateway.requests_to("GET", "/devices/stream")) - before
+    # Pauses 0.05, 0.1, 0.2, 0.2, ...: at most five attempts in 0.6 s (one
+    # more as tolerance). Before R4 every attempt followed without a pause.
+    assert 1 <= attempts <= 6
+    assert coordinator.available
+    assert hass.states.get(entity_id).state == "on"
+
+
+async def test_reload_leaves_exactly_one_stream_reader(
+    hass: HomeAssistant, gateway: FakeGateway
+) -> None:
+    gateway.devices = [_switch()]
+    entry = await setup_bridge(hass, gateway)
+    old = _coordinator(entry)
+    await gateway.wait_for_stream()
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    new = _coordinator(entry)
+    assert new is not old
+    assert not old._tasks  # noqa: SLF001
+    # The server notices the closed connection of the old reader when it
+    # writes next.
+    await wait_until(lambda: gateway.stream_count >= 1)
+    await gateway.push(telegram(SWITCH, [{"key": "switch", "value": "on"}]))
+    await wait_until(lambda: gateway.stream_count == 1)
+    await gateway.push(telegram(SWITCH, [{"key": "switch", "value": "off"}]))
+    assert gateway.stream_count == 1
+    assert new.available
+
+
+async def test_stream_replacement_leaves_exactly_one_stream_reader(
+    hass: HomeAssistant, gateway: FakeGateway
+) -> None:
+    gateway.devices = [_switch()]
+    entry = await setup_bridge(hass, gateway)
+    coordinator = _coordinator(entry)
+    await gateway.wait_for_stream()
+    streams = len(gateway.requests_to("GET", "/devices/stream"))
+    gateway.uptime = 5  # gateway restart seen by the health probe
+    await _probe(coordinator)
+    await wait_until(
+        lambda: len(gateway.requests_to("GET", "/devices/stream")) > streams
+    )
+    await wait_until(lambda: coordinator._stream_connected)  # noqa: SLF001
+    await gateway.push(telegram(SWITCH, [{"key": "switch", "value": "on"}]))
+    await wait_until(lambda: gateway.stream_count == 1)
+    stream_tasks = [
+        task
+        for task in coordinator._tasks  # noqa: SLF001
+        if task.get_name().endswith(" stream")
+    ]
+    assert len(stream_tasks) == 1
+    assert coordinator.available
