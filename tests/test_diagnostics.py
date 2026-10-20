@@ -195,6 +195,7 @@ async def test_rest_entry_and_gateway_system_info_are_redacted(
         "version": "OPUS-GW 2.4.1",
         "eurid": REDACTED,
         "homekitPin": REDACTED,
+        "homekitQR": REDACTED,
         "serialNumber": REDACTED,
         "baseId": REDACTED,
         "network": {"ipAddress": REDACTED, "macAddress": REDACTED},

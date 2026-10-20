@@ -195,7 +195,9 @@ async def async_get_config_entry_diagnostics(
                 "uptime": coordinator.gateway_uptime,
                 # Seconds from opening the event stream to its first device
                 # list at setup.
-                "first_device_list_seconds": coordinator.first_device_list_seconds,
+                "first_device_list_seconds": getattr(
+                    coordinator, "first_device_list_seconds", None
+                ),
             },
             "devices": devices,
         },
