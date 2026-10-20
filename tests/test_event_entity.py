@@ -113,8 +113,8 @@ async def test_availability_changes_do_not_replay_last_rocker_event(
     assert original.attributes["event_type"] == "buttonA0_pressed"
 
     with patch(
-        "custom_components.opus_greennet.coordinator.STREAM_RETRY_DELAYS",
-        (0.01, 0.02),
+        "custom_components.opus_greennet.coordinator.STREAM_BACKOFF_MAX",
+        0.02,
     ):
         await gateway.stop()
         await wait_until(lambda: hass.states.get(entity_id).state == "unavailable")

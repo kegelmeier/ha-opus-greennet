@@ -243,15 +243,27 @@ on the integration entry; rejected credentials start a re-authentication.
 The integration keeps one HTTP event stream to the gateway open
 (`GET /devices/stream`). Every stream starts with the complete device list,
 which resynchronises all state, and then delivers each telegram as the gateway
-handles it. If the stream ends, it is reopened immediately; if the gateway
-cannot be reached, entities become unavailable and the connection is retried
-with increasing pauses (1 to 60 seconds).
+handles it. At startup this first list is the setup snapshot; if it does not
+arrive within 30 seconds, Home Assistant retries the setup later. Because the
+streamed list does not contain the cover movement times, the device list is
+read once more right after startup for these settings; it never changes live
+state.
+
+If the stream ends, it is reopened after a short pause; if the gateway cannot
+be reached, entities become unavailable. The pause starts at 1 second, doubles
+after every attempt up to 60 seconds and is lengthened by a random share of up
+to 25 %. A stream that closes within 10 seconds of connecting counts as a
+failed attempt, so a gateway that closes every connection at once cannot cause
+a reconnect loop; a stream that stayed open longer starts the pauses again at
+1 second. Rejected credentials are not retried.
 
 A health check reads the gateway uptime about every 60 seconds. It marks
 entities unavailable when the gateway stops answering, and reopens the stream
 after a gateway restart. Every 30 minutes the device list is read again to
 refresh slowly changing values that the stream does not carry (battery level,
-signal strength, cover movement times) and to add newly paired devices.
+signal strength, cover movement times) and to add newly paired devices. A
+telegram that arrives while the list is being read keeps its newer signal
+strength and last-seen time.
 Batteryless EnOcean devices are not marked offline just because they are quiet.
 
 Commands are HTTP requests; the gateway's response is the acknowledgement.
@@ -443,7 +455,12 @@ Opus GreenNet Bridge → three-dot menu → Download diagnostics**. It includes 
 gateway status, discovered devices, channel state, last update source, and the
 latest command error without adding volatile diagnostic fields to every entity
 state. Addresses, credentials, identifiers and the gateway's HomeKit setup code
-are redacted.
+(also as its QR setup payload) are redacted. The gateway section shows
+`first_device_list_seconds`, the time from opening the event stream to its
+first device list at startup. For covers each device shows
+`last_vertical_movement_time` (the last run duration the gateway reports, if
+any) and `position_origin` per channel: `device list`, `reported`,
+`estimated` or `assumed` (the travel estimate ended without a report).
 
 For local switch tests, press the physical control and compare
 `gateway_to_ha_ms` with the `entity_write` timing. If the gateway latency is
@@ -497,7 +514,12 @@ tests/
 ├── test_api.py                  # REST client, error mapping, stream splitter, priority lock
 ├── test_protocol.py             # Pure protocol helpers
 ├── test_coordinator_stream.py   # Setup, event stream, availability, health check, refresh
+├── test_coordinator_stream_backoff.py # Stream backoff with jitter, short-lived streams, connection generation
+├── test_coordinator_stream_first.py   # Stream-first setup, first device list deadline, fresh list metadata
+├── test_coordinator_status_checks.py  # HTTP vs. gateway status as seen by commands and the health probe
+├── test_api_hardening.py        # HTTP vs. gateway status, no retries, no credentials in errors
 ├── test_coordinator_devices.py  # Device lists: discovery, resync and metadata refresh
+├── test_coordinator_domain_model.py # In-place device update, last run duration, position origin, rocker and cover regression cases
 ├── test_coordinator_telegrams.py # Device reports, outbound commands and their effects
 ├── test_coordinator_requests.py # Request queue, acknowledgements and error mapping
 ├── test_coordinator_commands.py # Command acknowledgements, outages and unload

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from math import isfinite
+from typing import ClassVar
 
 from .const import (
     A5_04_TEMPERATURE_RANGES,
@@ -135,6 +136,40 @@ class EnOceanDevice:
     dbm: int | None = None
     last_command_error: str | None = None
     channels: dict[int, EnOceanChannel] = field(default_factory=dict)
+
+    # Fields a gateway device list owns. ``apply_listed_metadata`` replaces
+    # them in place; every other field is runtime state of this integration
+    # (channels, diagnostics) and survives a list (REST phase 02, E6).
+    LISTED_METADATA_FIELDS: ClassVar[tuple[str, ...]] = (
+        "friendly_id",
+        "eeps",
+        "manufacturer",
+        "physical_device",
+        "first_seen",
+        "last_seen",
+        "dbm",
+    )
+
+    def apply_listed_metadata(
+        self, listed: EnOceanDevice, *, keep_signal: bool = False
+    ) -> None:
+        """Take the gateway metadata of a newer list entry in place.
+
+        The device object stays the same (REST phase 02, finding B-4), so
+        entities and running commands keep a valid reference, and no runtime
+        field can be forgotten in a copy. A missing signal strength or
+        last-seen time keeps the stored value; ``keep_signal`` keeps both when
+        a newer telegram reported them (finding B-5).
+        """
+        self.friendly_id = listed.friendly_id
+        self.eeps = listed.eeps
+        self.manufacturer = listed.manufacturer
+        self.physical_device = listed.physical_device
+        self.first_seen = listed.first_seen
+        if listed.last_seen and not keep_signal:
+            self.last_seen = listed.last_seen
+        if listed.dbm is not None and not keep_signal:
+            self.dbm = listed.dbm
 
     @property
     def primary_eep(self) -> str | None:

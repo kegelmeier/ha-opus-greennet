@@ -420,6 +420,7 @@ def test_stale_devices_and_diagnostics_entry_points() -> None:
         "eagid",
         "deviceid",
         "homekitpin",
+        "homekitqr",
         "host",
         "password",
         "token",
@@ -480,3 +481,19 @@ def test_ci_enforces_the_promised_gates() -> None:
     assert fail_under > 95
     # No file is excluded from measurement to reach the number.
     assert "omit" not in pyproject
+
+
+def test_ci_pins_one_fixed_reference() -> None:
+    """The fixed reference job, its requirements and hassfest agree."""
+    workflow = (ROOT / ".github/workflows/tests.yml").read_text(encoding="utf-8")
+    requirements = (ROOT / "requirements_test_reference.txt").read_text(
+        encoding="utf-8"
+    )
+    version = re.search(r'REFERENCE_HA_VERSION: "([\d.]+)"', workflow).group(1)
+    sha = re.search(r'REFERENCE_HA_CORE_SHA: "([0-9a-f]{40})"', workflow).group(1)
+    assert f"homeassistant=={version}" in requirements
+    assert sha in requirements
+    assert f"Home Assistant {version} (fixed reference)" in workflow
+    assert f"Hassfest at Home Assistant {version} (fixed reference)" in workflow
+    assert "python3 integration/script/check_icons.py" in workflow
+    assert (ROOT / "script/check_icons.py").is_file()

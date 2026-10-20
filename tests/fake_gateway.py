@@ -60,7 +60,13 @@ class FakeGateway:
 
     Behaviour is configured through attributes: ``devices``, ``uptime``,
     ``status`` (per path, a forced HTTP status), ``delays`` (per path, seconds
-    before answering), ``responses`` (per path, a JSON body override) and
+    before answering), ``responses`` (per path, a JSON body override),
+    ``http_status`` (per path, the HTTP status line of an otherwise unchanged
+    answer, so it can differ from ``header.httpStatus`` in the body),
+    ``close_after_snapshot`` (end every event stream right after its device
+    list), ``stream_without_configuration`` (stream the device list without
+    the ``configuration`` block, like real gateways), ``snapshot_delay``
+    (seconds between opening a stream and writing its device list) and
     ``accept_auth`` (reject every request with 401 when False).
     """
 
@@ -75,9 +81,15 @@ class FakeGateway:
         self.status: dict[str, int] = {}
         self.delays: dict[str, float] = {}
         self.responses: dict[str, Any] = {}
+        self.http_status: dict[str, int] = {}
         self.requests: list[tuple[str, str, Any]] = []
         self.on_request: Callable[[str, str, Any], Awaitable[None]] | None = None
         self.stream_preamble: list[str] = []
+        self.close_after_snapshot = False
+        self.snapshot_delay = 0.0
+        # Real gateways stream the device list without ``configuration``
+        # (phase 21 hardware diagnostics); GET /devices carries it.
+        self.stream_without_configuration = False
         self._streams: list[asyncio.Queue[str | None]] = []
         self._stream_connected = asyncio.Event()
         self._stopping = False
@@ -175,6 +187,13 @@ class FakeGateway:
         )
 
     async def _handle(self, request: web.Request) -> web.StreamResponse:
+        response = await self._answer_request(request)
+        path = f"/{request.match_info['path']}"
+        if (code := self.http_status.get(path)) is not None and not response.prepared:
+            response.set_status(code)
+        return response
+
+    async def _answer_request(self, request: web.Request) -> web.StreamResponse:
         path = f"/{request.match_info['path']}"
         body = await request.json() if request.can_read_body else None
         self.requests.append((request.method, path, body))
@@ -209,6 +228,7 @@ class FakeGateway:
                     "version": "OPUS-GW test",
                     "eurid": self.eurid,
                     "homekitPin": "111-22-333",
+                    "homekitQR": "X-HM://0TESTSETUPPAYLOAD",
                     **self.system_info,
                 },
             }
@@ -245,8 +265,21 @@ class FakeGateway:
         queue: asyncio.Queue[str | None] = asyncio.Queue()
         for text in self.stream_preamble:
             await response.write(text.encode())
+        if self.snapshot_delay:
+            # The stream is open (headers sent) but the list is not written yet.
+            await asyncio.sleep(self.snapshot_delay)
         # Pretty-printed like the real gateway, without delimiters.
-        await response.write(json.dumps(self.devices_document(), indent=2).encode())
+        snapshot = self.devices_document()
+        if self.stream_without_configuration:
+            snapshot["devices"] = [
+                {key: value for key, value in device.items() if key != "configuration"}
+                for device in snapshot["devices"]
+            ]
+        await response.write(json.dumps(snapshot, indent=2).encode())
+        if self.close_after_snapshot:
+            # A gateway that ends every stream right after the device list.
+            await response.write_eof()
+            return response
         self._streams.append(queue)
         self._stream_connected.set()
         try:

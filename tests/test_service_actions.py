@@ -205,8 +205,8 @@ async def test_actions_fail_while_the_gateway_is_unavailable(
     entry = await _setup_entry(hass, answering_gateway)
     coordinator = entry.runtime_data.coordinator
     with patch(
-        "custom_components.opus_greennet.coordinator.STREAM_RETRY_DELAYS",
-        (0.01, 0.02),
+        "custom_components.opus_greennet.coordinator.STREAM_BACKOFF_MAX",
+        0.02,
     ):
         await answering_gateway.stop()
         await wait_until(lambda: not coordinator.available)

@@ -21,8 +21,8 @@ from tests.test_coordinator_commands import settle, short_timeout, state_path
 @pytest.fixture(autouse=True)
 def fast_retries():
     with patch(
-        "custom_components.opus_greennet.coordinator.STREAM_RETRY_DELAYS",
-        (0.01, 0.02),
+        "custom_components.opus_greennet.coordinator.STREAM_BACKOFF_MAX",
+        0.02,
     ):
         yield
 

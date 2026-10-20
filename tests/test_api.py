@@ -9,6 +9,7 @@ import aiohttp
 import pytest
 
 from custom_components.opus_greennet.api import (
+    MAX_DOCUMENT_SIZE,
     PRIORITY_BACKGROUND,
     PRIORITY_COMMAND,
     PRIORITY_QUERY,
@@ -138,6 +139,32 @@ def test_splitter_limits_document_size() -> None:
     splitter = JsonDocumentSplitter(max_size=10)
     with pytest.raises(OpusResponseError, match="too large"):
         splitter.feed(b'{"a": "0123456789"')
+
+
+def test_splitter_limits_a_complete_document_within_one_chunk() -> None:
+    """Phase R4, finding B-3: not only remainders growing across chunks."""
+    splitter = JsonDocumentSplitter(max_size=10)
+    with pytest.raises(OpusResponseError, match="too large"):
+        splitter.feed(b'{"a": "0123456789"}')
+
+
+def test_splitter_limits_a_document_completed_in_a_later_chunk() -> None:
+    splitter = JsonDocumentSplitter(max_size=12)
+    assert splitter.feed(b'{"a": "01') == []
+    with pytest.raises(OpusResponseError, match="too large"):
+        splitter.feed(b'23456789"}')
+
+
+def test_splitter_accepts_documents_up_to_the_limit() -> None:
+    document = b'{"a": "0123"}'
+    splitter = JsonDocumentSplitter(max_size=len(document))
+    assert splitter.feed(document + b" " + document) == [document.decode()] * 2
+    # The size of one document never adds up across documents.
+    assert splitter.feed(document) == [document.decode()]
+
+
+def test_splitter_default_limit_is_unchanged() -> None:
+    assert MAX_DOCUMENT_SIZE == 8 * 1024 * 1024
 
 
 # ── priority lock ──────────────────────────────────────────────────────────

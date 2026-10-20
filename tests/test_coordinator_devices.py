@@ -290,7 +290,8 @@ def test_reconnect_snapshot_dispatches_changed_existing_switch(coord, dispatch) 
             "states": [{"key": "switch", "value": "on"}],
         },
     )
-    assert updated is not original
+    # REST phase 02 (E6, B-4): the known device is updated in place.
+    assert updated is original
     assert updated.channels is original.channels
     assert updated.channels[0].is_on is True
     assert updated.friendly_id == "Updated switch"
@@ -600,7 +601,8 @@ def test_refresh_updates_existing_cover_preserving_live_position(
             authoritative=False,
         )
     updated = coord.devices["DEV1"]
-    assert updated is not original
+    # REST phase 02 (E6, B-4): the known device is updated in place.
+    assert updated is original
     assert entity._device is updated
     assert updated.channels[0].position == 20
     assert updated.channels[0].angle == 45

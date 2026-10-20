@@ -208,6 +208,11 @@ class OpusGreenNetEntity(Entity):
         # Immutable projection of the state last written by a coordinator
         # dispatch. Any other write (commands, availability) clears it.
         self._dispatched_projection: Hashable | None = None
+        # The first write (when the entity is added) shows the device state
+        # the coordinator already holds, like a dispatch. With a stream-first
+        # start no device list follows the entity creation, so the initial
+        # write is the baseline for unchanged updates.
+        self._initial_write_pending = True
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -260,9 +265,16 @@ class OpusGreenNetEntity(Entity):
             return None
 
     def _async_write_ha_state(self) -> None:
-        """Forget the dispatch projection whenever any path writes state."""
+        """Forget the dispatch projection whenever any path writes state.
+
+        The initial write is the exception: it shows the coordinator's current
+        device state and becomes the baseline for later dispatches.
+        """
         self._dispatched_projection = None
         super()._async_write_ha_state()
+        if self._initial_write_pending:
+            self._initial_write_pending = False
+            self._dispatched_projection = self._visible_projection()
 
     @callback
     def _handle_state_update(self, device: EnOceanDevice) -> None:

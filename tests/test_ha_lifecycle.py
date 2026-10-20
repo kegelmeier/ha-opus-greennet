@@ -37,8 +37,8 @@ SWITCH_UID = f"AABB0011_{SWITCH}"
 @pytest.fixture(autouse=True)
 def fast_retries() -> Iterator[None]:
     with patch(
-        "custom_components.opus_greennet.coordinator.STREAM_RETRY_DELAYS",
-        (0.01, 0.02),
+        "custom_components.opus_greennet.coordinator.STREAM_BACKOFF_MAX",
+        0.02,
     ):
         yield
 
@@ -130,7 +130,7 @@ async def test_device_list_configuration_disables_tilt_for_roller_shutter(
     assert "current_tilt_position" not in state.attributes
 
 
-@pytest.mark.parametrize("failure", ["unreachable", "device_list_error"])
+@pytest.mark.parametrize("failure", ["unreachable", "stream_error"])
 async def test_setup_retries_for_an_unusable_gateway(
     hass: HomeAssistant, gateway: FakeGateway, failure: str
 ) -> None:
@@ -144,17 +144,20 @@ async def test_setup_retries_for_an_unusable_gateway(
     if failure == "unreachable":
         await gateway.stop()
     else:
-        gateway.status["/devices"] = 500
+        gateway.status["/devices/stream"] = 500
     assert not await hass.config_entries.async_setup(entry.entry_id)
     assert entry.state is config_entries.ConfigEntryState.SETUP_RETRY
-    # The failed attempt left no stream or timers behind.
-    await asyncio.sleep(0.05)
-    assert len(gateway.requests_to("GET", "/devices/stream")) == streams
+    # The failed attempt left no stream or timers behind: the stream-first
+    # setup made at most its one attempt and no further one afterwards.
+    attempts = len(gateway.requests_to("GET", "/devices/stream")) - streams
+    assert attempts == (0 if failure == "unreachable" else 1)
+    await asyncio.sleep(1.4)
+    assert len(gateway.requests_to("GET", "/devices/stream")) == streams + attempts
 
     if failure == "unreachable":
         await gateway.start()
     else:
-        del gateway.status["/devices"]
+        del gateway.status["/devices/stream"]
     assert await hass.config_entries.async_reload(entry.entry_id)
     assert entry.state is config_entries.ConfigEntryState.LOADED
     await gateway.wait_for_stream()

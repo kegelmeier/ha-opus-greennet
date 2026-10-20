@@ -24,6 +24,11 @@ Verification legend: **[Code]** read from source, **[Test]** covered by tests,
   `internal error (java.lang.NullPointerException)` for an unknown device).
   `decode_response` rejects anything else; the gateway message becomes the
   `reason` of a `request_rejected` error. **[HW][Code][Test]**
+- The HTTP status line is checked separately from `header.httpStatus`: both
+  must report success. A non-2xx status line fails the request even if the
+  body reports 200 (`reason` "HTTP status <h>, gateway status <g>");
+  `OpusResponseError` carries `http_status` and `gateway_status`. Requests are
+  never repeated. **[Code][Test]**
 - Shared Home Assistant aiohttp session (`async_get_clientsession`). Request
   bound 10 s (connect 10 s); ReCom requests 45 s. **[Code]**
 
@@ -47,11 +52,23 @@ Device identifiers are URL-quoted. **[Code][Test]**
 `GET /devices/stream` keeps the response open. The gateway writes
 pretty-printed JSON documents back to back without delimiters
 (`JsonDocumentSplitter` cuts them by tracking nesting and strings; maximum
-8 MB per document). **[HW][Code][Test]**
+8 MB per document, also for a document that arrives complete in one chunk).
+**[HW][Code][Test]**
 
 1. The first document is always the complete device list
    (`header.content = "devices"`). It is applied as authoritative state: every
-   new stream is a full resynchronisation. **[HW][Code][Test]**
+   new stream is a full resynchronisation. **[HW][Code][Test]** At setup it
+   is the only state snapshot (stream first): setup reads `/system/info` and
+   `/system/uptime`, opens the stream and waits up to 30 s for this list
+   (`FIRST_DEVICE_LIST_TIMEOUT`); without it, or when the first attempt fails
+   or ends before it, setup raises `ConfigEntryNotReady` (401/403 →
+   `ConfigEntryAuthFailed`). Measured on OPUS-IQ-DOT 1.21.30 with 53 devices:
+   0.076 s; diagnostics show `gateway.first_device_list_seconds`.
+   **[HW][Code][Test]**
+   The streamed list carries states and battery but **no `configuration`
+   block** (cover movement and rotation times). Setup therefore reads
+   `GET /devices` once right after the first list, non-authoritatively
+   (configuration and battery only). **[HW][Code][Test]**
 2. Then one document per telegram (`header.content = "telegram"`) with
    `telegram.deviceId`, `friendlyId`, `timestamp`, `direction` (`from` = device
    report, `to` = command sent by the gateway), `functions` (list; per-function
@@ -66,6 +83,13 @@ pretty-printed JSON documents back to back without delimiters
    - battery level is not streamed; it comes from the device list
      (`"batteryLevel": "96%"`).
    - Two parallel stream clients are served independently.
+6. One reader per entry. Every started reader gets a new connection
+   generation; a reader replaced by a restart applies no further document,
+   changes no availability and closes its response at once
+   (`contextlib.aclosing`). **[Code][Test]**
+7. The 30 min device list never replaces the signal strength or last-seen
+   time of a telegram received after its request started; stream snapshots
+   are ordered with the telegrams and always apply. **[Code][Test]**
 4. `content = "device"` (a single device object) is applied like a device list
    entry; other content types are ignored with a debug log. **[Code][Test]**
 5. Silent streams are reopened after 15 minutes without data (aiohttp
@@ -77,9 +101,13 @@ pretty-printed JSON documents back to back without delimiters
   mirrors it. **[Code][Test]**
 - Available after a successful setup and whenever a stream connects.
 - Unavailable when a stream connection attempt fails, the health check fails,
-  or the credentials are rejected. A stream that ends after it connected is
-  reopened immediately without becoming unavailable. Retry pauses after failed
-  attempts: 1, 2, 5, 10, 30, 60 s. **[Code][Test]**
+  or the credentials are rejected. A stream that ends after it connected does
+  not make the gateway unavailable. Every stream end is followed by a pause:
+  nominal 1, 2, 4, 8, 16, 32, 60 s (bounded exponential), each lengthened by a
+  random 0–25 % (jitter). A stream that ended within 10 s of its first
+  document counts as a failed attempt; only a stream open for at least 10 s
+  resets the schedule. Rejected credentials end the reader without another
+  attempt. **[Code][Test]**
 - A failed health check also replaces the stream (it may be half open towards
   a rebooting gateway); a falling uptime replaces the stream as well.
   **[Code][Test]**
@@ -156,6 +184,20 @@ send it. **[Code][Test]**
   **[HW][Code][Test]**
 - Value validation per key is unchanged (see `EnOceanDevice.update_from_telegram`
   and the former contract §4). **[Code][Test]**
+- A device list updates a known device object in place
+  (`EnOceanDevice.apply_listed_metadata`, REST phase 02): only the list
+  metadata (`LISTED_METADATA_FIELDS`) is replaced; channels, the last command
+  error and update timestamps stay. **[Code][Test]**
+- `configuration.parameters` key `lastVerticalMovementTime` (duration of the
+  last vertical run, seconds) is kept per device and channel and shown in
+  diagnostics as `last_vertical_movement_time`. It is never used for
+  estimates, timers or queries and causes no request. Present only in
+  `GET /devices`, not in the streamed list. **[Upstream note][Code][Test]**
+- Diagnostics show per cover channel `position_origin`: `device list`,
+  `reported` (device report or `device` document), `estimated` (foreign
+  command or entity estimate after an acknowledgement) or `assumed` (travel
+  estimate ended after movement time + 5 s without a report). `unknown`
+  changes neither the position nor its origin. **[Code][Test]**
 
 ## 8. Entity inventory and identities (A5, unchanged)
 
@@ -197,3 +239,4 @@ optional `config_entry_id`.
   sensors and stand-alone rocker switches: not present on the test
   installation; covered by tests with the documented payloads.
 - Whether the gateway ever sends `content = "device"` documents on the stream.
+- The key `lastVerticalMovementTime` on the maintainer's gateway.

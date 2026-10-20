@@ -133,6 +133,39 @@ def configuration_state_functions(data: WireMapping) -> list[WireFunction]:
     return functions
 
 
+# Duration of the last vertical run as the gateway's device list reports it
+# (configuration parameter, seconds). Diagnostic only.
+KEY_LAST_VERTICAL_MOVEMENT_TIME = "lastVerticalMovementTime"
+
+
+def last_vertical_movement_times(data: WireMapping) -> dict[int, float]:
+    """Return the last vertical run duration per channel from a device object.
+
+    Only a finite, non-negative number counts; the key is optional and absent
+    from the event stream's device list (no ``configuration`` block there).
+    """
+    configuration = data.get("configuration")
+    if not isinstance(configuration, dict):
+        return {}
+    parameters = configuration.get("parameters")
+    if not isinstance(parameters, list):
+        return {}
+    channel: object = configuration.get("channel", 0)
+    durations: dict[int, float] = {}
+    for parameter in parameters:
+        if not isinstance(parameter, dict):
+            continue
+        key = parameter.get("key")
+        if key == KEY_CHANNEL:
+            channel = parameter.get("value")
+        elif key == KEY_LAST_VERTICAL_MOVEMENT_TIME:
+            value = EnOceanDevice._parse_number(parameter.get("value"), minimum=0)
+            channel_id = EnOceanDevice._parse_integer(channel)
+            if value is not None and channel_id is not None:
+                durations[channel_id] = float(value)
+    return durations
+
+
 def device_state_functions(data: WireMapping) -> list[WireFunction]:
     """Read the state functions of one device object.
 

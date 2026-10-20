@@ -354,7 +354,7 @@ def test_restart_stream_starts_one_without_a_running_task(coord) -> None:
 
 async def test_stream_loop_ends_after_unload(coord) -> None:
     coord._unloaded = True
-    await coord._async_run_stream()
+    await coord._async_run_stream(coord._stream_generation)
     coord.client.async_stream.assert_not_called()
 
 
