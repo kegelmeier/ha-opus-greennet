@@ -2,6 +2,50 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.0b0] - 2026-10-25
+
+First beta of 1.1: **device settings as entities**, read-only wall switch links and a few new diagnostics, built on @fubu2k's work (#89). v1.0.1 stays the stable release.
+
+### Requirement
+- **Home Assistant 2026.10.1 or newer**, as before.
+
+### Before you update
+- **This is the first version that writes settings to your devices.** All settings entities are disabled by default. Enable only the ones you need, and **try one device first**: only the blind vertical movement time, the maximum holding time and the switch LED colour were written on real hardware so far.
+- **Local addresses only.** The gateway speaks unencrypted HTTP, so setup, re-authentication and reconfiguration only accept addresses in the local network: private, link-local, VPN ranges, or the networks Home Assistant itself is attached to. An existing entry with a public address keeps working and shows a notice in *Repairs*.
+
+### Added
+- **Device settings** as configuration entities, all disabled by default:
+  - **Blinds (D2-05-02):** vertical movement time, rotation time, maximum holding time.
+  - **Dimmers (D2-01-03):** ramping time, short-press time, long-press time.
+  - **Switches (D2-01-01, D2-01-11):** timer durations, switch-off warning and its signal, illumination threshold, plus the selects operation mode, LED colour, LED channel (2-channel) and external input function.
+
+  How a write works:
+  - The value is rounded to the setting's step, written once and read back from the device. Nothing is repeated automatically.
+  - If the device stored a different value, Home Assistant shows what the device holds and tells you.
+  - A setting stays unavailable until the device has reported it.
+- **Wall switch links (read only):** the `opus_greennet.get_device_link_tables` action (for administrators), a *Wall switch links* sensor (disabled by default) and the link tables in the diagnostics download. Link tables are never written.
+- **Last seen** sensor for every device (disabled by default) and **Uptime** on the gateway device (the time the gateway started).
+- **Event stream** details in the diagnostics download.
+- **Examples and use cases** in the documentation.
+
+### Changed
+- **Leaner event stream:** the gateway is asked for one document per line. If it answers that request with an error, the integration retries once in the previous format and keeps using it. A stream that ends in the middle of a document now reconnects.
+- **Gateway actions** are pinned to fixed versions in CI; Home Assistant 2026.10.3 is the test reference.
+
+### Fixed
+- The `set_device_configuration` action and the settings entities reject values that are not valid JSON (for example `NaN`) before anything is sent.
+
+### Unchanged
+- Existing entities, entity IDs and unique IDs. Signal strength stays disabled by default.
+
+### Beta testing
+- **Please test:**
+  - change one setting per device type (blind, dimmer, switch) and check that the device really changed;
+  - after a gateway restart, the event stream keeps working, especially on the black gateway (firmware 1.21.31/1.21.34);
+  - setting up by host name (for example `opusshgw.local`).
+- Report in the beta issue.
+- Thanks @fubu2k for #89!
+
 ## [1.0.1] - 2026-10-25
 
 Maintenance release with no functional changes.
