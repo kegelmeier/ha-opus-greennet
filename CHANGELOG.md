@@ -2,9 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [1.2.0b0] - 2026-10-30
 
-Support for gateways with **WebUI 2026**, settings you can **read on request**, **routing and repeater mode** as entities, and much more detail for diagnosing the radio network: a radio journal, gateway versions and address, a signal quality rating. Built on @fubu2k's work, rebased onto v1.1.0. The version number and release header are left to the maintainer.
+First beta of 1.2. Support for gateways with **WebUI 2026**, settings you can **read on request**, **routing and repeater mode** as entities, and much more detail for diagnosing the radio network: a radio journal, gateway versions and address, a signal quality rating. Built on @fubu2k's work (#112). v1.1.1 stays the stable release.
+
+> **WebUI 2026 support is experimental.** No gateway with WebUI 2026 has been tested yet: the login and the token handling follow the documented pattern but are unverified. When the access token expires, the gateway can show as unavailable for up to a minute or one command can fail; this is tracked for a later version. Gateways of the earlier generation (HTTP, port 8080) are not affected.
 
 ### Requirement
 - **Home Assistant 2026.10.1 or newer**, as before. CI now uses 2026.10.4 as the fixed reference.
