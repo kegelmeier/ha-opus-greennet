@@ -118,6 +118,21 @@ async def _user(hass: HomeAssistant, user_input: dict[str, Any]) -> dict[str, An
     return await hass.config_entries.flow.async_configure(result["flow_id"], user_input)
 
 
+async def _confirm_first_contact(
+    hass: HomeAssistant, result: dict[str, Any], read: Any = None
+) -> dict[str, Any]:
+    """Check the first-contact question, then confirm the certificate."""
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "certificate_new"
+    placeholders = result["description_placeholders"]
+    assert placeholders["fingerprint"] == ":".join(["AB"] * 32)
+    assert placeholders["host"] == "192.168.1.5"
+    if read is not None:
+        # Nothing was sent to the gateway before the user confirmed.
+        read.assert_not_awaited()
+    return await hass.config_entries.flow.async_configure(result["flow_id"], {})
+
+
 async def _reauth(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
     entry.async_start_reauth(hass)
     await hass.async_block_till_done()
@@ -131,6 +146,7 @@ async def _reauth(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
 async def test_a_new_generation_gateway_is_found_when_the_old_port_is_closed(hass):
     with _detect(ENDPOINT), _read(EAG_ID) as read:
         result = await _user(hass, USER_INPUT)
+        result = await _confirm_first_contact(hass, result, read)
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"] == {
@@ -174,6 +190,7 @@ async def test_an_earlier_generation_gateway_keeps_its_entry_data(hass):
 async def test_the_https_port_is_never_asked_over_plain_http(hass):
     with _detect(ENDPOINT), _read(EAG_ID) as read:
         result = await _user(hass, {**USER_INPUT, "port": 443})
+        result = await _confirm_first_contact(hass, result, read)
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     (call,) = read.await_args_list
@@ -183,17 +200,17 @@ async def test_the_https_port_is_never_asked_over_plain_http(hass):
 async def test_a_tls_service_at_another_port_never_gets_the_credentials_in_clear(hass):
     """A gateway of the new generation on a port of the user's choice."""
     endpoint = GatewayEndpoint(8443, FINGERPRINT)
-    with _detect(endpoint) as detect, _read(EAG_ID) as read:
+    with _detect(endpoint), _read(EAG_ID) as read:
         result = await _user(hass, {**USER_INPUT, "port": 8443})
+        result = await _confirm_first_contact(hass, result, read)
 
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"]["generation"] == "webui2026"
     assert result["data"]["port"] == 8443
     # Only the read over HTTPS was made: no plain-HTTP request carried the
-    # user name and password. The port was asked once, without credentials.
+    # user name and password.
     (call,) = read.await_args_list
     assert call.args[1]["generation"] == "webui2026"
-    assert detect.await_count == 1
 
 
 async def test_another_port_without_tls_is_still_asked_as_an_earlier_gateway(hass):
@@ -228,6 +245,7 @@ async def test_nothing_answering_on_the_https_port_cannot_connect(hass):
 async def test_a_wrong_password_on_a_new_generation_gateway(hass):
     with _detect(ENDPOINT), _read(OpusAuthError("x")) as read:
         result = await _user(hass, USER_INPUT)
+        result = await _confirm_first_contact(hass, result, read)
 
     assert result["errors"] == {"base": "invalid_auth"}
     # The only read went over HTTPS: nothing was sent to port 8080.
@@ -247,6 +265,7 @@ async def test_a_wrong_password_on_a_new_generation_gateway(hass):
 async def test_other_failures_of_a_new_generation_gateway(hass, error, key):
     with _detect(ENDPOINT), _read(error):
         result = await _user(hass, USER_INPUT)
+        result = await _confirm_first_contact(hass, result)
 
     assert result["errors"] == {"base": key}
 
@@ -344,6 +363,9 @@ async def test_an_updated_gateway_asks_for_its_new_login_and_keeps_its_data(hass
         result = await hass.config_entries.flow.async_configure(
             flow["flow_id"], {**USER_INPUT, "password": "new-password"}
         )
+        # The certificate of the updated gateway is new to the entry: it is
+        # confirmed before the new password is sent.
+        result = await _confirm_first_contact(hass, result, read)
 
     (call,) = read.await_args_list
     assert call.args[1]["generation"] == "webui2026"
@@ -657,3 +679,59 @@ async def test_a_gateway_with_another_eurid_does_not_move_a_new_generation_entry
 
     assert result["type"] is FlowResultType.FORM
     assert entry.data == WEBUI_DATA
+
+
+# ── adding a known gateway again ───────────────────────────────────────────
+
+
+async def test_adding_a_known_gateway_again_with_the_same_certificate(hass):
+    entry = await _add(hass, dict(WEBUI_DATA))
+
+    with _detect(ENDPOINT), _read(EAG_ID):
+        result = await _user(hass, {**USER_INPUT, "port": 443, "password": "newer"})
+
+    # No question: the certificate is the remembered one.
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert entry.data["password"] == "newer"
+    assert entry.data["certificate_fingerprint"] == FINGERPRINT
+
+
+async def test_adding_a_known_gateway_again_confirms_a_changed_certificate(hass):
+    entry = await _add(hass, dict(WEBUI_DATA))
+    changed = GatewayEndpoint(443, OTHER_FINGERPRINT)
+
+    with _detect(changed), _read(EAG_ID) as read:
+        result = await _user(hass, {**USER_INPUT, "port": 443, "password": "newer"})
+
+        assert result["type"] is FlowResultType.FORM
+        assert result["step_id"] == "certificate"
+        assert result["description_placeholders"]["eag_id"] == EAG_ID
+        # Neither sent to the other certificate nor replaced silently.
+        read.assert_not_awaited()
+        assert entry.data["certificate_fingerprint"] == FINGERPRINT
+
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert entry.data["certificate_fingerprint"] == OTHER_FINGERPRINT
+    assert entry.data["password"] == "newer"
+
+
+async def test_a_known_new_generation_gateway_added_again_as_an_earlier_one(hass):
+    """The old HTTPS port and certificate do not stay on an earlier gateway."""
+    entry = await _add(hass, dict(WEBUI_DATA))
+
+    with _detect(None), _read(EAG_ID):
+        result = await _user(hass, USER_INPUT)
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+    assert dict(entry.data) == {
+        "eag_id": EAG_ID,
+        "host": "192.168.1.5",
+        "port": 8080,
+        "username": "installateur",
+        "password": PASSWORD,
+    }

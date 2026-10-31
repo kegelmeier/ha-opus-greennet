@@ -53,6 +53,10 @@
       "certificate": {
         "title": "Confirm the gateway certificate",
         "description": "Gateway {eag_id} presents a different certificate than the one remembered at the first connection. This happens after a factory reset or when the gateway was replaced, but also when another device answers at this address. Nothing was sent to it. Fingerprint (SHA-256): {fingerprint}. Continue only if you expect the change."
+      },
+      "certificate_new": {
+        "title": "Confirm the gateway certificate",
+        "description": "The gateway at {host} uses WebUI 2026 and presents a self-signed certificate that Home Assistant cannot check. It will be remembered, and later connections accept only this certificate. Nothing was sent to the gateway yet. Fingerprint (SHA-256): {fingerprint}. Continue only if this is your gateway; compare the fingerprint with the one in the gateway's web interface if you can."
       }
     },
     "error": {

@@ -53,6 +53,10 @@
       "certificate": {
         "title": "Gateway-Zertifikat bestätigen",
         "description": "Das Gateway {eag_id} zeigt ein anderes Zertifikat als das bei der ersten Verbindung gemerkte. Das passiert nach einem Werksreset oder Gerätetausch, aber auch, wenn ein anderes Gerät unter dieser Adresse antwortet. Es wurde nichts an das Gerät gesendet. Fingerabdruck (SHA-256): {fingerprint}. Fahre nur fort, wenn du die Änderung erwartest."
+      },
+      "certificate_new": {
+        "title": "Gateway-Zertifikat bestätigen",
+        "description": "Das Gateway unter {host} verwendet WebUI 2026 und zeigt ein selbstsigniertes Zertifikat, das Home Assistant nicht prüfen kann. Es wird gemerkt, spätere Verbindungen akzeptieren nur dieses Zertifikat. Es wurde noch nichts an das Gateway gesendet. Fingerabdruck (SHA-256): {fingerprint}. Fahre nur fort, wenn es dein Gateway ist; vergleiche den Fingerabdruck wenn möglich mit dem in der Weboberfläche des Gateways."
       }
     },
     "error": {
