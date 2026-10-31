@@ -132,6 +132,9 @@ cancels the queued commands instead of replaying them after recovery.
   with WebUI 2026 use HTTPS with a pinned certificate and a token (see the
   README).
 - Battery level and signal strength are refreshed every 30 minutes.
+- The signal strength is the direct link to the gateway, without repeaters. The
+  gateway reports no radio path, so the integration cannot show which repeater
+  serves a device (see [Devices](devices.md)).
 - Devices cannot be added to or removed from the gateway from Home Assistant
   yet, and device settings are only available as actions (see the
   [roadmap](../README.md#roadmap)).

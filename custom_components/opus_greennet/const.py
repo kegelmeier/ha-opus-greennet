@@ -234,11 +234,12 @@ KEY_OPERATION_MODE: Final = "operationMode"
 KEY_LED_COLOR: Final = "ledColor"
 KEY_LED_CHANNEL: Final = "ledChannel"
 KEY_FUNCTION_EXTERNAL_INPUT: Final = "functionExternalInput"
-# Routing (configuration parameter) is "off" or a time in seconds; only "off"
-# was seen on devices. It is shown as off/on: any time is "on". "on" is written
-# as the smallest time of the catalog (0.3 s), an assumption until a device
-# that routes was read. The repeater mode is no ReCom parameter but the device
-# resource /repeaterState (off, level_1, level_2).
+# Routing (configuration parameter) is "off" or a time in seconds. A D2-01-01
+# switch with ViNET on in the OPUS config tool reported 0.3 (device list,
+# 2026-10-31, firmware 1.21.30). It is shown as off/on: any time is "on". "on" is
+# written as 0.3 s, the value seen on that device; other times are untested.
+# D2-01-03 dimmers report no routing parameter. The repeater mode is no ReCom
+# parameter but the device resource /repeaterState (off, level_1, level_2).
 KEY_ROUTING_TIME: Final = "routingTime"
 KEY_REPEATER_STATE: Final = "repeaterState"
 ROUTING_ON_SECONDS: Final = 0.3
