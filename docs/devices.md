@@ -71,6 +71,21 @@ newer. The button is offered for blinds, D2-01-03 dimmers, D2-01-01/-11
 switches and A5-07-03 presence detectors, the devices that have settings; reading is verified on hardware as the
 read-back after a write, not yet as a button press.
 
+**Contradicting settings are refused.** The OPUS config tool warns about
+settings that contradict each other. The integration goes one step further: it
+refuses a write that would create or worsen such a combination, before anything
+is sent to the gateway, and shows an error that names the combination. The
+combinations are a blind's maximum holding time shorter than its vertical
+movement time (the blind would stop before it is fully open), a vertical
+movement time shorter than the rotation time, a switch's timer duration (long
+press) shorter than its timer duration, and a switch-off warning longer than the
+timer duration. A write that keeps or reduces an existing conflict is allowed,
+so a wrong combination can be fixed step by step, and a value that is not known
+yet is never compared. The check uses the values Home Assistant shows; if one of
+them is outdated, press *Read settings* and try again. Change the other setting
+first when a value is refused, for example raise the maximum holding time before
+the vertical movement time.
+
 Every actuator whose device list contains a link table also has the diagnostic
 sensor *Wall switch links* (see [Sensor values](#sensor-values)). The
 functions of rocker A and B are left out until a text

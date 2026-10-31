@@ -480,6 +480,18 @@
     "parameter_differs": {
       "message": "{device_id} hat für {reason} einen anderen Wert gespeichert als angefordert. Home Assistant zeigt jetzt den auf dem Gerät gespeicherten Wert."
     },
+    "setting_conflict_holding_time_shorter_than_travel_time": {
+      "message": "{device_id}: Nicht geschrieben. Die maximale Haltezeit wäre kürzer als die Fahrzeit. Ändere zuerst die andere Einstellung, oder lies die Einstellungen neu, falls ein angezeigter Wert veraltet ist."
+    },
+    "setting_conflict_travel_time_shorter_than_rotation_time": {
+      "message": "{device_id}: Nicht geschrieben. Die Fahrzeit wäre kürzer als die Rotationszeit. Ändere zuerst die andere Einstellung, oder lies die Einstellungen neu, falls ein angezeigter Wert veraltet ist."
+    },
+    "setting_conflict_cleaning_time_shorter_than_run_on_time": {
+      "message": "{device_id}: Nicht geschrieben. Die Timer-Dauer (langer Druck) wäre kürzer als die Timer-Dauer. Ändere zuerst die andere Einstellung, oder lies die Einstellungen neu, falls ein angezeigter Wert veraltet ist."
+    },
+    "setting_conflict_switch_off_warning_longer_than_run_on_time": {
+      "message": "{device_id}: Nicht geschrieben. Die Abschaltwarnung wäre länger als die Timer-Dauer. Ändere zuerst die andere Einstellung, oder lies die Einstellungen neu, falls ein angezeigter Wert veraltet ist."
+    },
     "invalid_parameter_value": {
       "message": "Der Wert ist keine gültige Zahl."
     },

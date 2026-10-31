@@ -480,6 +480,18 @@
     "parameter_differs": {
       "message": "{device_id} stored a different value for {reason} than requested. Home Assistant now shows the value stored on the device."
     },
+    "setting_conflict_holding_time_shorter_than_travel_time": {
+      "message": "{device_id}: Not written. The maximum holding time would be shorter than the vertical movement time. Change the other setting first, or press Read settings if a shown value is outdated."
+    },
+    "setting_conflict_travel_time_shorter_than_rotation_time": {
+      "message": "{device_id}: Not written. The vertical movement time would be shorter than the rotation time. Change the other setting first, or press Read settings if a shown value is outdated."
+    },
+    "setting_conflict_cleaning_time_shorter_than_run_on_time": {
+      "message": "{device_id}: Not written. The timer duration (long press) would be shorter than the timer duration. Change the other setting first, or press Read settings if a shown value is outdated."
+    },
+    "setting_conflict_switch_off_warning_longer_than_run_on_time": {
+      "message": "{device_id}: Not written. The switch-off warning would be longer than the timer duration. Change the other setting first, or press Read settings if a shown value is outdated."
+    },
     "invalid_parameter_value": {
       "message": "The value is not a valid number."
     },

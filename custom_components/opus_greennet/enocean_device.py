@@ -69,6 +69,7 @@ from .const import (
     ROCKER_EEP_PREFIXES,
     ROUTING_OFF,
     ROUTING_ON,
+    SETTING_CONSTRAINTS,
     STATE_ON,
     UNLOCK_ALLOWED,
     UNLOCK_NOT_ALLOWED,
@@ -346,6 +347,42 @@ class EnOceanDevice:
         if isinstance(value, bool) or not isinstance(value, (int, float, str)):
             return None
         return value
+
+    def setting_conflicts(
+        self, key: str | None = None, *, value: float | None = None
+    ) -> list[str]:
+        """Return the settings combinations the OPUS config tool warns about.
+
+        Only numbers that are both known are compared; ``key`` limits the result
+        to the combinations that setting belongs to. With ``value`` the result is
+        what writing ``value`` to ``key`` would do: a combination that is wrong
+        afterwards is only reported when the write creates it or makes it worse,
+        so a write that keeps or reduces an existing conflict is never refused.
+        """
+        conflicts: list[str] = []
+        for name, larger, smaller in SETTING_CONSTRAINTS:
+            if key is not None and key not in (larger, smaller):
+                continue
+            current = self._setting_gap(larger, smaller)
+            if value is None:
+                if current is not None and current < 0:
+                    conflicts.append(name)
+                continue
+            high = value if larger == key else self.setting_reading(larger)
+            low = value if smaller == key else self.setting_reading(smaller)
+            if not isinstance(high, (int, float)) or not isinstance(low, (int, float)):
+                continue
+            gap = high - low
+            if gap < 0 and (current is None or gap < current):
+                conflicts.append(name)
+        return conflicts
+
+    def _setting_gap(self, larger: str, smaller: str) -> float | None:
+        """Return the stored ``larger`` minus ``smaller``, None while one is unknown."""
+        high, low = self.setting_reading(larger), self.setting_reading(smaller)
+        if isinstance(high, (int, float)) and isinstance(low, (int, float)):
+            return high - low
+        return None
 
     @property
     def primary_eep(self) -> str | None:

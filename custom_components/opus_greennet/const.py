@@ -267,6 +267,23 @@ DEVICE_SETTING_KEYS: Final = frozenset(DEVICE_SETTINGS) | frozenset(DEVICE_OPTIO
 # can repeat the value from before a confirmed write. A list that shows the
 # written value or a third value ends the protection earlier.
 SETTING_CACHE_GUARD_SECONDS: Final = 26 * 3600.0
+# Combinations of settings the OPUS config tool warns about: (name, key that
+# should be at least as large, key that should not be larger). A write that
+# would create or worsen such a combination is refused before anything is sent.
+SETTING_CONSTRAINTS: Final = (
+    (
+        "holding_time_shorter_than_travel_time",
+        KEY_MAX_HOLDING_TIME,
+        KEY_VERTICAL_MOVEMENT_TIME,
+    ),
+    (
+        "travel_time_shorter_than_rotation_time",
+        KEY_VERTICAL_MOVEMENT_TIME,
+        KEY_ROTATION_TIME,
+    ),
+    ("cleaning_time_shorter_than_run_on_time", KEY_TIMER_LONG, KEY_TIMER),
+    ("switch_off_warning_longer_than_run_on_time", KEY_TIMER, KEY_SWITCH_OFF_WARNING),
+)
 COVER_MOVEMENT_GRACE_SECONDS: Final = 5.0
 # A run into an end stop is reported about 1.4 s later than a partial run
 # (measured on one installation of D2-05-02 blinds), so its estimate waits longer.

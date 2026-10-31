@@ -2557,6 +2557,16 @@ class OpusGreenNetCoordinator:
         if device is None:
             raise request_error("device_not_found", device_id)
         async with self._setting_locks.setdefault(device_id, asyncio.Lock()):
+            if isinstance(value, (int, float)) and (
+                conflicts := device.setting_conflicts(key, value=value)
+            ):
+                # The OPUS config tool warns about these combinations; a write
+                # that creates or worsens one is refused before it is sent.
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key=f"setting_conflict_{conflicts[0]}",
+                    translation_placeholders={"device_id": device_id},
+                )
             document = await self._async_write_and_read_back(device_id, key, value)
             stored = read(document, key)
             if stored is None:
