@@ -43,6 +43,12 @@ How a setting is written, for every device type:
   (usually at night). For up to 26 hours after a confirmed write, a device list
   with an older value is ignored for that setting; a change made in the OPUS
   app in that time shows up once the gateway lists it.
+- That protection survives a restart of Home Assistant (for example after an
+  update). Home Assistant saves only its own bookkeeping for it, not a value it
+  shows, in a small file per gateway under `.storage`; the file is removed with
+  the integration entry. After a restart the setting is therefore shown as
+  unknown, rather than with the old value, until the gateway lists another
+  value (usually at night) or *Read settings* has read it from the device.
 
 Which of these settings were written on real hardware, and which only read, is
 listed in the [README](../README.md#what-was-verified-on-hardware).

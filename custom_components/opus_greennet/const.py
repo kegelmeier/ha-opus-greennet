@@ -267,6 +267,11 @@ DEVICE_SETTING_KEYS: Final = frozenset(DEVICE_SETTINGS) | frozenset(DEVICE_OPTIO
 # can repeat the value from before a confirmed write. A list that shows the
 # written value or a third value ends the protection earlier.
 SETTING_CACHE_GUARD_SECONDS: Final = 26 * 3600.0
+# The protection survives a restart of Home Assistant: its bookkeeping (not a
+# device value) is saved under ``<KEY>.<eag_id>`` a few seconds after each change.
+SETTING_GUARD_STORE_KEY: Final = "opus_greennet.setting_guards"
+SETTING_GUARD_STORE_VERSION: Final = 1
+SETTING_GUARD_SAVE_DELAY: Final = 5.0
 COVER_MOVEMENT_GRACE_SECONDS: Final = 5.0
 # A run into an end stop is reported about 1.4 s later than a partial run
 # (measured on one installation of D2-05-02 blinds), so its estimate waits longer.
