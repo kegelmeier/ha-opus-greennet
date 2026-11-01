@@ -373,16 +373,18 @@ battery percentage is invented when the gateway publishes none.
   1.21.30) the device list and the event stream snapshot carried no field for a
   repeater or a hop count. Which telegrams were repeated by which device cannot
   be read from the gateway interface, so the integration cannot draw a network
-  plan from it. This path information seems to exist only where the repeater
-  telegrams are evaluated, in the config tool (not verified).
+  plan from it. The radio coverage analysis of the config tool does show the
+  repeater level of the received telegrams (see below).
   The radio coverage analysis of the OPUS config tool (version 3.0.5.54, USB
   stick next to the gateway, one installation, 2026-11-01) lists for every
   device the direct link (`D`) and the links through a level 1 (`L1`) and a
   level 2 (`L2`) repeater, each with a signal strength and the number of
   telegrams. Of 68 devices, 43 had telegrams and 6 had values under `L1`; none
   had `L2`, and none was reached only through a repeater. Only two of the six
-  columns of the report carried data, and an actuator had one to ten telegrams,
-  so one report says little about a path. For two devices with `L1` values the
+  columns of the report carried data, and an actuator had between 1 and 25
+  telegrams, so one report says little about a path. The numbers grow from the
+  first to the second column, so the columns look like cumulative stages of one
+  run and not like separate positions (not verified). For two devices with `L1` values the
   `L1` value (about -67 and -68 dBm) is close to the direct value of the only
   two devices in that installation with a repeater switched on (about -68 and
   -69 dBm). This suggests that one of them forwarded the telegrams; it is
