@@ -158,6 +158,9 @@
       "last_seen": {
         "name": "Last seen"
       },
+      "settings_read": {
+        "name": "Settings read"
+      },
       "wall_switch_links": {
         "name": "Wall switch links"
       },

@@ -1049,6 +1049,7 @@ class OpusGreenNetCoordinator:
             last_seen=protocol.metadata_text(data.get("lastSeen")),
             dbm=EnOceanDevice._parse_integer(data.get("dbm")),
             link_tables=protocol.link_tables(data),
+            settings_read_at=protocol.configuration_read_time(data),
         )
         was_known = existing is not None and bool(existing.eeps)
         if existing is None:
@@ -2410,6 +2411,7 @@ class OpusGreenNetCoordinator:
         if not functions:
             return
         device.update_from_telegram({"functions": functions})
+        device.settings_read_at = dt_util.utcnow()
         if guards := self._setting_guards.get(device_id):
             for function in functions:
                 if isinstance(key := function.get("key"), str):

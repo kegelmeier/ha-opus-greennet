@@ -550,6 +550,7 @@ async def test_sensor_setup_deduplicates_discovery_entities() -> None:
         f"{EAG_ID}_DEV1_signal_quality",
         f"{EAG_ID}_DEV1_last_seen",
         f"{EAG_ID}_DEV1_device_id",
+        f"{EAG_ID}_DEV1_settings_read",
         # The settings stored on the switch, read only.
         f"{EAG_ID}_DEV1_timer_setting",
         f"{EAG_ID}_DEV1_timer_long_setting",

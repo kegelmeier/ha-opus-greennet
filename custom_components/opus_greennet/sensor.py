@@ -308,6 +308,18 @@ async def async_setup_entry(
             OpusGreenNetDeviceIdSensor(coordinator, eag_id, gateway_device_id, device)
         )
 
+        # When the settings shown below were last read from the device
+        # (diagnostic), for every device that has settings.
+        if any(
+            device_time.applies_to(device)
+            for device_time in (*DEVICE_TIMES, *PRESENCE_SETTINGS)
+        ):
+            entities.append(
+                OpusGreenNetSettingsReadSensor(
+                    coordinator, eag_id, gateway_device_id, device
+                )
+            )
+
         # The settings stored on the device, read only (diagnostic). The number
         # and select entities that write them are disabled by default.
         entities.extend(
@@ -651,6 +663,42 @@ class OpusGreenNetLastSeenSensor(OpusGreenNetBaseSensor):
     def native_value(self) -> datetime | None:
         """Return the time of the newest report, unknown when not usable."""
         return parse_last_seen(self._device.last_seen)
+
+
+class OpusGreenNetSettingsReadSensor(OpusGreenNetBaseSensor):
+    """When the settings shown for the device were last read from it.
+
+    The gateway reads the configuration of a device itself only now and then
+    (nightly in the E0 catalog) and a device whose answer fails keeps its old
+    values. The time is the gateway's cache time, or the time of the last
+    *Read settings*. A value that is old, for example after a restore from a
+    backup, is a reason to press *Read settings*.
+    """
+
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(
+        self,
+        coordinator: OpusGreenNetCoordinator,
+        eag_id: str,
+        gateway_device_id: str,
+        device: EnOceanDevice,
+    ) -> None:
+        """Initialize the settings read sensor."""
+        super().__init__(
+            coordinator,
+            eag_id,
+            gateway_device_id,
+            device,
+            "settings_read",
+            "settings_read",
+        )
+
+    @property
+    def native_value(self) -> datetime | None:
+        """Return the read time, unknown when the gateway lists none."""
+        return self._device.settings_read_at
 
 
 class OpusGreenNetWallSwitchLinksSensor(OpusGreenNetBaseSensor):

@@ -235,7 +235,8 @@ Settings are written over the radio, so a change can take several seconds and
 needs the actuator to answer. Every device with settings also shows the stored
 values as read-only diagnostic sensors (enabled by default, named *… (stored)*)
 and has a *Read settings* diagnostic button that reads them from the device
-once, for example after a write whose outcome was unclear. The entities that
+once, for example after a write whose outcome was unclear. A diagnostic
+*Settings read* sensor shows when the stored values were last read. The entities that
 change a setting stay disabled until you enable them.
 
 #### What was verified on hardware

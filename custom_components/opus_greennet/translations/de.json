@@ -158,6 +158,9 @@
       "last_seen": {
         "name": "Zuletzt gesehen"
       },
+      "settings_read": {
+        "name": "Einstellungen gelesen"
+      },
       "wall_switch_links": {
         "name": "Wandtaster-Verknüpfungen"
       },

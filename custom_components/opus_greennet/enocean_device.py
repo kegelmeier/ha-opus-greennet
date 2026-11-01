@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from datetime import datetime
 from math import isfinite
 from types import MappingProxyType
 from typing import ClassVar, Final
@@ -258,6 +259,9 @@ class EnOceanDevice:
     hardware_revision: str = ""
     first_seen: str = ""
     last_seen: str = ""
+    # When the settings shown for the device were last read from it: the time of
+    # the gateway's cached configuration, or of the last "Read settings".
+    settings_read_at: datetime | None = None
     last_update_source: str = ""
     last_update_received_monotonic: float | None = field(
         default=None, repr=False, compare=False
@@ -317,6 +321,12 @@ class EnOceanDevice:
             self.last_seen = listed.last_seen
         if listed.dbm is not None and not keep_signal:
             self.dbm = listed.dbm
+        # The gateway's cache time never moves back past a read made since.
+        if listed.settings_read_at is not None and (
+            self.settings_read_at is None
+            or listed.settings_read_at > self.settings_read_at
+        ):
+            self.settings_read_at = listed.settings_read_at
         # A list without a table says nothing; it never clears a known one.
         if listed.link_tables is not None:
             self.link_tables = listed.link_tables

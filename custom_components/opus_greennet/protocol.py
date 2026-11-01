@@ -465,6 +465,26 @@ def configuration_functions(data: WireMapping) -> list[WireFunction]:
     ]
 
 
+def configuration_read_time(data: WireMapping) -> datetime | None:
+    """Return when the gateway last read the configuration of a device object.
+
+    ``configuration.lastUpdateTime`` is an ISO 8601 time with a UTC offset. A
+    missing, malformed or offset-less value is unknown: the time zone is never
+    guessed.
+    """
+    configuration = data.get("configuration")
+    if not isinstance(configuration, dict):
+        return None
+    value = configuration.get("lastUpdateTime")
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else None
+
+
 def confirmed_fields_by_channel(
     functions: Sequence[WireFunction],
 ) -> dict[int, set[str]]:

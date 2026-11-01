@@ -44,6 +44,9 @@ RUNTIME_FIELDS = {
     "channels",
     # Gateway profile read at setup; dropped when the announced EEPs change.
     "profile",
+    # Read time of the settings: a list moves it forward only, never back past
+    # a "Read settings" made since (see apply_listed_metadata).
+    "settings_read_at",
 }
 
 
