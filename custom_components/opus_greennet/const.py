@@ -248,8 +248,9 @@ ROUTING_ON_SECONDS: Final = 0.3
 SIGNAL_GOOD_DBM: Final = -75
 SIGNAL_POOR_DBM: Final = -85
 SWITCH_EEPS: Final = ("D2-01-01", "D2-01-11")
-# Devices that report the repeater mode (D2-01-03 read from a dimmer, not written).
-REPEATER_EEPS: Final = (*SWITCH_EEPS, "D2-01-03")
+# Devices that report the repeater mode. Written on a D2-01-01 switch and on a
+# D2-05-02 blind (off and level 1); D2-01-03 was read from a dimmer, not written.
+REPEATER_EEPS: Final = (*SWITCH_EEPS, "D2-01-03", "D2-05-02")
 ROUTING_OFF: Final = "off"
 ROUTING_ON: Final = "on"
 DEVICE_OPTIONS: Final = {
