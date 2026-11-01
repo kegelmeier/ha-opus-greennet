@@ -112,9 +112,13 @@ made by another controller shows up with the next refresh and a value can be
 up to a day old. A new value is written with the ReCom configuration request
 and adopted only after it was read back from the dimmer; if the dimmer does not
 confirm it, the previous value stays and nothing is repeated automatically.
-Writing these three times was **not tested on hardware** (only the vertical
-movement time and the maximum holding time of blinds were), so try a single
-dimmer first. The ranges are those of the parameter catalog read from one
+Writing these times is **not confirmed on hardware**. On one dimmer
+(D2-01-03, software 0.1.0.3) a write of *Ramping time* with 0.5 s and with 1.0 s
+was not stored: the dimmer kept 0, and the integration reported that the device
+stored a different value and kept the previous one. Writing the value the dimmer
+already had (0) was accepted. *Short-press time* and *Long-press time* were not
+tested. Only the vertical movement time and the maximum holding time of blinds
+were confirmed, so try a single dimmer first. The ranges are those of the parameter catalog read from one
 D2-01-03; other dimmer types get no such entities.
 
 **Dimmer times: what is not verified.** Which setting of the OPUS configuration
