@@ -117,6 +117,20 @@ movement time and the maximum holding time of blinds were), so try a single
 dimmer first. The ranges are those of the parameter catalog read from one
 D2-01-03; other dimmer types get no such entities.
 
+**Dimmer times: what is not verified.** Which setting of the OPUS configuration
+tool each of the three numbers corresponds to has **not been verified**. The
+gateway calls them "Rampenzeit Ein/Aus", "Zeit ShortPress" and "Zeit
+LongPress". In the texts of the configuration tool (3.0.5.54), *Ramping time*
+is probably the tool's "Rampenzeit für Schalten" (the fade of switching on and
+off); this is an assumption. The dimmer dialog of the tool has no setting that
+matches the short-press and long-press time, and what they do on the dimmer is
+not known. The three ramp times that dim commands can select (`rampingTime1` to
+`rampingTime3`; the tool calls them "Rampenzeit manuell", "Rampenzeit 2" and
+"Rampenzeit 3") are not offered by the gateway as settings, so the integration
+cannot read or change them. A `transition` uses the first of them, so its
+duration is probably not the *Ramping time* entity. Set these ramp times in the
+configuration tool.
+
 **Switch settings.** D2-01-01 and D2-01-11 switches get five number entities
 for the settings stored on the switch: *Timer duration* (60 to 7200 s) and
 *Timer duration (long press)* (60 to 18000 s), which only act when the
