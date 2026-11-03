@@ -339,6 +339,9 @@
       },
       "blockage": {
         "name": "Blockierung"
+      },
+      "daily_settings_read": {
+        "name": "Tägliches Einlesen der Einstellungen"
       }
     },
     "lock": {
@@ -446,6 +449,11 @@
           "off": "Aus",
           "on": "Ein"
         }
+      }
+    },
+    "time": {
+      "daily_settings_read_time": {
+        "name": "Uhrzeit für das tägliche Einlesen"
       }
     }
   },

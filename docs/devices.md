@@ -86,16 +86,20 @@ newer. The button is offered for blinds, D2-01-03 dimmers, D2-01-01/-11
 switches and A5-07-03 presence detectors, the devices that have settings; reading is verified on hardware as the
 read-back after a write, not yet as a button press.
 
-**Daily read.** Every day at 05:00 local time the integration reads the stored
-settings of all these devices once, like the button, one after the other. This
+**Daily read.** Every day at 05:00 local time (default) the integration reads
+the stored settings of all these devices once, like the button, one after the
+other. The gateway device has two configuration entities for it: the switch
+*Daily settings read* (on by default) and the time *Daily settings read time*
+(local time, to the minute). Both are restored after a restart of Home
+Assistant; a change takes effect at once. This
 keeps what Home Assistant shows in line with the devices, for example after a
 Home Assistant backup was restored or a setting was changed with the OPUS app.
 The read uses the lowest radio priority, so commands and status queries go
 first; nothing is written and a failed read is not repeated. The run ends
 after three failed reads in a row. Presence detectors are left out because
 their battery powered radio answers only in a short wake window; use the
-button for them. If Home Assistant is not running at 05:00, that day's read is
-skipped.
+button for them. If Home Assistant is not running at the chosen time, that
+day's read is skipped. Nothing is written to the devices either way.
 
 Every actuator whose device list contains a link table also has the diagnostic
 sensor *Wall switch links* (see [Sensor values](#sensor-values)). The

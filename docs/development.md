@@ -28,6 +28,7 @@ custom_components/opus_greennet/
 ├── button.py             # Reference-run buttons for D2-05 blinds
 ├── number.py             # Time and threshold settings (blinds, dimmers, switches)
 ├── select.py             # Selectable settings of D2-01 switches
+├── time.py               # Time of the daily settings read (gateway device)
 ├── services.yaml         # Action definitions
 ├── strings.json          # Translation source
 └── translations/         # en, de

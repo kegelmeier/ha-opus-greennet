@@ -34,12 +34,13 @@ from collections.abc import Awaitable, Callable, Coroutine, Mapping, Sequence
 from contextlib import aclosing
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from datetime import time as dtime
 from decimal import Decimal
 from enum import StrEnum
 from time import monotonic, time
 from typing import Any
 
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import (
@@ -146,9 +147,10 @@ GENERATION_CHECK_INTERVAL = 600.0
 # refreshes slowly changing metadata (battery level, signal, movement times)
 # and picks up newly paired devices.
 DEVICE_LIST_REFRESH_INTERVAL = timedelta(minutes=30)
-# Local hour of the daily read of the stored settings of the devices (few
-# switches are used at that time). Stops after this many failures in a row.
-DAILY_SETTINGS_REFRESH_HOUR = 5
+# Default local time of the daily read of the stored settings of the devices
+# (few switches are used at that time); the gateway device offers a switch and
+# a time entity to change it. A run stops after this many failures in a row.
+DAILY_SETTINGS_DEFAULT_TIME = dtime(5, 0)
 DAILY_SETTINGS_MAX_FAILURES = 3
 # Reconnecting the event stream (phase R4, finding B-2). Every new stream
 # starts with the complete device list, so each attempt is a full download
@@ -480,6 +482,9 @@ class OpusGreenNetCoordinator:
         # Devices whose settings are being read on request right now.
         self._settings_reading: set[str] = set()
         self._daily_settings_running = False
+        self.daily_settings_enabled = True
+        self.daily_settings_time = DAILY_SETTINGS_DEFAULT_TIME
+        self._daily_settings_cancel: CALLBACK_TYPE | None = None
         self._command_waiters: dict[str, int] = {}
         self._sent_commands: dict[str, list[tuple[float, frozenset[object]]]] = {}
         self._cover_movements: dict[tuple[str, int], CoverMovement] = {}
@@ -571,15 +576,7 @@ class OpusGreenNetCoordinator:
                 self.hass, self._async_refresh_tick, DEVICE_LIST_REFRESH_INTERVAL
             )
         )
-        self._timers.append(
-            async_track_time_change(
-                self.hass,
-                self._async_daily_settings_tick,
-                hour=DAILY_SETTINGS_REFRESH_HOUR,
-                minute=0,
-                second=0,
-            )
-        )
+        self._schedule_daily_settings()
         # The stream's device list carries no ``configuration`` block on real
         # gateways (OPUS-IQ-DOT 1.21.30; phase 21 hardware diagnostics: 0 of
         # 10 covers had a movement time after a stream-first start). Cover
@@ -599,6 +596,9 @@ class OpusGreenNetCoordinator:
         for cancel in self._timers:
             cancel()
         self._timers.clear()
+        if self._daily_settings_cancel is not None:
+            self._daily_settings_cancel()
+            self._daily_settings_cancel = None
         self._cancel_background_work()
         for task in self._tasks:
             task.cancel()
@@ -2495,6 +2495,33 @@ class OpusGreenNetCoordinator:
             "Daily settings read of EAG %s: %d devices read", self.eag_id, read
         )
         return read
+
+    @callback
+    def _schedule_daily_settings(self) -> None:
+        """(Re)start the daily read at the chosen local time, unless it is off."""
+        if self._daily_settings_cancel is not None:
+            self._daily_settings_cancel()
+            self._daily_settings_cancel = None
+        if self._unloaded or not self.daily_settings_enabled:
+            return
+        self._daily_settings_cancel = async_track_time_change(
+            self.hass,
+            self._async_daily_settings_tick,
+            hour=self.daily_settings_time.hour,
+            minute=self.daily_settings_time.minute,
+            second=0,
+        )
+
+    @callback
+    def async_set_daily_settings(
+        self, *, enabled: bool | None = None, at: dtime | None = None
+    ) -> None:
+        """Switch the daily read on or off, or move it to another local time."""
+        if enabled is not None:
+            self.daily_settings_enabled = enabled
+        if at is not None:
+            self.daily_settings_time = dtime(at.hour, at.minute)
+        self._schedule_daily_settings()
 
     @callback
     def _async_daily_settings_tick(self, _now: datetime) -> None:

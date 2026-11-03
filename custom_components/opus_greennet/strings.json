@@ -339,6 +339,9 @@
       },
       "blockage": {
         "name": "Blockage"
+      },
+      "daily_settings_read": {
+        "name": "Daily settings read"
       }
     },
     "lock": {
@@ -446,6 +449,11 @@
           "off": "Off",
           "on": "On"
         }
+      }
+    },
+    "time": {
+      "daily_settings_read_time": {
+        "name": "Daily settings read time"
       }
     }
   },
