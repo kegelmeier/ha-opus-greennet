@@ -476,22 +476,22 @@ The Moellenhoff room control unit of a heating controller (gateway profile
 ## Read-only profiles from the gateway catalog
 
 These profiles are taken from the gateway catalog (`GET /profiles/<EEP>`) and
-the OPUS config tool product catalog. They only show what the device reports:
+the OPUS config tool product catalog (device names and article numbers from there). They only show what the device reports:
 no commands are sent, and none of them was tested with a real device yet. A
 value the profile lists as "not available" or "error" shows as unknown; a
 malformed or out-of-range value keeps the last known one.
 
 | EEP | Device | Entities |
 |---|---|---|
-| A5-08-01 | Light, temperature and occupancy sensor (discontinued) | Illuminance, temperature, motion, occupancy button, supply voltage |
-| A5-20-06 | Valve actuator (Micropelt, Eurotronic Stella) | Temperature, setpoint, feed temperature, valve position, window, obstruction, energy and radio diagnostics |
-| A5-30-03 | WaterSensor con (4 digital inputs) | Digital inputs, wake signal, temperature |
-| D2-11-01 | OPUS room operating panel | Temperature, humidity, base setpoint, fan speed, occupancy |
-| D2-14-41 | IoT multisensor | Temperature, humidity, illuminance, contact, acceleration (diagnostic, disabled) |
-| D2-14-54 | OPUS 55 SENS | Temperature, humidity, water leak, leak in the last 14 days |
-| D2-32-00, D2-32-02 | A.C. current clamp (1 and 3 channels) | Current per channel, power failure |
-| D2-34-10 | CosiTherm heating actuator | Heater mode, system error, channel count. Per-channel values are not mapped yet |
-| D2-35-00 | Infrared heating actuator (Oekoswiss) | Mode, setpoint, outdoor temperature, window, load, power. The two meanings of `temperature` and the contradicting `presence` text are not mapped |
+| A5-08-01 | Motion and brightness sensor, solar, 230 V or battery powered (561.292.37, 561.6486, 561.462; discontinued) | Illuminance, temperature, motion, occupancy button, supply voltage |
+| A5-20-06 | Valve actuator Micropelt HOME (563.060, 563.061), Eurotronic Stella R EnOcean (700268) | Temperature, setpoint, feed temperature, valve position, window, obstruction, energy and radio diagnostics |
+| A5-30-03 | WaterSensor con (563.067), 4 digital inputs | Digital inputs, wake signal, temperature |
+| D2-11-01 | OPUS room operating panel with LCD, temperature, humidity and 2 buttons (563.107) | Temperature, humidity, base setpoint, fan speed, occupancy |
+| D2-14-41 | IoT multisensor: temperature, humidity, vibration, magnet, light, NFC (563.222) | Temperature, humidity, illuminance, contact, acceleration (diagnostic, disabled) |
+| D2-14-54 | OPUS 55 SENS temperature and humidity sensor (563.043.xx battery powered, 563.044.xx with power supply; 8 variants) | Temperature, humidity, water leak, leak in the last 14 days |
+| D2-32-00, D2-32-02 | A.C. current clamp, 1 A to 60 A, 1 channel (CTV3.868) and 3 channels (CTV3.868.3CH.060A) | Current per channel, power failure |
+| D2-34-10 | CosiTherm actuator, 2 or 6 heating circuits (78123, 78124) | Heater mode, system error, channel count. Per-channel values are not mapped yet |
+| D2-35-00 | Oekoswiss heating actuator for infrared heating panels (388xxxxxx) | Mode, setpoint, outdoor temperature, window, load, power. The two meanings of `temperature` and the contradicting `presence` text are not mapped |
 | D1-4B-00, D1-4B-02 | Moellenhoff actuator (older, 3.0) | Heater mode, versions, IP address, errors (diagnostic, disabled by default) |
 | D1-4B-01 | Moellenhoff heat area (older) | Temperature, setpoint |
 | D1-4B-04 | Moellenhoff heat area 3.0 (virtual) | Climate as D1-4B-03, plus data mismatch and missing data |

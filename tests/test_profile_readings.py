@@ -337,3 +337,26 @@ def test_heat_area_3_virtual_is_a_read_only_climate(make_device, make_telegram) 
     assert entity.current_temperature == 24.1
     assert descriptions == {"heat_circuits_error", "data_mismatch", "missing_data"}
     assert device.channels[0].readings["missingData"] is True
+
+
+def test_icons_belong_to_translated_entities_and_real_states() -> None:
+    icons = json.loads((COMPONENT / "icons.json").read_text(encoding="utf-8"))["entity"]
+    strings = json.loads((COMPONENT / "strings.json").read_text(encoding="utf-8"))[
+        "entity"
+    ]
+    for domain in ("sensor", "binary_sensor"):
+        for suffix in icons.get(domain, {}):
+            assert suffix in strings[domain], (domain, suffix)
+    options = {
+        spec.suffix: {option_slug(o) for o in spec.options}
+        for _eep, spec in ALL_SPECS
+        if spec.kind == "enum"
+    }
+    for suffix, entry in icons["sensor"].items():
+        if suffix in options and "state" in entry:
+            assert set(entry["state"]) <= options[suffix], suffix
+    for suffix, entry in icons["binary_sensor"].items():
+        if "state" in entry and any(
+            spec.suffix == suffix and spec.kind == "bool" for _e, spec in ALL_SPECS
+        ):
+            assert set(entry["state"]) <= {"on", "off"}, suffix
