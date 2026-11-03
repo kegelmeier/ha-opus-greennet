@@ -42,7 +42,11 @@ from typing import Any
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from homeassistant.helpers.event import async_call_later, async_track_time_interval
+from homeassistant.helpers.event import (
+    async_call_later,
+    async_track_time_change,
+    async_track_time_interval,
+)
 from homeassistant.util import dt as dt_util
 
 from . import protocol
@@ -142,6 +146,10 @@ GENERATION_CHECK_INTERVAL = 600.0
 # refreshes slowly changing metadata (battery level, signal, movement times)
 # and picks up newly paired devices.
 DEVICE_LIST_REFRESH_INTERVAL = timedelta(minutes=30)
+# Local hour of the daily read of the stored settings of the devices (few
+# switches are used at that time). Stops after this many failures in a row.
+DAILY_SETTINGS_REFRESH_HOUR = 5
+DAILY_SETTINGS_MAX_FAILURES = 3
 # Reconnecting the event stream (phase R4, finding B-2). Every new stream
 # starts with the complete device list, so each attempt is a full download
 # from the gateway (no radio telegram). The pause before the next attempt
@@ -471,6 +479,7 @@ class OpusGreenNetCoordinator:
         self._setting_writes: dict[str, int] = {}
         # Devices whose settings are being read on request right now.
         self._settings_reading: set[str] = set()
+        self._daily_settings_running = False
         self._command_waiters: dict[str, int] = {}
         self._sent_commands: dict[str, list[tuple[float, frozenset[object]]]] = {}
         self._cover_movements: dict[tuple[str, int], CoverMovement] = {}
@@ -560,6 +569,15 @@ class OpusGreenNetCoordinator:
         self._timers.append(
             async_track_time_interval(
                 self.hass, self._async_refresh_tick, DEVICE_LIST_REFRESH_INTERVAL
+            )
+        )
+        self._timers.append(
+            async_track_time_change(
+                self.hass,
+                self._async_daily_settings_tick,
+                hour=DAILY_SETTINGS_REFRESH_HOUR,
+                minute=0,
+                second=0,
             )
         )
         # The stream's device list carries no ``configuration`` block on real
@@ -2325,13 +2343,15 @@ class OpusGreenNetCoordinator:
     # ReCom service requests
     # ──────────────────────────────────────────────────────────────────────
 
-    async def async_get_device_configuration(self, device_id: str) -> JsonObject:
+    async def async_get_device_configuration(
+        self, device_id: str, *, priority: int = PRIORITY_QUERY
+    ) -> JsonObject:
         """Read the configuration stored on a device."""
         path = OpusGatewayClient.device_path(device_id, "configuration")
         return await self._async_radio_request(
             device_id,
             lambda: self.client.async_get(path, timeout=RECOM_TIMEOUT),
-            priority=PRIORITY_QUERY,
+            priority=priority,
             kind="configuration_read",
         )
 
@@ -2363,13 +2383,16 @@ class OpusGreenNetCoordinator:
         """Count a configuration write step of a device (see ``_setting_writes``)."""
         self._setting_writes[device_id] = self._setting_writes.get(device_id, 0) + 1
 
-    async def async_reread_device_settings(self, device_id: str) -> None:
-        """Read the settings stored on a device and show them (on request only).
+    async def async_reread_device_settings(
+        self, device_id: str, *, priority: int = PRIORITY_QUERY
+    ) -> None:
+        """Read the settings stored on a device and show them.
 
-        One ReCom read over the radio, never repeated and never started by the
-        integration itself. The values the device reports replace what Home
-        Assistant shows, also a value that a device list or an earlier write
-        left behind, and end the protection of a confirmed write for these
+        One ReCom read over the radio, never repeated. It is started by a button
+        press or by the daily read (``async_refresh_all_settings``). The values
+        the device reports replace what Home Assistant shows, also a value that
+        a device list or an earlier write left behind, and end the protection
+        of a confirmed write for these
         settings. A setting the device does not report keeps its known value.
         A press while the same device is being read is ignored. An answer that
         arrives after a write to the device started or finished meanwhile is
@@ -2384,11 +2407,15 @@ class OpusGreenNetCoordinator:
         started = self._setting_writes.get(device_id, 0)
         repeater: JsonObject | None = None
         try:
-            document = await self.async_get_device_configuration(device_id)
+            document = await self.async_get_device_configuration(
+                device_id, priority=priority
+            )
             if protocol.supports_repeater_state(device):
                 # A second, separate read; a failure only leaves the mode as known.
                 try:
-                    repeater = await self.async_get_repeater_state(device_id)
+                    repeater = await self.async_get_repeater_state(
+                        device_id, priority=priority
+                    )
                 except HomeAssistantError as err:
                     _LOGGER.debug(
                         "Repeater mode of device %s not read: %s", device_id, err
@@ -2419,6 +2446,71 @@ class OpusGreenNetCoordinator:
             if not guards:
                 self._setting_guards.pop(device_id, None)
         self._dispatch_state(device)
+
+    async def async_refresh_all_settings(
+        self, eligible: Callable[[EnOceanDevice], bool]
+    ) -> int:
+        """Read the stored settings of the eligible devices, one after the other.
+
+        Radio traffic with the lowest priority, so every command and every
+        status query goes first. A read is never repeated; a failed device is
+        skipped and the run ends after ``DAILY_SETTINGS_MAX_FAILURES`` failures
+        in a row (gateway or radio not answering). Returns the number of devices
+        read.
+        """
+        if self._daily_settings_running:
+            return 0
+        self._daily_settings_running = True
+        read = failures = 0
+        try:
+            for device_id in sorted(self.devices):
+                if self._unloaded or not self.available:
+                    break
+                device = self.devices.get(device_id)
+                if device is None or not eligible(device):
+                    continue
+                try:
+                    await self.async_reread_device_settings(
+                        device_id, priority=PRIORITY_BACKGROUND
+                    )
+                except HomeAssistantError as err:
+                    failures += 1
+                    _LOGGER.debug(
+                        "Daily settings read of device %s failed: %s", device_id, err
+                    )
+                    if failures >= DAILY_SETTINGS_MAX_FAILURES:
+                        _LOGGER.warning(
+                            "Daily settings read of EAG %s stopped after %d failures "
+                            "in a row",
+                            self.eag_id,
+                            failures,
+                        )
+                        break
+                else:
+                    failures = 0
+                    read += 1
+        finally:
+            self._daily_settings_running = False
+        _LOGGER.debug(
+            "Daily settings read of EAG %s: %d devices read", self.eag_id, read
+        )
+        return read
+
+    @callback
+    def _async_daily_settings_tick(self, _now: datetime) -> None:
+        """Start the daily read of the stored settings."""
+        self._create_task(self._async_daily_settings_read(), "daily settings read")
+
+    async def _async_daily_settings_read(self) -> None:
+        # Imported here: the button platform imports this module.
+        from .button import has_settings
+
+        def eligible(device: EnOceanDevice) -> bool:
+            # Battery powered presence detectors answer a radio read only in
+            # their wake window: no reading on a schedule.
+            return has_settings(device) and not device.is_presence_detector
+
+        await self.async_refresh_all_settings(eligible)
 
     def _guard_confirmed_setting(
         self,
@@ -2636,13 +2728,15 @@ class OpusGreenNetCoordinator:
         self._guard_confirmed_setting(device_id, KEY_ROUTING_TIME, previous, stored)
         self._dispatch_state(device)
 
-    async def async_get_repeater_state(self, device_id: str) -> JsonObject:
+    async def async_get_repeater_state(
+        self, device_id: str, *, priority: int = PRIORITY_QUERY
+    ) -> JsonObject:
         """Read the repeater mode of a device (``GET .../repeaterState``)."""
         path = OpusGatewayClient.device_path(device_id, "repeaterState")
         return await self._async_radio_request(
             device_id,
             lambda: self.client.async_get(path, timeout=RECOM_TIMEOUT),
-            priority=PRIORITY_QUERY,
+            priority=priority,
             kind="repeater_state_read",
         )
 
