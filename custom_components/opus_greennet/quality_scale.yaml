@@ -73,8 +73,8 @@ rules:
   action-exceptions: done
   config-entry-unloading: done
   docs-configuration-parameters:
-    status: exempt
-    comment: The integration has no options flow and therefore no configuration parameters after setup.
+    status: done
+    comment: README section Configuration describes the one option, write access to device settings.
   docs-installation-parameters:
     status: done
     comment: README section Configuration describes host, port, username and password.

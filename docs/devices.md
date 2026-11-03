@@ -21,9 +21,19 @@ The settings stored on actuators, as far as the gateway's parameter catalog
 (read from one device per type) lists them. All are configuration entities and
 **disabled by default**; the details are in the sections below.
 
+**Write access.** A new entry starts with write access to device settings off:
+enabling one of these entities is not enough, and a change is refused (nothing is
+sent) until you enable write access under *Settings → Devices & services → Opus
+GreenNet Bridge → Configure*, after a warning and a confirmation. Reading the
+settings (*Read settings*, the daily read, *Settings read*) always works. The same
+applies to the repeater mode, ViNET and the action
+`opus_greennet.set_device_configuration`. Entries set up before the option existed
+keep writing. While write access is off and one of these entities is enabled, a
+notice appears under *Settings → System → Repairs*.
+
 | Device | Number entities | Select entities | Not offered |
 |--------|-----------------|-----------------|-------------|
-| Blinds (D2-05-02) | Vertical movement time, Rotation time, Maximum holding time | Repeater mode | Function of rocker A and B, routing time |
+| Blinds (D2-05-02) | Vertical movement time, Rotation time, Maximum holding time | ViNET Router, Repeater mode | Function of rocker A and B |
 | Dimmers (D2-01-03) | Ramping time, Short-press time, Long-press time | Repeater mode | – |
 | Switches (D2-01-01) | Timer duration, Timer duration (long press), Switch-off warning, Switch-off warning signal, Illumination threshold | Operation mode, LED colour, External input function, ViNET Router, Repeater mode | Function of rocker A and B |
 | 2-channel switches (D2-01-11) | as D2-01-01 | as D2-01-01, plus LED channel | as D2-01-01 |
@@ -84,13 +94,49 @@ a diagnostic button *Read settings* (enabled by default). Pressing it reads
 the settings stored on the device once over the radio, which takes a few
 seconds, and shows what the device reports. Use it after a write whose outcome
 was unclear, or after a setting was changed with the OPUS app. Nothing is
-written, nothing is repeated, and the integration never presses it itself. A
+written and nothing is repeated. A
 setting the device does not report keeps its known value. A press while the
 device is being read is ignored, and an answer that arrives after a write to
 the same device started or ended meanwhile is dropped, because the write is
 newer. The button is offered for blinds, D2-01-03 dimmers, D2-01-01/-11
 switches and A5-07-03 presence detectors, the devices that have settings; reading is verified on hardware as the
 read-back after a write, not yet as a button press.
+
+**Daily read.** Every day at 05:00 local time (default) the integration reads
+the stored settings of all these devices once, like the button, one after the
+other. The gateway device has two configuration entities for it: the switch
+*Daily settings read* (on by default) and the time *Daily settings read time*
+(local time, to the minute). Both are restored after a restart of Home
+Assistant; a change takes effect at once. This
+keeps what Home Assistant shows in line with the devices, for example after a
+Home Assistant backup was restored or a setting was changed with the OPUS app.
+The read uses the lowest radio priority, so commands and status queries go
+first; nothing is written and a failed read is not repeated. The run ends
+after three failed reads in a row. Presence detectors are left out because
+their battery powered radio answers only in a short wake window; use the
+button for them. If Home Assistant is not running at the chosen time, that
+day's read is skipped. Nothing is written to the devices either way. The
+diagnostic sensor *Last daily settings read* on the gateway device shows when
+the last run ended; its attributes `read`, `failed` and `stopped` tell how many
+devices were read, how many reads failed and whether the run ended early (`failures`: three
+reads in a row failed, `unavailable`: the gateway was not reachable). The last
+result is restored after a restart, and the diagnostics download has a
+`daily_settings_read` block with the schedule and the last result.
+
+**Contradicting settings are refused.** The OPUS config tool warns about
+settings that contradict each other. The integration goes one step further: it
+refuses a write that would create or worsen such a combination, before anything
+is sent to the gateway, and shows an error that names the combination. The
+combinations are a blind's maximum holding time shorter than its vertical
+movement time (the blind would stop before it is fully open), a vertical
+movement time shorter than the rotation time, a switch's timer duration (long
+press) shorter than its timer duration, and a switch-off warning longer than the
+timer duration. A write that keeps or reduces an existing conflict is allowed,
+so a wrong combination can be fixed step by step, and a value that is not known
+yet is never compared. The check uses the values Home Assistant shows; if one of
+them is outdated, press *Read settings* and try again. Change the other setting
+first when a value is refused, for example raise the maximum holding time before
+the vertical movement time.
 
 **Names in the OPUS config tool.** The OPUS config tool (JD Config Tool, which
 talks to the devices directly by radio through a USB stick) names the settings
@@ -120,7 +166,8 @@ shorter than the run-on time, a switch-off warning time longer than the run-on
 time, a blind's drive time shorter than its rotation time, and a maximum
 holding time shorter than the drive time. It also notes that a run-on time under
 30 s needs actuator firmware 2.0.7.0 or newer. The integration refuses a write
-that creates such a combination (see below).
+that creates or worsens one of these four combinations (see above); the
+firmware note is not checked.
 
 **Settings only the config tool has.** The gateway's REST API does not offer the
 following settings, so the integration can neither show nor change them; use the
@@ -138,20 +185,6 @@ config tool. This list comes from a config tool project, not from the gateway.
   the wind values. The integration shows three of them.
 - Window contacts: the alive cycle and the debounce times.
 
-**Contradicting settings are refused.** The OPUS config tool warns about
-settings that contradict each other. The integration goes one step further: it
-refuses a write that would create or worsen such a combination, before anything
-is sent to the gateway, and shows an error that names the combination. The
-combinations are a blind's maximum holding time shorter than its vertical
-movement time (the blind would stop before it is fully open), a vertical
-movement time shorter than the rotation time, a switch's timer duration (long
-press) shorter than its timer duration, and a switch-off warning longer than the
-timer duration. A write that keeps or reduces an existing conflict is allowed,
-so a wrong combination can be fixed step by step, and a value that is not known
-yet is never compared. The check uses the values Home Assistant shows; if one of
-them is outdated, press *Read settings* and try again. Change the other setting
-first when a value is refused, for example raise the maximum holding time before
-the vertical movement time.
 
 Every actuator whose device list contains a link table also has the diagnostic
 sensor *Wall switch links* (see [Sensor values](#sensor-values)). The
@@ -252,18 +285,32 @@ integration shows *off* or *on* (any time counts as on). Writing *on* sends
 The project the config tool read from the installation (JD Config Tool 2.1.0.0,
 read 2026-10-30) stores the same value as the field `iViNET` = 300 (milliseconds)
 for that switch, so 0.3 s is confirmed as the value the config tool writes for
-*on*. Writing *on* through the integration is untested. Writing the state a device
+*on*. A tester of a second installation (gateway firmware 1.21.30) set the
+*ViNET Router* select to *on* on 28 of 28 switches; the gateway accepted 0.3 s
+and reported *on* each time. Whether routing actually takes place was not
+verified. On the 24 blinds of that installation, 0.3 s was written through the
+`set_device_configuration` action: 22 accepted it at once and returned it on
+reading, two did not answer radio configuration requests at first (see
+[Troubleshooting](troubleshooting.md)). Writing the state a device
 already shows sends nothing. The repeater mode is not a
 ReCom parameter but the device resource `/devices/{id}/repeaterState` (`off`,
 `level_1`, `level_2`); it is written and read back there. *Read settings*
 reads both. The device list carries the repeater mode too, so it is shown after a restart without a radio request. Switches have a diagnostic sensor (*ViNET Router (stored)*, *Repeater mode
 (stored)*) and a select in the configuration category (disabled by default)
-for each. Dimmers (D2-01-03) and blinds (D2-05-02) report the repeater mode as
-well and get the *Repeater mode* sensor and select only; writing it on a dimmer
-is untested. Writing the repeater mode was tested on one D2-01-01 switch and on
-one D2-05-02 blind (off, level 1 and back to off; level 2 untested) through the
-gateway interface, not through these entities. The gateway accepted the value
-and returned it on reading; the effect on the radio path was not measured.
+for each, and so do blinds (D2-05-02), whose parameter catalog lists the same
+*ViNET Router* setting as the switches. Dimmers (D2-01-03) report the repeater
+mode as well and get the *Repeater mode* sensor and select only (no *ViNET
+Router* entities); writing it on a dimmer is untested.
+Writing the repeater mode was tested on one D2-01-01 switch and on one D2-05-02
+blind (off, level 1 and back to off) through the gateway interface, not through
+these entities. The gateway accepted the value and returned it on reading. A
+tester of a second installation (gateway firmware 1.21.30) then used the
+*Repeater mode* select on its 24 blinds: four blinds that had a repeater (two at
+level 2, two at level 1) were set to *off*, and one blind was set to level 2 and
+back to *off*. The gateway returned each value, *Read settings* ran without
+errors, and the repeater indicator of the MyOPUS app disappeared on the four
+blinds. The direct signal strength stayed within about 5 dB. Whether a blind
+changes its radio behaviour at level 2 was not verified.
 
 **ViNET on dimmers is not available through the REST API.** The OPUS config
 tool (v2, reported by the user) can set and read ViNET on a D2-01-03 dimmer, and
@@ -435,6 +482,62 @@ stored answer, read from the device list at start-up; the attribute
 `bolt_locked` repeats the reported lock bolt. Quick changes settle for 10
 seconds (*locking* / *unlocking*) and only the last one is sent, because the
 gateway queues every answer for the sleeping handle.
+
+## Heat Area 3.0 Physical (D1-4B-03)
+
+The Moellenhoff room control unit of a heating controller (gateway profile
+"Heat Area 3.0 Physical") appears as a climate entity.
+
+- **Setpoint:** 5–30 °C in steps of 0.2 °C; the unit reports its current
+  temperature and setpoint.
+- **Mode:** the unit reports heating or cooling. The gateway profile has no
+  command for it, so the mode is read-only (switching it raises an error) and
+  there is no on/off.
+- **Valve position** (sensor, %): the share of the next hour the valve will be
+  open. It is a plan of the unit and not a measured valve state, so the climate
+  entity shows no heating action from it.
+- **Diagnostics:** binary sensors for communication with the room control unit,
+  heat circuits, battery and malfunction (on = the unit reported the problem).
+- There is no humidity, window or feed temperature for this profile.
+- The profile is taken from the gateway catalog (`/profiles/D1-4B-03`). It has
+  not been tested with a real device yet.
+
+## Read-only profiles from the gateway catalog
+
+These profiles are taken from the gateway catalog (`GET /profiles/<EEP>`) and
+the OPUS config tool product catalog (device names and article numbers from there). They only show what the device reports:
+no commands are sent, and none of them was tested with a real device yet. A
+value the profile lists as "not available" or "error" shows as unknown; a
+malformed or out-of-range value keeps the last known one.
+
+| EEP | Device | Entities |
+|---|---|---|
+| A5-08-01 | Motion and brightness sensor, solar, 230 V or battery powered (561.292.37, 561.6486, 561.462; discontinued) | Illuminance, temperature, motion, occupancy button, supply voltage |
+| A5-20-06 | Valve actuator Micropelt HOME (563.060, 563.061), Eurotronic Stella R EnOcean (700268) | Temperature, setpoint, feed temperature, valve position, window, obstruction, energy and radio diagnostics |
+| A5-30-03 | WaterSensor con (563.067), 4 digital inputs | Digital inputs, wake signal, temperature |
+| D2-11-01 | OPUS room operating panel with LCD, temperature, humidity and 2 buttons (563.107) | Temperature, humidity, base setpoint, fan speed, occupancy |
+| D2-14-41 | IoT multisensor: temperature, humidity, vibration, magnet, light, NFC (563.222) | Temperature, humidity, illuminance, contact, acceleration (diagnostic, disabled) |
+| D2-14-54 | OPUS 55 SENS temperature and humidity sensor (563.043.xx battery powered, 563.044.xx with power supply; 8 variants) | Temperature, humidity, water leak, leak in the last 14 days |
+| D2-32-00, D2-32-02 | A.C. current clamp, 1 A to 60 A, 1 channel (CTV3.868) and 3 channels (CTV3.868.3CH.060A) | Current per channel, power failure |
+| D2-34-10 | CosiTherm actuator, 2 or 6 heating circuits (78123, 78124) | Heater mode, system error, channel count; per heating circuit (channel 1 to 30, learned from the telegrams): temperature, setpoint, circuit state (on/off) and mode (on/off/emergency) |
+| D2-35-00 | Oekoswiss heating actuator for infrared heating panels (388xxxxxx) | Mode, setpoint, outdoor temperature, window, load, power. The two meanings of `temperature` and the contradicting `presence` text are not mapped |
+| D1-4B-00, D1-4B-02 | Moellenhoff actuator (older, 3.0) | Heater mode, versions, IP address, errors (diagnostic, disabled by default) |
+| D1-4B-01 | Moellenhoff heat area (older) | Temperature, setpoint |
+| D1-4B-04 | Moellenhoff heat area 3.0 (virtual) | Climate as D1-4B-03, plus data mismatch and missing data |
+| D1-4B-10 | WirelessMBus virtual device | Device type, manufacturer, serial number, version (diagnostic, disabled); the raw payload is not mapped |
+| D1-4B-15 | Pressac power clamp | Total current, total power |
+| D1-4B-50 | REG central control unit | LED status, uptime (diagnostic, disabled); LED, firmware reset and update commands are not mapped |
+
+The heating circuits of a CosiTherm actuator (D2-34-10) get their entities with
+the first telegram that names the channel, and only up to the channel count the
+device reports (30 until it does). A circuit that already has entities in the
+entity registry gets them again when Home Assistant starts and shows *unknown*
+until it reports; remove its entities in the registry to forget a circuit. This
+is not tested with a real device.
+
+D2-05-04 (REG-RJ), D2-70-00 (REG-CPU) and D2-74-20 (REG-FBH) appear in the
+config tool product catalog, but the gateway has no profile for them, so there
+is nothing to map.
 
 ## Water sensors (F6-05-01)
 

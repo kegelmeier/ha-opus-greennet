@@ -139,10 +139,11 @@ async def test_no_selects_for_other_devices(hass: HomeAssistant) -> None:
             "BLIND": EnOceanDevice("BLIND", "Blind", [{"eep": "D2-05-02"}]),
         },
     )
-    # A dimmer and a blind report the repeater mode, but have none of the other
-    # settings.
+    # A dimmer reports the repeater mode only; a blind also lists ViNET routing.
+    # Neither has the other switch settings.
     assert [entity.unique_id for entity in added] == [
         f"{EAG_ID}_DIM_repeater",
+        f"{EAG_ID}_BLIND_routing",
         f"{EAG_ID}_BLIND_repeater",
     ]
 

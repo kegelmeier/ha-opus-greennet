@@ -20,6 +20,11 @@ DEFAULT_USERNAME: Final = "admin"
 # Gateways with WebUI 2026 serve the same paths only over HTTPS (port 443) with
 # a user login and a token, and a self-signed certificate that is remembered.
 CONF_GENERATION: Final = "generation"
+# Option: may Home Assistant write device settings to the actuators? A new entry
+# starts with False (opt-in, confirmed in the options dialog). An entry set up
+# before the option existed has none and keeps writing.
+CONF_ALLOW_SETTING_WRITES: Final = "allow_setting_writes"
+ISSUE_WRITE_ACCESS_OFF: Final = "write_access_off"
 CONF_CERTIFICATE_FINGERPRINT: Final = "certificate_fingerprint"
 WEBUI_2026_PORT: Final = 443
 
@@ -79,9 +84,17 @@ EEP_MAPPINGS: Final = {
     "D2-05-01": ("cover", "Blinds Control for Position"),
     "D2-05-02": ("cover", "Blinds Control for Position and Angle, Lock"),
     # HeatArea (D1-4B-xx) - Proprietary OPUS profiles
+    "D1-4B-00": ("sensor", "Moellenhoff Actuator"),
+    "D1-4B-01": ("sensor", "Moellenhoff Heat Area"),
+    "D1-4B-02": ("sensor", "Moellenhoff Actuator 3.0"),
+    "D1-4B-03": ("climate", "Moellenhoff Heat Area 3.0 Physical"),
+    "D1-4B-04": ("climate", "Moellenhoff Heat Area 3.0 Virtual"),
     "D1-4B-05": ("climate", "OPUS Valve Area"),
     "D1-4B-06": ("climate", "OPUS CosiTherm Area"),
     "D1-4B-07": ("climate", "OPUS Electro Heating Area"),
+    "D1-4B-10": ("sensor", "WirelessMBus Virtual Device"),
+    "D1-4B-15": ("sensor", "Pressac Power Clamp"),
+    "D1-4B-50": ("sensor", "REG Central Control Unit"),
     # Lighting Control (A5-38-xx)
     "A5-38-08": ("light", "Gateway Dimming"),
     "A5-38-09": ("light", "Gateway Switching"),
@@ -98,8 +111,18 @@ EEP_MAPPINGS: Final = {
     "A5-04-01": ("sensor", "Temperature and Humidity Sensor"),
     "A5-04-02": ("sensor", "Temperature and Humidity Sensor"),
     "A5-04-03": ("sensor", "Temperature and Humidity Sensor"),
+    "A5-08-01": ("sensor", "Light, Temperature and Occupancy Sensor"),
+    "A5-20-06": ("sensor", "Harvesting-powered Valve Actuator"),
+    "A5-30-03": ("binary_sensor", "Digital Input, 4 Inputs"),
     "D5-00-01": ("binary_sensor", "Single Input Contact"),
     "D2-06-40": ("lock", "HOPPE SecureConnect Window Handle"),
+    "D2-11-01": ("sensor", "Bidirectional Room Operating Panel"),
+    "D2-14-41": ("sensor", "IoT Multisensor"),
+    "D2-14-54": ("sensor", "Temperature, Humidity and Leak Sensor"),
+    "D2-32-00": ("sensor", "A.C. Current Clamp, 1 channel"),
+    "D2-32-02": ("sensor", "A.C. Current Clamp, 3 channels"),
+    "D2-34-10": ("sensor", "Gateway controlled heating actuator"),
+    "D2-35-00": ("sensor", "Infrared Heating Actuator"),
     "F6-10-00": ("sensor", "HOPPE Window Handle"),
     "D2-03-10": ("sensor", "HOPPE Window Handle"),
     # Liquid Leakage Sensor (F6-05-01)
@@ -238,7 +261,8 @@ KEY_FUNCTION_EXTERNAL_INPUT: Final = "functionExternalInput"
 # switch with ViNET on in the OPUS config tool reported 0.3 (device list,
 # 2026-10-31, firmware 1.21.30). It is shown as off/on: any time is "on". "on" is
 # written as 0.3 s, the value seen on that device; other times are untested.
-# D2-01-03 dimmers report no routing parameter. The repeater mode is no ReCom
+# D2-05-02 blinds list the same parameter as the switches; D2-01-03 dimmers
+# report none. The repeater mode is no ReCom
 # parameter but the device resource /repeaterState (off, level_1, level_2).
 KEY_ROUTING_TIME: Final = "routingTime"
 KEY_REPEATER_STATE: Final = "repeaterState"
@@ -252,6 +276,10 @@ SWITCH_EEPS: Final = ("D2-01-01", "D2-01-11")
 # Devices that report the repeater mode. Written on a D2-01-01 switch and on a
 # D2-05-02 blind (off and level 1); D2-01-03 was read from a dimmer, not written.
 REPEATER_EEPS: Final = (*SWITCH_EEPS, "D2-01-03", "D2-05-02")
+# Devices whose parameter catalog lists ViNET routing (``routingTime``, off or
+# 0.3 to 2.55 s): the switches and the D2-05-02 blinds. D2-01-03 dimmers list
+# none.
+ROUTING_EEPS: Final = (*SWITCH_EEPS, "D2-05-02")
 ROUTING_OFF: Final = "off"
 ROUTING_ON: Final = "on"
 DEVICE_OPTIONS: Final = {
@@ -334,6 +362,14 @@ KEY_ACTUATOR_NOT_RESPONDING: Final = "actuatorNotResponding"
 KEY_MISSING_TEMPERATURE: Final = "missingTemperature"
 KEY_CIRCUIT_IN_USE: Final = "circuitInUse"
 
+# Heat Area 3.0 Physical (D1-4B-03): room control unit (RCU) of a heating
+# controller. Valve position is the share of the next hour the valve is open.
+KEY_VALVE_POSITION: Final = "valvePosition"
+KEY_COMMUNICATION_ERROR: Final = "communicationError"
+KEY_HEAT_CIRCUITS_ERROR: Final = "heatCircuitsError"
+KEY_LOW_BATTERY: Final = "lowBattery"
+KEY_RCU_MALFUNCTION: Final = "rcuMalfunction"
+
 # Rocker switch button keys. F6-02-xx has the rockers A and B, F6-03-xx
 # additionally C and D.
 ROCKER_2_BUTTON_KEYS: Final = (
@@ -362,8 +398,13 @@ STATE_ON: Final = "on"
 STATE_OFF: Final = "off"
 
 
+# Moellenhoff Heat Area 3.0: the unit reports heating or cooling, and the
+# gateway profile has no command for the mode.
+HEAT_AREA_3_EEPS: Final = frozenset({"D1-4B-03", "D1-4B-04"})
+
 # Climate heater mode values
 HEATER_MODE_HEATING: Final = "heating"
+HEATER_MODE_COOLING: Final = "cooling"
 HEATER_MODE_ON: Final = "on"
 HEATER_MODE_OFF: Final = "off"
 HEATER_MODE_AUTO_OFF: Final = "autoOff"
@@ -419,6 +460,11 @@ KNOWN_STATE_KEYS: Final = frozenset(
         "actuatorNotResponding",
         "missingTemperature",
         "circuitInUse",
+        KEY_VALVE_POSITION,
+        KEY_COMMUNICATION_ERROR,
+        KEY_HEAT_CIRCUITS_ERROR,
+        KEY_LOW_BATTERY,
+        KEY_RCU_MALFUNCTION,
         KEY_LOCKING_MODE,
         KEY_ERROR_CODE,
         *BUTTON_KEYS,

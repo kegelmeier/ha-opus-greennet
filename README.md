@@ -49,8 +49,10 @@ Works with both OPUS gateways, the black **OPUS greenNet gateway** and the newer
 | Dimmers | D2-01-02 … -05, -09; A5-38-08 | Light |
 | Gateway switching | A5-38-09 | Light |
 | Blinds and shutters | D2-05-00, -01, -02 | Cover with position and tilt; blockage, reference run, last run time |
-| Heating areas | D1-4B-05, -06, -07 (Valve, CosiTherm, Electro) | Climate, feed temperature, power, humidity, window open, errors, battery |
+| Heating areas | D1-4B-03, -04, -05, -06, -07 (Moellenhoff 3.0 physical and virtual, Valve, CosiTherm, Electro) | Climate, feed temperature, power, humidity, window open, errors, battery |
 | Temperature and humidity sensors | A5-04-01, -02, -03 | Temperature, humidity |
+| More sensors (read-only) | A5-08-01, A5-30-03, D2-11-01, D2-14-41, D2-14-54, D2-32-00, D2-32-02 | Temperature, humidity, illuminance, motion, contact, leak, digital inputs, current, room panel values; see [docs/devices.md](docs/devices.md) |
+| More heating devices (read-only) | A5-20-06, D2-34-10, D2-35-00, D1-4B-00, -01, -02, -10, -15, -50 | Temperature, setpoint, valve, mode, errors, power; see [docs/devices.md](docs/devices.md) |
 | Presence detectors (SMS) | A5-07-01, A5-07-03 | Motion, illuminance (A5-07-03), supply voltage, sensor error; A5-07-03 also shows alive cycle, PIR off time and ReCom readiness cycle as read-only diagnostic values |
 | OPUS motion detector | F6-02-01 + A5-04-01 | Motion, temperature, humidity |
 | Smoke detectors (RWM) | F6-05-02 | Smoke alarm, low battery |
@@ -131,6 +133,20 @@ you only enter the password. To add it by hand, use
 | **Username** | API user, `admin` by default |
 | **Password** | API password, by default the gateway's EURID in capital letters (printed on the gateway; fictional example: `A1B2C3D4`) |
 
+### Write access to device settings
+
+Settings that change an actuator (the number and select entities, the repeater
+mode, ViNET and the action `opus_greennet.set_device_configuration`) are written
+directly to the device by radio, and a wrong value can make it malfunction. A
+**new entry therefore starts with write access off**. Reading settings (the
+*Read settings* button and the daily read) is not affected. To switch it on, open
+**Settings → Devices & services → Opus GreenNet Bridge → Configure**, read the
+warning and tick the confirmation. If you enable an entity that changes a setting
+while write access is off, a notice appears under **Settings → System → Repairs**,
+and a change is refused with a message that says where to enable it. Entries set
+up before this option existed keep writing: nothing changes for them, and the same
+dialog switches write access off if you want that.
+
 ### Gateways with WebUI 2026
 
 Gateways with the software of the new generation (WebUI 2026) no longer answer
@@ -210,9 +226,11 @@ All limitations: [docs/how-it-works.md](docs/how-it-works.md#known-limitations).
 | Status | Topic |
 |--------|-------|
 | ✅ Released | 1.0 with the REST API instead of MQTT |
-| 🚧 In progress | Device settings as Home Assistant entities. Available: blind times, dimmer times and switch timers as numbers, switch operation mode, LED, external input, routing (off/on) and repeater mode (switches, dimmers, blinds) as selects, link tables read-only. Still open: function of rocker A and B and gateway diagnostics (see below) |
+| 🚧 In progress | Device settings as Home Assistant entities. Available: blind times, dimmer times and switch timers as numbers, switch operation mode, LED, external input, routing (off/on; switches and blinds) and repeater mode (switches, dimmers, blinds) as selects, link tables read-only. Still open: function of rocker A and B and gateway diagnostics (see below) |
+| 🚧 Untested | HTTPS for gateways with WebUI 2026 is implemented, but was never tried on a real gateway |
 | 🔍 Investigating | Adding and removing devices from Home Assistant |
-| 💡 Idea | HTTPS if the gateway offers it |
+| 🔍 Investigating | The OPUS REG multifunction actuator (CPU D2-70-00, blind D2-05-04, heating circuit D2-34-20 / D2-74-20): the gateway has no profiles for them yet, so support follows with a firmware that provides them |
+| 💡 Idea | Write support for the read-only device profiles (valve position, mode, setpoint), only after it was tested on hardware |
 
 ### Device settings
 
@@ -229,15 +247,18 @@ is still open is offered the same way once it is safe to write:
 | Device | Settings |
 |--------|----------|
 | Switch actuators (D2-01-00/-01, 2-channel D2-01-11) | Function of rocker A and B (channel assignment). Available: timer durations, switch-off warning, its signal duration and illumination threshold are available as numbers; operation mode, LED colour, LED channel, external input function, routing off/on and repeater mode as selects |
-| Blinds (D2-05-02) | Function of rocker A and B, ViNET routing time (vertical movement time, rotation time and maximum holding time are available as numbers) |
+| Blinds (D2-05-02) | Function of rocker A and B (vertical movement time, rotation time and maximum holding time are available as numbers; ViNET routing off/on and repeater mode as selects) |
 | All actuators | Link tables (linked wall switches and their role, e.g. central on/off or up/down) can already be read with the `get_device_link_tables` action, and a diagnostic *Wall switch links* sensor and the diagnostics download show them without a radio request; writing them is not planned |
-| Gateway | Firmware, app and API version; services such as HomeKit, Alexa, MQTT, InfluxDB, scheduler and heating zones; received telegrams and average signal strength |
+| Gateway | Services such as HomeKit, Alexa, MQTT, InfluxDB, scheduler and heating zones. Available as diagnostic sensors: firmware, app and API version, received telegrams and average signal strength |
 
 Settings are written over the radio, so a change can take several seconds and
 needs the actuator to answer. Every device with settings also shows the stored
 values as read-only diagnostic sensors (enabled by default, named *… (stored)*)
 and has a *Read settings* diagnostic button that reads them from the device
-once, for example after a write whose outcome was unclear. A diagnostic
+once, for example after a write whose outcome was unclear. The integration
+also reads the stored settings of all devices (except battery powered presence
+detectors) once a day, by default at 05:00 local time; the gateway device has a
+switch and a time entity to turn this off or move it. A diagnostic
 *Settings read* sensor shows when the stored values were last read. The entities that
 change a setting stay disabled until you enable them.
 
@@ -258,6 +279,9 @@ written by the integration on hardware so far**: try a single device first.
 | Switch: LED colour | Select | ✅ one D2-01-01 (text value) |
 | Switch: operation mode | Select | ✅ one switch, through the gateway API (not through this entity) |
 | Switch: LED channel, external input function | Select | not tested |
+| Repeater mode (blinds) | Select | ✅ 24 blinds of a second installation: *off* on four blinds that had a repeater (two at level 2, two at level 1), level 2 on one blind and back to *off*, read back each time; the repeater indicator of the MyOPUS app disappeared. Whether the radio behaviour changes at level 2 was not verified |
+| ViNET Router (switches) | Select | ✅ *on* on 28 of 28 switches of a second installation (the gateway reported *on*); whether routing takes place was not verified |
+| ViNET routing (blinds) | Action `set_device_configuration` | ✅ 0.3 s accepted and read back by 22 of 24 blinds of a second installation; two did not answer radio configuration requests at first |
 | Link tables (wall switch links) | Action, sensor, diagnostics | read only, read on hardware |
 
 

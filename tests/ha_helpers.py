@@ -11,21 +11,35 @@ from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import entity_registry as er
 
-from custom_components.opus_greennet.const import DOMAIN
+from custom_components.opus_greennet.const import CONF_ALLOW_SETTING_WRITES, DOMAIN
 from tests.fake_gateway import FakeGateway
 
 
 async def configure_bridge(
-    hass: HomeAssistant, gateway: FakeGateway, **overrides: Any
+    hass: HomeAssistant,
+    gateway: FakeGateway,
+    *,
+    allow_writes: bool = True,
+    **overrides: Any,
 ) -> dict[str, Any]:
-    """Submit a gateway through the actual config flow manager."""
+    """Submit a gateway through the actual config flow manager.
+
+    A new entry starts without write access to device settings. Most tests
+    write settings, so the helper switches it on after the entry was created;
+    ``allow_writes=False`` keeps the default of a real new installation.
+    """
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
     assert result["type"] is FlowResultType.FORM
-    return await hass.config_entries.flow.async_configure(
+    result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {**gateway.config, **overrides}
     )
+    if allow_writes and result["type"] is FlowResultType.CREATE_ENTRY:
+        hass.config_entries.async_update_entry(
+            result["result"], options={CONF_ALLOW_SETTING_WRITES: True}
+        )
+    return result
 
 
 async def setup_bridge(hass: HomeAssistant, gateway: FakeGateway) -> ConfigEntry:
