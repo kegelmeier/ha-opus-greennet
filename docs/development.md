@@ -38,6 +38,7 @@ tests/
 ├── fake_gateway.py       # In-process OPUS gateway serving the REST API over HTTP
 ├── ha_helpers.py         # Config flow and waiting helpers
 ├── fixtures/             # Anonymized parameter catalogs and configurations read from a gateway (one device per actuator type)
+│                         # and the reported functions of the read-only device profiles (checked against readings.py)
 └── test_*.py             # One module per area (api, coordinator, platforms, flows, …)
 script/
 ├── check_coverage.py     # Per-module coverage gate used by CI

@@ -1,0 +1,793 @@
+{
+ "_source": "GET /profiles/<EEP> of an OPUS-IQ-DOT v1.21.30 gateway on 2026-11-03: catalog documents, no radio request. Only the reported ('from') functions, as key -> range (min, max, step, unit) and listed values. Equal keys in several function groups are merged.",
+ "profiles": {
+  "A5-08-01": {
+   "title": "Light, Temperature and Occupancy Sensor, Range 0lx to 510lx, 0°C to +51°C and Occupancy Button",
+   "from": {
+    "illumination": {
+     "min": 0,
+     "max": 510,
+     "step": 2,
+     "unit": "lx"
+    },
+    "motionDetected": {
+     "values": [
+      "false",
+      "true"
+     ]
+    },
+    "occupancyButton": {
+     "values": [
+      "pressed",
+      "released"
+     ]
+    },
+    "supplyVoltage": {
+     "min": 0,
+     "max": 5.1,
+     "step": 0.02,
+     "unit": "V"
+    },
+    "temperature": {
+     "min": 0,
+     "max": 51,
+     "step": 0.2,
+     "unit": "°C"
+    }
+   }
+  },
+  "A5-20-06": {
+   "title": "HVAC Components,Harvesting-powered actuator with local temperature offset control",
+   "from": {
+    "actuatorObstructed": {
+     "values": [
+      "false",
+      "true"
+     ]
+    },
+    "energyInput": {
+     "values": [
+      "false",
+      "true"
+     ]
+    },
+    "energyStorageCharged": {
+     "values": [
+      "false",
+      "true"
+     ]
+    },
+    "feedTemperature": {
+     "min": 0,
+     "max": 80,
+     "step": 0.5,
+     "unit": "°C",
+     "values": [
+      "notAvailable"
+     ]
+    },
+    "radioError": {
+     "values": [
+      "false",
+      "true"
+     ]
+    },
+    "radioSignalStrength": {
+     "values": [
+      "false",
+      "true"
+     ]
+    },
+    "temperature": {
+     "min": 0,
+     "max": 40,
+     "step": 0.5,
+     "unit": "°C",
+     "values": [
+      "notAvailable"
+     ]
+    },
+    "temperatureSetpoint": {
+     "min": 0,
+     "max": 40,
+     "step": 0.5,
+     "unit": "°C"
+    },
+    "valve": {
+     "min": 0,
+     "max": 100,
+     "step": 1,
+     "unit": "%"
+    },
+    "window": {
+     "values": [
+      "closed",
+      "open"
+     ]
+    },
+    "setpointShift": {
+     "min": -5,
+     "max": 5,
+     "step": 1,
+     "unit": "°C"
+    }
+   }
+  },
+  "A5-30-03": {
+   "title": "Digital Input, 4 Digital Inputs, Wake and Temperature",
+   "from": {
+    "digitalInput0": {
+     "values": [
+      "high",
+      "low"
+     ]
+    },
+    "digitalInput1": {
+     "values": [
+      "high",
+      "low"
+     ]
+    },
+    "digitalInput2": {
+     "values": [
+      "high",
+      "low"
+     ]
+    },
+    "digitalInput3": {
+     "values": [
+      "high",
+      "low"
+     ]
+    },
+    "temperature": {
+     "min": 0,
+     "max": 40,
+     "step": 0.157,
+     "unit": "°C"
+    },
+    "wakeStatus": {
+     "values": [
+      "high",
+      "low"
+     ]
+    }
+   }
+  },
+  "D2-11-01": {
+   "title": "Bidirectional Room Operating Panel 0x01",
+   "from": {
+    "setpointType": {
+     "values": [
+      "absolute",
+      "relative"
+     ]
+    },
+    "baseSetpoint": {
+     "min": 15,
+     "max": 30,
+     "step": 1
+    },
+    "fanSpeed": {
+     "values": [
+      "auto",
+      "notAvailable",
+      "speed0",
+      "speed1",
+      "speed2",
+      "speed3"
+     ]
+    },
+    "humidity": {
+     "min": 0,
+     "max": 100,
+     "step": 0.4,
+     "values": [
+      "notAvailable"
+     ]
+    },
+    "occupancyState": {
+     "values": [
+      "occupied",
+      "unoccupied"
+     ]
+    },
+    "setpointOffset": {
+     "min": 0,
+     "max": 255,
+     "step": 1
+    },
+    "telegramType": {
+     "values": [
+      "heartbeat",
+      "userInteraction",
+      "valueChange"
+     ]
+    },
+    "temperature": {
+     "min": 0,
+     "max": 40,
+     "step": 0.157
+    },
+    "validTempCorrection": {
+     "values": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10"
+     ]
+    }
+   }
+  },
+  "D2-14-41": {
+   "title": "Indoor -Temperature, Humidity XYZ Acceleration, Illumination Sensor, Window Contact",
+   "from": {
+    "accelerationStatus": {
+     "values": [
+      "heartbeat",
+      "threshold1",
+      "threshold2"
+     ]
+    },
+    "accelerationX": {
+     "min": -2.5,
+     "max": 2.5,
+     "step": 0.005,
+     "unit": "g",
+     "values": [
+      "accelerationErrorX",
+      "overrange",
+      "underrange"
+     ]
+    },
+    "accelerationY": {
+     "min": -2.5,
+     "max": 2.5,
+     "step": 0.005,
+     "unit": "g",
+     "values": [
+      "accelerationErrorY",
+      "overrange",
+      "underrange"
+     ]
+    },
+    "accelerationZ": {
+     "min": -2.5,
+     "max": 2.5,
+     "step": 0.005,
+     "unit": "g",
+     "values": [
+      "accelerationErrorZ",
+      "overrange",
+      "underrange"
+     ]
+    },
+    "contact": {
+     "values": [
+      "closed",
+      "open"
+     ]
+    },
+    "humidity": {
+     "min": 0,
+     "max": 100,
+     "step": 0.5,
+     "unit": "%",
+     "values": [
+      "humidityError"
+     ]
+    },
+    "illumination": {
+     "min": 0,
+     "max": 100000,
+     "step": 1,
+     "unit": "lx",
+     "values": [
+      "illuminationError"
+     ]
+    },
+    "temperature": {
+     "min": -40,
+     "max": 60,
+     "step": 0.1,
+     "unit": "°C",
+     "values": [
+      "overrange",
+      "temperatureError",
+      "underrange"
+     ]
+    }
+   }
+  },
+  "D2-14-54": {
+   "title": "Multi Function Sensors, Leak Detector with Temperature and Humidity Sensing",
+   "from": {
+    "humidity": {
+     "min": 0,
+     "max": 100,
+     "step": 0.5,
+     "unit": "%",
+     "values": [
+      "invalid",
+      "notSupported"
+     ]
+    },
+    "liquidDetected": {
+     "values": [
+      "error",
+      "false",
+      "true"
+     ]
+    },
+    "pastLeakDetection": {
+     "values": [
+      "false",
+      "true"
+     ]
+    },
+    "temperature": {
+     "min": 0,
+     "max": 50,
+     "step": 0.1,
+     "unit": "°C",
+     "values": [
+      "error"
+     ]
+    }
+   }
+  },
+  "D2-32-00": {
+   "title": "A.C. Curent Clamp, 1 channel",
+   "from": {
+    "current1": {
+     "min": 0,
+     "max": 4095,
+     "step": 0.1,
+     "unit": "A"
+    },
+    "powerFailureDetected": {
+     "values": [
+      "false",
+      "true"
+     ]
+    }
+   }
+  },
+  "D2-32-02": {
+   "title": "A.C. Curent Clamp, 3 channels",
+   "from": {
+    "current1": {
+     "min": 0,
+     "max": 4095,
+     "step": 0.1,
+     "unit": "A"
+    },
+    "current2": {
+     "min": 0,
+     "max": 4095,
+     "step": 0.1,
+     "unit": "A"
+    },
+    "current3": {
+     "min": 0,
+     "max": 4095,
+     "step": 0.1,
+     "unit": "A"
+    },
+    "powerFailureDetected": {
+     "values": [
+      "false",
+      "true"
+     ]
+    }
+   }
+  },
+  "D2-34-10": {
+   "title": "Gateway controlled heating actuator 1-30 channel",
+   "from": {
+    "channel": {
+     "min": 1,
+     "max": 30,
+     "step": 1,
+     "values": [
+      "all"
+     ]
+    },
+    "heatingCircuitState": {
+     "values": [
+      "off",
+      "on"
+     ]
+    },
+    "operationMode": {
+     "values": [
+      "emergency",
+      "notAvailable",
+      "off",
+      "on"
+     ]
+    },
+    "temperature": {
+     "min": 0,
+     "max": 40,
+     "step": 0.1,
+     "unit": "°C",
+     "values": [
+      "notAvailable",
+      "unknown"
+     ]
+    },
+    "temperatureSetpoint": {
+     "min": 0,
+     "max": 40,
+     "step": 0.1,
+     "unit": "°C",
+     "values": [
+      "notAvailable",
+      "unknown"
+     ]
+    },
+    "channelNumber": {
+     "min": 1,
+     "max": 30,
+     "step": 1
+    },
+    "error": {
+     "values": [
+      "generalError",
+      "heatCircuitError",
+      "noError",
+      "notAvailable"
+     ]
+    },
+    "heaterMode": {
+     "values": [
+      "cooling",
+      "heating"
+     ]
+    }
+   }
+  },
+  "D2-35-00": {
+   "title": "Heating Actuator with outdoor temperature, presence and window open",
+   "from": {
+    "mode": {
+     "values": [
+      "error",
+      "managed",
+      "off",
+      "on"
+     ]
+    },
+    "outdoorTemperature": {
+     "min": -30,
+     "max": 60,
+     "step": 0.1,
+     "unit": "°C",
+     "values": [
+      "notAvailable"
+     ]
+    },
+    "presence": {
+     "values": [
+      "error",
+      "notAvailable",
+      "occupied",
+      "unoccupied"
+     ]
+    },
+    "temperature": {
+     "min": 0,
+     "max": 100,
+     "step": 0.5,
+     "unit": "°C",
+     "values": [
+      "notAvailable"
+     ]
+    },
+    "temperatureSetpoint": {
+     "min": 5,
+     "max": 40,
+     "step": 0.5,
+     "unit": "°C"
+    },
+    "window": {
+     "values": [
+      "closed",
+      "open"
+     ]
+    },
+    "nominalValue": {
+     "min": 0,
+     "max": 100,
+     "step": 1,
+     "unit": "%"
+    },
+    "power": {
+     "min": 0,
+     "max": 10000,
+     "step": 1,
+     "unit": "W",
+     "values": [
+      "notAvailable"
+     ]
+    }
+   }
+  },
+  "D1-4B-00": {
+   "title": "Moellenhoff Actuator",
+   "from": {
+    "hardwareVersion": {
+     "min": 0,
+     "max": 255,
+     "step": 1
+    },
+    "heaterMode": {
+     "values": [
+      "cooling",
+      "heating"
+     ]
+    },
+    "networkVersion": {
+     "min": 0,
+     "max": 65535,
+     "step": 1
+    },
+    "softwareVersion": {
+     "min": 0,
+     "max": 65535,
+     "step": 1
+    }
+   }
+  },
+  "D1-4B-01": {
+   "title": "Moellenhoff - Heat Area",
+   "from": {
+    "temperature": {
+     "min": 0,
+     "max": 40,
+     "step": 0.1,
+     "unit": "°C",
+     "values": [
+      "notAvailable"
+     ]
+    },
+    "temperatureSetpoint": {
+     "min": 5,
+     "max": 30,
+     "step": 0.2,
+     "unit": "°C"
+    }
+   }
+  },
+  "D1-4B-02": {
+   "title": "Moellenhoff Actuator 3.0",
+   "from": {
+    "hardwareVersion": {
+     "values": [
+      "hw_Version"
+     ]
+    },
+    "heaterMode": {
+     "values": [
+      "cooling",
+      "heating"
+     ]
+    },
+    "ipAddress": {
+     "values": [
+      "ipv4_address"
+     ]
+    },
+    "networkVersion": {
+     "values": [
+      "nw_Version"
+     ]
+    },
+    "softwareVersion": {
+     "values": [
+      "sw_Version"
+     ]
+    },
+    "circuitMissmatch": {
+     "values": [
+      "error",
+      "reset"
+     ]
+    },
+    "mhNotFound": {
+     "values": [
+      "reset",
+      "warning"
+     ]
+    }
+   }
+  },
+  "D1-4B-03": {
+   "title": "Moellenhoff - Heat Area 3.0 Physical",
+   "from": {
+    "heaterMode": {
+     "values": [
+      "cooling",
+      "heating"
+     ]
+    },
+    "temperature": {
+     "min": 0,
+     "max": 40,
+     "step": 0.1,
+     "unit": "°C",
+     "values": [
+      "notAvailable"
+     ]
+    },
+    "temperatureSetpoint": {
+     "min": 5,
+     "max": 30,
+     "step": 0.2,
+     "unit": "°C"
+    },
+    "valvePosition": {
+     "min": 0,
+     "max": 100,
+     "step": 1,
+     "unit": "%",
+     "values": [
+      "notAvailable"
+     ]
+    },
+    "communicationError": {
+     "values": [
+      "error",
+      "reset"
+     ]
+    },
+    "heatCircuitsError": {
+     "values": [
+      "error",
+      "reset"
+     ]
+    },
+    "lowBattery": {
+     "values": [
+      "reset",
+      "warning"
+     ]
+    },
+    "rcuMalfunction": {
+     "values": [
+      "error",
+      "reset"
+     ]
+    }
+   }
+  },
+  "D1-4B-04": {
+   "title": "Moellenhoff - Heat Area 3.0 Virtual",
+   "from": {
+    "heaterMode": {
+     "values": [
+      "cooling",
+      "heating"
+     ]
+    },
+    "temperature": {
+     "min": 0,
+     "max": 40,
+     "step": 0.1,
+     "unit": "°C",
+     "values": [
+      "notAvailable"
+     ]
+    },
+    "temperatureSetpoint": {
+     "min": 5,
+     "max": 30,
+     "step": 0.2,
+     "unit": "°C"
+    },
+    "valvePosition": {
+     "min": 0,
+     "max": 100,
+     "step": 1,
+     "unit": "%",
+     "values": [
+      "notAvailable"
+     ]
+    },
+    "dataMissmatch": {
+     "values": [
+      "reset",
+      "warning"
+     ]
+    },
+    "heatCircuitsError": {
+     "values": [
+      "error",
+      "reset"
+     ]
+    },
+    "missingData": {
+     "values": [
+      "error",
+      "info",
+      "reset",
+      "warning"
+     ]
+    }
+   }
+  },
+  "D1-4B-10": {
+   "title": "WirelessMBus - Virtual Device",
+   "from": {
+    "deviceType": {
+     "values": [
+      "value"
+     ]
+    },
+    "manufacturer": {
+     "values": [
+      "value"
+     ]
+    },
+    "payload": {
+     "values": [
+      "value"
+     ]
+    },
+    "serial": {
+     "values": [
+      "value"
+     ]
+    },
+    "version": {
+     "values": [
+      "value"
+     ]
+    }
+   }
+  },
+  "D1-4B-15": {
+   "title": "Pressac Power Clamp - Virtual Profile",
+   "from": {
+    "totalCurrent": {
+     "min": 0,
+     "max": 1800,
+     "step": 0.1,
+     "unit": "A"
+    },
+    "totalPower": {
+     "min": 0,
+     "max": 432000,
+     "step": 1,
+     "unit": "W"
+    }
+   }
+  },
+  "D1-4B-50": {
+   "title": "REG Actuator - Central Control Unit",
+   "from": {
+    "ledStatus": {
+     "values": [
+      "disabled",
+      "enabled"
+     ]
+    },
+    "uptime": {
+     "min": 0,
+     "max": 60000,
+     "step": 1,
+     "values": [
+      "notAvailable"
+     ]
+    }
+   }
+  }
+ }
+}
