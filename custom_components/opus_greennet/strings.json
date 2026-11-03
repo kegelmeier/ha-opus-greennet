@@ -522,6 +522,27 @@
       },
       "gateway_average_dbm": {
         "name": "Average signal strength"
+      },
+      "channel_temperature": {
+        "name": "Channel {channel} temperature"
+      },
+      "channel_temperature_setpoint": {
+        "name": "Channel {channel} setpoint"
+      },
+      "channel_circuit_state": {
+        "name": "Channel {channel} heating circuit",
+        "state": {
+          "off": "Off",
+          "on": "On"
+        }
+      },
+      "channel_operation_mode": {
+        "name": "Channel {channel} mode",
+        "state": {
+          "emergency": "Emergency",
+          "off": "Off",
+          "on": "On"
+        }
       }
     },
     "switch": {

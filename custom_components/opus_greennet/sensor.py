@@ -50,7 +50,7 @@ from .coordinator import (
 from .enocean_device import EnOceanChannel, EnOceanDevice
 from .entity import OpusGreenNetEntity, migrate_legacy_entity_suffix
 from .number import DEVICE_TIMES, PRESENCE_SETTINGS, DeviceTime
-from .readings import READINGS, ReadingSpec
+from .readings import CHANNEL_READINGS, READINGS, ReadingSpec
 from .select import DEVICE_SELECTS, DeviceSelect, option_slug
 
 # Actuators hold link tables; sensors and wall switches never list one.
@@ -114,6 +114,8 @@ async def async_setup_entry(
     added_unique_ids: set[str] = set()
     # Devices waiting for their first link table: device id -> unsubscribe.
     waiting_for_links: dict[str, CALLBACK_TYPE] = {}
+    # Devices that report per channel: device id -> unsubscribe.
+    channel_listeners: dict[str, CALLBACK_TYPE] = {}
     async_add_entities(
         [
             OpusGreenNetGatewayUptimeSensor(coordinator, eag_id),
@@ -387,6 +389,15 @@ async def async_setup_entry(
                 async_link_table_listed,
             )
 
+        if device.primary_eep in CHANNEL_READINGS:
+            if device.device_id not in channel_listeners:
+                channel_listeners[device.device_id] = async_dispatcher_connect(
+                    hass,
+                    f"{SIGNAL_DEVICE_STATE_UPDATE}_{eag_id}_{device.device_id}",
+                    async_add_channel_sensors,
+                )
+            async_add_channel_sensors(device)
+
         new_entities = [
             entity for entity in entities if entity.unique_id not in added_unique_ids
         ]
@@ -398,6 +409,39 @@ async def async_setup_entry(
             async_add_entities(new_entities)
 
     @callback
+    def async_add_channel_sensors(device: EnOceanDevice) -> None:
+        """Add the sensors of each channel that has reported its readings.
+
+        Which channels exist is learned from the telegrams: a channel gets its
+        entities with its first reading, up to the channel count the device
+        reports (30 until it does).
+        """
+        specs = CHANNEL_READINGS.get(device.primary_eep or "", ())
+        system = device.channels.get(DEFAULT_CHANNEL)
+        count = system.readings.get("channelNumber") if system is not None else None
+        limit = int(count) if isinstance(count, float) else 30
+        new: list[SensorEntity] = []
+        for channel_id, channel in sorted(device.channels.items()):
+            if not 1 <= channel_id <= limit:
+                continue
+            if not any(spec.key in channel.readings for spec in specs):
+                continue
+            for spec in specs:
+                entity = OpusGreenNetReadingSensor(
+                    coordinator,
+                    eag_id,
+                    gateway_device_id,
+                    device,
+                    spec,
+                    channel_id=channel_id,
+                )
+                if entity.unique_id not in added_unique_ids:
+                    added_unique_ids.add(entity.unique_id or "")
+                    new.append(entity)
+        if new:
+            async_add_entities(new)
+
+    @callback
     def async_link_table_listed(device: EnOceanDevice) -> None:
         """Add the link sensor once the gateway lists a table for the device."""
         if device.link_tables is not None:
@@ -406,6 +450,7 @@ async def async_setup_entry(
     @callback
     def async_forget_sensors(device_id: str) -> None:
         waiting_for_links.pop(device_id, lambda: None)()
+        channel_listeners.pop(device_id, lambda: None)()
         prefix = f"{eag_id}_{device_id}_"
         added_unique_ids.difference_update(
             [
@@ -425,6 +470,9 @@ async def async_setup_entry(
         for unsubscribe in waiting_for_links.values():
             unsubscribe()
         waiting_for_links.clear()
+        for unsubscribe in channel_listeners.values():
+            unsubscribe()
+        channel_listeners.clear()
 
     entry.async_on_unload(async_unload)
 
@@ -926,12 +974,22 @@ class OpusGreenNetReadingSensor(OpusGreenNetBaseSensor):
         gateway_device_id: str,
         device: EnOceanDevice,
         spec: ReadingSpec,
+        *,
+        channel_id: int = DEFAULT_CHANNEL,
     ) -> None:
-        """Initialize the reading sensor."""
+        """Initialize the reading sensor, of a channel for per-channel readings."""
+        if channel_id == DEFAULT_CHANNEL:
+            suffix = translation_key = spec.suffix
+        else:
+            suffix = f"channel_{channel_id}_{spec.suffix}"
+            translation_key = f"channel_{spec.suffix}"
         super().__init__(
-            coordinator, eag_id, gateway_device_id, device, spec.suffix, spec.suffix
+            coordinator, eag_id, gateway_device_id, device, suffix, translation_key
         )
         self._spec = spec
+        self._reading_channel = channel_id
+        if channel_id != DEFAULT_CHANNEL:
+            self._attr_translation_placeholders = {"channel": str(channel_id)}
         self._attr_native_unit_of_measurement = spec.unit
         if spec.device_class is not None:
             self._attr_device_class = SensorDeviceClass(spec.device_class)
@@ -949,7 +1007,7 @@ class OpusGreenNetReadingSensor(OpusGreenNetBaseSensor):
     @property
     def native_value(self) -> float | str | None:
         """Return the validated reading, or unknown before the first valid one."""
-        channel = self._device.channels.get(DEFAULT_CHANNEL)
+        channel = self._device.channels.get(self._reading_channel)
         value = channel.readings.get(self._spec.key) if channel else None
         if isinstance(value, bool) or value is None:
             return None

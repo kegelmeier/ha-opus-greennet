@@ -101,6 +101,36 @@ def _clamp_errors(*extra: str) -> tuple[str, ...]:
     return (*NOT_AVAILABLE, *extra)
 
 
+# Readings a device reports per channel (the telegram carries a ``channel``).
+# They are stored per channel and shown as one set of entities for each channel
+# that reported them.
+CHANNEL_READINGS: Final[dict[str, tuple[ReadingSpec, ...]]] = {
+    # CosiTherm heating actuator, 1 to 30 heating circuits.
+    "D2-34-10": (
+        number(
+            "temperature",
+            "temperature",
+            0,
+            40,
+            unit=CELSIUS,
+            device_class="temperature",
+            unavailable=_clamp_errors("unknown"),
+        ),
+        number(
+            "temperatureSetpoint",
+            "temperature_setpoint",
+            0,
+            40,
+            unit=CELSIUS,
+            device_class="temperature",
+            measurement=False,
+            unavailable=_clamp_errors("unknown"),
+        ),
+        enum("heatingCircuitState", "circuit_state", "off", "on"),
+        enum("operationMode", "operation_mode", "emergency", "off", "on"),
+    ),
+}
+
 READINGS: Final[dict[str, tuple[ReadingSpec, ...]]] = {
     # Light, temperature and occupancy sensor (discontinued OPUS sensors).
     "A5-08-01": (
@@ -389,8 +419,8 @@ READINGS: Final[dict[str, tuple[ReadingSpec, ...]]] = {
             diagnostic=True,
         ),
     ),
-    # CosiTherm heating actuator: system report only. Per-channel values need
-    # channel discovery and are not mapped.
+    # CosiTherm heating actuator: system report. The per-channel values are in
+    # CHANNEL_READINGS.
     "D2-34-10": (
         enum("heaterMode", "heater_mode", *HEATER_MODE),
         enum(

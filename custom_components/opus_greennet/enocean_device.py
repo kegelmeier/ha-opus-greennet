@@ -82,7 +82,7 @@ from .const import (
     UNLOCK_NOT_ALLOWED,
     VALUE_OVER_RANGE,
 )
-from .readings import READINGS, ReadingSpec, ReadingValue
+from .readings import CHANNEL_READINGS, READINGS, ReadingSpec, ReadingValue
 from .wire import (
     JsonObject,
     WireMapping,
@@ -831,9 +831,16 @@ class EnOceanDevice:
     def _reading_spec(self, key: object) -> ReadingSpec | None:
         """Return the read-only reading the primary profile defines for a key."""
         eep = self.primary_eep
-        if eep is None or eep not in READINGS:
+        if eep is None:
             return None
-        return next((spec for spec in READINGS[eep] if spec.key == key), None)
+        return next(
+            (
+                spec
+                for spec in (*READINGS.get(eep, ()), *CHANNEL_READINGS.get(eep, ()))
+                if spec.key == key
+            ),
+            None,
+        )
 
     @classmethod
     def _reading_value(

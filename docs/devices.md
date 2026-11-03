@@ -509,7 +509,7 @@ malformed or out-of-range value keeps the last known one.
 | D2-14-41 | IoT multisensor: temperature, humidity, vibration, magnet, light, NFC (563.222) | Temperature, humidity, illuminance, contact, acceleration (diagnostic, disabled) |
 | D2-14-54 | OPUS 55 SENS temperature and humidity sensor (563.043.xx battery powered, 563.044.xx with power supply; 8 variants) | Temperature, humidity, water leak, leak in the last 14 days |
 | D2-32-00, D2-32-02 | A.C. current clamp, 1 A to 60 A, 1 channel (CTV3.868) and 3 channels (CTV3.868.3CH.060A) | Current per channel, power failure |
-| D2-34-10 | CosiTherm actuator, 2 or 6 heating circuits (78123, 78124) | Heater mode, system error, channel count. Per-channel values are not mapped yet |
+| D2-34-10 | CosiTherm actuator, 2 or 6 heating circuits (78123, 78124) | Heater mode, system error, channel count; per heating circuit (channel 1 to 30, learned from the telegrams): temperature, setpoint, circuit state (on/off) and mode (on/off/emergency) |
 | D2-35-00 | Oekoswiss heating actuator for infrared heating panels (388xxxxxx) | Mode, setpoint, outdoor temperature, window, load, power. The two meanings of `temperature` and the contradicting `presence` text are not mapped |
 | D1-4B-00, D1-4B-02 | Moellenhoff actuator (older, 3.0) | Heater mode, versions, IP address, errors (diagnostic, disabled by default) |
 | D1-4B-01 | Moellenhoff heat area (older) | Temperature, setpoint |
@@ -517,6 +517,12 @@ malformed or out-of-range value keeps the last known one.
 | D1-4B-10 | WirelessMBus virtual device | Device type, manufacturer, serial number, version (diagnostic, disabled); the raw payload is not mapped |
 | D1-4B-15 | Pressac power clamp | Total current, total power |
 | D1-4B-50 | REG central control unit | LED status, uptime (diagnostic, disabled); LED, firmware reset and update commands are not mapped |
+
+The heating circuits of a CosiTherm actuator (D2-34-10) get their entities with
+the first telegram that names the channel, and only up to the channel count the
+device reports (30 until it does). After a restart of Home Assistant, a circuit
+that has not reported again stays *unavailable* until it does. This is not
+tested with a real device.
 
 D2-05-04 (REG-RJ), D2-70-00 (REG-CPU) and D2-74-20 (REG-FBH) appear in the
 config tool product catalog, but the gateway has no profile for them, so there
