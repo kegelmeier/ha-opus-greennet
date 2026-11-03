@@ -49,8 +49,10 @@ Works with both OPUS gateways, the black **OPUS greenNet gateway** and the newer
 | Dimmers | D2-01-02 … -05, -09; A5-38-08 | Light |
 | Gateway switching | A5-38-09 | Light |
 | Blinds and shutters | D2-05-00, -01, -02 | Cover with position and tilt; blockage, reference run, last run time |
-| Heating areas | D1-4B-05, -06, -07 (Valve, CosiTherm, Electro) | Climate, feed temperature, power, humidity, window open, errors, battery |
+| Heating areas | D1-4B-03, -04, -05, -06, -07 (Moellenhoff 3.0 physical and virtual, Valve, CosiTherm, Electro) | Climate, feed temperature, power, humidity, window open, errors, battery |
 | Temperature and humidity sensors | A5-04-01, -02, -03 | Temperature, humidity |
+| More sensors (read-only) | A5-08-01, A5-30-03, D2-11-01, D2-14-41, D2-14-54, D2-32-00, D2-32-02 | Temperature, humidity, illuminance, motion, contact, leak, digital inputs, current, room panel values; see [docs/devices.md](docs/devices.md) |
+| More heating devices (read-only) | A5-20-06, D2-34-10, D2-35-00, D1-4B-00, -01, -02, -10, -15, -50 | Temperature, setpoint, valve, mode, errors, power; see [docs/devices.md](docs/devices.md) |
 | Presence detectors (SMS) | A5-07-01, A5-07-03 | Motion, illuminance (A5-07-03), supply voltage, sensor error; A5-07-03 also shows alive cycle, PIR off time and ReCom readiness cycle as read-only diagnostic values |
 | OPUS motion detector | F6-02-01 + A5-04-01 | Motion, temperature, humidity |
 | Smoke detectors (RWM) | F6-05-02 | Smoke alarm, low battery |
@@ -208,7 +210,7 @@ All limitations: [docs/how-it-works.md](docs/how-it-works.md#known-limitations).
 | Status | Topic |
 |--------|-------|
 | ✅ Released | 1.0 with the REST API instead of MQTT |
-| 🚧 In progress | Device settings as Home Assistant entities. Available: blind times, dimmer times and switch timers as numbers, switch operation mode, LED, external input, routing (off/on) and repeater mode as selects, link tables read-only. Still open: function of rocker A and B and gateway diagnostics (see below) |
+| 🚧 In progress | Device settings as Home Assistant entities. Available: blind times, dimmer times and switch timers as numbers, switch operation mode, LED, external input, routing (off/on) and repeater mode (switches, dimmers, blinds) as selects, link tables read-only. Still open: function of rocker A and B and gateway diagnostics (see below) |
 | 🔍 Investigating | Adding and removing devices from Home Assistant |
 | 💡 Idea | HTTPS if the gateway offers it |
 
@@ -235,7 +237,8 @@ Settings are written over the radio, so a change can take several seconds and
 needs the actuator to answer. Every device with settings also shows the stored
 values as read-only diagnostic sensors (enabled by default, named *… (stored)*)
 and has a *Read settings* diagnostic button that reads them from the device
-once, for example after a write whose outcome was unclear. The entities that
+once, for example after a write whose outcome was unclear. A diagnostic
+*Settings read* sensor shows when the stored values were last read. The entities that
 change a setting stay disabled until you enable them.
 
 #### What was verified on hardware
@@ -250,7 +253,7 @@ written by the integration on hardware so far**: try a single device first.
 | Blind: vertical movement time | Number | ✅ 24 blinds in one installation (effect confirmed by run durations) |
 | Blind: maximum holding time | Number | ✅ one blind |
 | Blind: rotation time | Number | not tested |
-| Dimmer D2-01-03: ramping, short-press and long-press time | Number | not tested |
+| Dimmer D2-01-03: ramping, short-press and long-press time | Number | not confirmed: *Ramping time* 0.5 s and 1.0 s were not stored by one dimmer (short and long press not tested); correspondence to the settings of the configuration tool not verified |
 | Switch D2-01-01/-11: timers, switch-off warning and signal, illumination threshold | Number | ✅ one switch, through the gateway API (not through these entities) |
 | Switch: LED colour | Select | ✅ one D2-01-01 (text value) |
 | Switch: operation mode | Select | ✅ one switch, through the gateway API (not through this entity) |

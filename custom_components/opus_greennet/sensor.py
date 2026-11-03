@@ -49,6 +49,7 @@ from .coordinator import (
 from .enocean_device import EnOceanChannel, EnOceanDevice
 from .entity import OpusGreenNetEntity, migrate_legacy_entity_suffix
 from .number import DEVICE_TIMES, PRESENCE_SETTINGS, DeviceTime
+from .readings import READINGS, ReadingSpec
 from .select import DEVICE_SELECTS, DeviceSelect, option_slug
 
 # Actuators hold link tables; sensors and wall switches never list one.
@@ -129,15 +130,27 @@ async def async_setup_entry(
 
         # Climate devices get humidity, feed temperature, and energy sensors
         if device.is_climate:
-            # Humidity sensor (all HeatArea types)
-            entities.append(
-                OpusGreenNetHumiditySensor(
-                    coordinator=coordinator,
-                    eag_id=eag_id,
-                    gateway_device_id=gateway_device_id,
-                    device=device,
+            # Humidity sensor (HeatArea types; D1-4B-03 reports no humidity)
+            if not device.is_heat_area_3:
+                entities.append(
+                    OpusGreenNetHumiditySensor(
+                        coordinator=coordinator,
+                        eag_id=eag_id,
+                        gateway_device_id=gateway_device_id,
+                        device=device,
+                    )
                 )
-            )
+
+            # Valve position (Heat Area 3.0, D1-4B-03 and -04)
+            if device.is_heat_area_3:
+                entities.append(
+                    OpusGreenNetValvePositionSensor(
+                        coordinator=coordinator,
+                        eag_id=eag_id,
+                        gateway_device_id=gateway_device_id,
+                        device=device,
+                    )
+                )
 
             # Feed temperature (D1-4B-05 Valve Area only)
             if device.primary_eep == "D1-4B-05":
@@ -160,6 +173,14 @@ async def async_setup_entry(
                         device=device,
                     )
                 )
+
+        entities.extend(
+            OpusGreenNetReadingSensor(
+                coordinator, eag_id, gateway_device_id, device, spec
+            )
+            for spec in READINGS.get(device.primary_eep or "", ())
+            if spec.kind != "bool"
+        )
 
         if device.is_presence_detector:
             if f"{eag_id}_{device.device_id}_illuminance" not in added_unique_ids:
@@ -308,6 +329,18 @@ async def async_setup_entry(
             OpusGreenNetDeviceIdSensor(coordinator, eag_id, gateway_device_id, device)
         )
 
+        # When the settings shown below were last read from the device
+        # (diagnostic), for every device that has settings.
+        if any(
+            device_time.applies_to(device)
+            for device_time in (*DEVICE_TIMES, *PRESENCE_SETTINGS)
+        ):
+            entities.append(
+                OpusGreenNetSettingsReadSensor(
+                    coordinator, eag_id, gateway_device_id, device
+                )
+            )
+
         # The settings stored on the device, read only (diagnostic). The number
         # and select entities that write them are disabled by default.
         entities.extend(
@@ -448,6 +481,40 @@ class OpusGreenNetHumiditySensor(OpusGreenNetBaseSensor):
         """Return the humidity value."""
         channel = self._device.channels.get(DEFAULT_CHANNEL)
         return channel.humidity if channel else None
+
+
+class OpusGreenNetValvePositionSensor(OpusGreenNetBaseSensor):
+    """Valve position of a Heat Area 3.0 Physical (D1-4B-03).
+
+    The value is the share of the next hour the valve will be open, a plan of
+    the room control unit and not a measured valve state.
+    """
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = UnitOfRatio.PERCENTAGE
+
+    def __init__(
+        self,
+        coordinator: OpusGreenNetCoordinator,
+        eag_id: str,
+        gateway_device_id: str,
+        device: EnOceanDevice,
+    ) -> None:
+        """Initialize the valve position sensor."""
+        super().__init__(
+            coordinator,
+            eag_id,
+            gateway_device_id,
+            device,
+            "valve_position",
+            "valve_position",
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the planned open share of the next hour in percent."""
+        channel = self._device.channels.get(DEFAULT_CHANNEL)
+        return channel.valve_position if channel else None
 
 
 class OpusGreenNetFeedTemperatureSensor(OpusGreenNetBaseSensor):
@@ -653,6 +720,42 @@ class OpusGreenNetLastSeenSensor(OpusGreenNetBaseSensor):
         return parse_last_seen(self._device.last_seen)
 
 
+class OpusGreenNetSettingsReadSensor(OpusGreenNetBaseSensor):
+    """When the settings shown for the device were last read from it.
+
+    The gateway reads the configuration of a device itself only now and then
+    (nightly in the E0 catalog) and a device whose answer fails keeps its old
+    values. The time is the gateway's cache time, or the time of the last
+    *Read settings*. A value that is old, for example after a restore from a
+    backup, is a reason to press *Read settings*.
+    """
+
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(
+        self,
+        coordinator: OpusGreenNetCoordinator,
+        eag_id: str,
+        gateway_device_id: str,
+        device: EnOceanDevice,
+    ) -> None:
+        """Initialize the settings read sensor."""
+        super().__init__(
+            coordinator,
+            eag_id,
+            gateway_device_id,
+            device,
+            "settings_read",
+            "settings_read",
+        )
+
+    @property
+    def native_value(self) -> datetime | None:
+        """Return the read time, unknown when the gateway lists none."""
+        return self._device.settings_read_at
+
+
 class OpusGreenNetWallSwitchLinksSensor(OpusGreenNetBaseSensor):
     """How many wall switch links an actuator has (read only)."""
 
@@ -805,6 +908,48 @@ class OpusGreenNetMeasurementSensor(OpusGreenNetBaseSensor):
         channel = self._device.channels.get(DEFAULT_CHANNEL)
         over_range = channel.illuminance_over_range if channel else None
         return None if over_range is None else {"over_range": over_range}
+
+
+class OpusGreenNetReadingSensor(OpusGreenNetBaseSensor):
+    """A validated read-only reading defined in ``readings.py``."""
+
+    def __init__(
+        self,
+        coordinator: OpusGreenNetCoordinator,
+        eag_id: str,
+        gateway_device_id: str,
+        device: EnOceanDevice,
+        spec: ReadingSpec,
+    ) -> None:
+        """Initialize the reading sensor."""
+        super().__init__(
+            coordinator, eag_id, gateway_device_id, device, spec.suffix, spec.suffix
+        )
+        self._spec = spec
+        self._attr_native_unit_of_measurement = spec.unit
+        if spec.device_class is not None:
+            self._attr_device_class = SensorDeviceClass(spec.device_class)
+        if spec.kind == "enum":
+            self._attr_device_class = SensorDeviceClass.ENUM
+            self._attr_options = [option_slug(option) for option in spec.options]
+        elif spec.kind == "number" and spec.measurement:
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+        if spec.diagnostic:
+            self._attr_entity_category = EntityCategory.DIAGNOSTIC
+        self._attr_entity_registry_enabled_default = spec.enabled
+        if spec.precision is not None:
+            self._attr_suggested_display_precision = spec.precision
+
+    @property
+    def native_value(self) -> float | str | None:
+        """Return the validated reading, or unknown before the first valid one."""
+        channel = self._device.channels.get(DEFAULT_CHANNEL)
+        value = channel.readings.get(self._spec.key) if channel else None
+        if isinstance(value, bool) or value is None:
+            return None
+        if self._spec.kind == "enum" and isinstance(value, str):
+            return option_slug(value)
+        return value
 
 
 class OpusGreenNetHandleSensor(OpusGreenNetBaseSensor):

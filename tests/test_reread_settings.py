@@ -31,6 +31,7 @@ from tests.test_coordinator_commands import radio as radio
 
 EAG_ID = "AABB0011"
 CONFIG_PATH = "/devices/DEV1/configuration"
+REPEATER_PATH = "/devices/DEV1/repeaterState"
 BLIND = "D2-05-02"
 
 
@@ -73,7 +74,8 @@ async def test_the_device_values_are_shown_after_one_read(
 
     await connected_coordinator.async_reread_device_settings("DEV1")
 
-    assert radio.sent == [("GET", CONFIG_PATH, None)]
+    # The repeater mode of a blind is a separate resource, read after it.
+    assert radio.sent == [("GET", CONFIG_PATH, None), ("GET", REPEATER_PATH, None)]
     assert blind.channels[0].max_holding_time == 33.0
     assert blind.channels[0].vertical_movement_time == 26.0
 
@@ -98,7 +100,7 @@ async def test_an_answer_without_settings_changes_nothing(
     await connected_coordinator.async_reread_device_settings("DEV1")
 
     assert blind.channels[0].max_holding_time == 12.0
-    assert [method for method, _, _ in radio.sent] == ["GET"]
+    assert [method for method, _, _ in radio.sent] == ["GET", "GET"]
 
 
 async def test_a_read_ends_the_protection_of_the_settings_it_reports(
@@ -174,9 +176,11 @@ async def test_a_second_press_while_reading_is_ignored(
     assert len(radio.sent) == 1
 
     radio.respond(_document(maxHoldingTime=33.0))
+    await radio.wait_sent(2)  # the repeater mode follows the configuration
+    radio.respond({"header": {"httpStatus": 200}, "repeaterState": "off"})
     await first
     assert blind.channels[0].max_holding_time == 33.0
-    assert len(radio.sent) == 1
+    assert len(radio.sent) == 2
     # Afterwards a new read is possible again.
     radio.auto_respond = True
     radio.response = _document(maxHoldingTime=34.0)
@@ -195,6 +199,8 @@ async def test_an_answer_that_overlapped_a_write_is_dropped(
 
     coord._note_setting_write("DEV1")  # a write step happened meanwhile
     radio.respond(_document(maxHoldingTime=33.0))
+    await radio.wait_sent(2)
+    radio.respond({"header": {"httpStatus": 200}, "repeaterState": "off"})
     await task
 
     assert blind.channels[0].max_holding_time == 12.0
@@ -239,7 +245,11 @@ async def test_a_device_forgotten_while_reading_gets_nothing(
     coord.async_forget_device("DEV1")
     radio.respond(_document(maxHoldingTime=33.0))
     # The forgotten device's request is cancelled or answered; neither may
-    # bring the device back or fail loudly.
+    # bring the device back or fail loudly. A follow-up read is answered too.
+    for _ in range(10):
+        await asyncio.sleep(0)
+        if radio.waiting:
+            radio.respond({"header": {"httpStatus": 200}})
     try:
         await task
     except HomeAssistantError:
