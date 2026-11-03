@@ -269,7 +269,13 @@ integration shows *off* or *on* (any time counts as on). Writing *on* sends
 The project the config tool read from the installation (JD Config Tool 2.1.0.0,
 read 2026-10-30) stores the same value as the field `iViNET` = 300 (milliseconds)
 for that switch, so 0.3 s is confirmed as the value the config tool writes for
-*on*. Writing *on* through the integration is untested. Writing the state a device
+*on*. A tester of a second installation (gateway firmware 1.21.30) set the
+*ViNET Router* select to *on* on 28 of 28 switches; the gateway accepted 0.3 s
+and reported *on* each time. Whether routing actually takes place was not
+verified. On the 24 blinds of that installation, 0.3 s was written through the
+`set_device_configuration` action: 22 accepted it at once and returned it on
+reading, two did not answer radio configuration requests at first (see
+[Troubleshooting](troubleshooting.md)). Writing the state a device
 already shows sends nothing. The repeater mode is not a
 ReCom parameter but the device resource `/devices/{id}/repeaterState` (`off`,
 `level_1`, `level_2`); it is written and read back there. *Read settings*
@@ -279,9 +285,15 @@ for each. Dimmers (D2-01-03) and blinds (D2-05-02) report the repeater mode as
 well and get the *Repeater mode* sensor and select only (no *ViNET Router*
 entities); writing it on a dimmer is untested.
 Writing the repeater mode was tested on one D2-01-01 switch and on one D2-05-02
-blind (off, level 1 and back to off; level 2 untested) through the gateway
-interface, not through these entities. The gateway accepted the value and
-returned it on reading; the effect on the radio path was not measured.
+blind (off, level 1 and back to off) through the gateway interface, not through
+these entities. The gateway accepted the value and returned it on reading. A
+tester of a second installation (gateway firmware 1.21.30) then used the
+*Repeater mode* select on its 24 blinds: four blinds that had a repeater (two at
+level 2, two at level 1) were set to *off*, and one blind was set to level 2 and
+back to *off*. The gateway returned each value, *Read settings* ran without
+errors, and the repeater indicator of the MyOPUS app disappeared on the four
+blinds. The direct signal strength stayed within about 5 dB. Whether a blind
+changes its radio behaviour at level 2 was not verified.
 
 **ViNET on dimmers is not available through the REST API.** The OPUS config
 tool (v2, reported by the user) can set and read ViNET on a D2-01-03 dimmer, and
