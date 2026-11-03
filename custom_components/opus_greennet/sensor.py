@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Final
@@ -23,6 +24,7 @@ from homeassistant.const import (
     UnitOfTime,
 )
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -414,17 +416,24 @@ async def async_setup_entry(
 
         Which channels exist is learned from the telegrams: a channel gets its
         entities with its first reading, up to the channel count the device
-        reports (30 until it does).
+        reports (30 until it does). A channel that already has entities in the
+        entity registry gets them again at once, after a restart too, and shows
+        *unknown* until it reports.
         """
         specs = CHANNEL_READINGS.get(device.primary_eep or "", ())
         system = device.channels.get(DEFAULT_CHANNEL)
         count = system.readings.get("channelNumber") if system is not None else None
         limit = int(count) if isinstance(count, float) else 30
+        registered = _registered_channels(hass, entry, eag_id, device.device_id)
         new: list[SensorEntity] = []
-        for channel_id, channel in sorted(device.channels.items()):
+        for channel_id in sorted(set(device.channels) | registered):
             if not 1 <= channel_id <= limit:
                 continue
-            if not any(spec.key in channel.readings for spec in specs):
+            channel = device.channels.get(channel_id)
+            if channel_id not in registered and (
+                channel is None
+                or not any(spec.key in channel.readings for spec in specs)
+            ):
                 continue
             for spec in specs:
                 entity = OpusGreenNetReadingSensor(
@@ -489,6 +498,21 @@ async def async_setup_entry(
             async_add_sensors,
         )
     )
+
+
+def _registered_channels(
+    hass: HomeAssistant, entry: OpusGreenNetConfigEntry, eag_id: str, device_id: str
+) -> set[int]:
+    """Return the channels of a device that have sensors in the entity registry."""
+    pattern = re.compile(rf"^{re.escape(eag_id)}_{re.escape(device_id)}_channel_(\d+)_")
+    return {
+        int(match.group(1))
+        for entity in er.async_entries_for_config_entry(
+            er.async_get(hass), entry.entry_id
+        )
+        if entity.domain == "sensor"
+        and (match := pattern.match(entity.unique_id)) is not None
+    }
 
 
 class OpusGreenNetBaseSensor(OpusGreenNetEntity, SensorEntity):

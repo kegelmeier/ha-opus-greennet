@@ -193,3 +193,67 @@ async def test_channels_get_their_entities_when_they_report(
     await hass.async_block_till_done()
     assert f"{EAG_ID}_COSI1_channel_5_temperature" not in unique_ids()
     assert entry.runtime_data.coordinator.devices["COSI1"].channels[5].readings
+
+
+async def test_known_channels_get_their_entities_back_after_a_restart(
+    hass: HomeAssistant, gateway: FakeGateway
+) -> None:
+    gateway.devices = [device_object("COSI1", EEP)]
+    entry = await setup_bridge(hass, gateway)
+    registry = er.async_get(hass)
+    await gateway.push(telegram("COSI1", [{"key": "channelNumber", "value": "4"}]))
+    await gateway.push(
+        telegram("COSI1", _channel(3, temperature="20.5", heatingCircuitState="on"))
+    )
+    unique_id = f"{EAG_ID}_COSI1_channel_3_temperature"
+    entity_id = await wait_for_entity(hass, "sensor", unique_id)
+    await wait_until(lambda: hass.states.get(entity_id).state == "20.5")
+
+    # A restart: the new coordinator has seen no telegram of any channel yet.
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    state = hass.states.get(entity_id)
+    assert state is not None
+    assert state.state == "unknown"
+    assert "restored" not in state.attributes
+    for suffix in (
+        "temperature_setpoint",
+        "circuit_state",
+        "operation_mode",
+    ):
+        other = registry.async_get_entity_id(
+            "sensor", DOMAIN, f"{EAG_ID}_COSI1_channel_3_{suffix}"
+        )
+        assert hass.states.get(other).state == "unknown"
+
+    # The next report fills the same entity.
+    await gateway.push(telegram("COSI1", _channel(3, temperature="21.0")))
+    await wait_until(lambda: hass.states.get(entity_id).state == "21.0")
+
+
+async def test_a_removed_channel_is_not_brought_back(
+    hass: HomeAssistant, gateway: FakeGateway
+) -> None:
+    gateway.devices = [device_object("COSI1", EEP)]
+    entry = await setup_bridge(hass, gateway)
+    registry = er.async_get(hass)
+    await gateway.push(telegram("COSI1", _channel(1, temperature="20.5")))
+    entity_id = await wait_for_entity(
+        hass, "sensor", f"{EAG_ID}_COSI1_channel_1_temperature"
+    )
+    for entry_ in list(registry.entities.values()):
+        if "_COSI1_channel_1_" in entry_.unique_id:
+            registry.async_remove(entry_.entity_id)
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id) is None
+
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert (
+        registry.async_get_entity_id(
+            "sensor", DOMAIN, f"{EAG_ID}_COSI1_channel_1_temperature"
+        )
+        is None
+    )

@@ -520,9 +520,10 @@ malformed or out-of-range value keeps the last known one.
 
 The heating circuits of a CosiTherm actuator (D2-34-10) get their entities with
 the first telegram that names the channel, and only up to the channel count the
-device reports (30 until it does). After a restart of Home Assistant, a circuit
-that has not reported again stays *unavailable* until it does. This is not
-tested with a real device.
+device reports (30 until it does). A circuit that already has entities in the
+entity registry gets them again when Home Assistant starts and shows *unknown*
+until it reports; remove its entities in the registry to forget a circuit. This
+is not tested with a real device.
 
 D2-05-04 (REG-RJ), D2-70-00 (REG-CPU) and D2-74-20 (REG-FBH) appear in the
 config tool product catalog, but the gateway has no profile for them, so there
