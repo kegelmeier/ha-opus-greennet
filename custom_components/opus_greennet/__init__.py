@@ -68,6 +68,7 @@ from .entity import (
     async_set_non_local_address_issue,
 )
 from .wire import json_body_problem
+from .write_access import async_setup_write_access_notice, setting_writes_allowed
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -302,6 +303,7 @@ async def async_setup_entry(
         generation_check=(
             _newer_generation_answers if generation == GENERATION_LEGACY else None
         ),
+        write_access_allowed=lambda: setting_writes_allowed(entry),
     )
 
     try:
@@ -369,6 +371,7 @@ async def async_setup_entry(
             gateway_device_id=gateway_device.id,
         )
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+        async_setup_write_access_notice(hass, entry)
     except BaseException:
         await coordinator.async_unload()
         raise

@@ -9,9 +9,14 @@ from collections.abc import Mapping
 from typing import Any
 
 import probatio as vol
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+)
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_PORT, CONF_USERNAME
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.selector import (
     TextSelector,
@@ -29,6 +34,7 @@ from .api import (
     OpusResponseError,
 )
 from .const import (
+    CONF_ALLOW_SETTING_WRITES,
     CONF_CERTIFICATE_FINGERPRINT,
     CONF_EAG_ID,
     CONF_GENERATION,
@@ -47,6 +53,7 @@ from .discovery import (
     is_local_address,
     parse_host_literal,
 )
+from .write_access import async_update_write_access_issue, setting_writes_allowed
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -120,6 +127,12 @@ class OpusGreenNetConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Opus GreenNet Bridge."""
 
     VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> OpusGreenNetOptionsFlow:
+        """Return the options flow (write access to device settings)."""
+        return OpusGreenNetOptionsFlow()
 
     _discovered_host: str | None = None
     # What a validated WebUI 2026 gateway adds to the connection data (port,
@@ -263,9 +276,12 @@ class OpusGreenNetConfigFlow(ConfigFlow, domain=DOMAIN):
                 # Adding a known gateway again updates its address (this also
                 # completes the move of an entry from the former MQTT setup).
                 self._abort_if_unique_id_configured(updates=data)
+                # A new entry starts without write access: writing device
+                # settings is switched on in the options dialog, after a warning.
                 return self.async_create_entry(
                     title=f"Opus GreenNet ({eag_id})",
                     data={CONF_EAG_ID: eag_id, **data},
+                    options={CONF_ALLOW_SETTING_WRITES: False},
                 )
         defaults: dict[str, Any] = {}
         if self._discovered_host is not None:
@@ -442,4 +458,37 @@ class OpusGreenNetConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="certificate",
             data_schema=vol.Schema({}),
             description_placeholders={"fingerprint": ":".join(pairs)},
+        )
+
+
+class OpusGreenNetOptionsFlow(OptionsFlow):
+    """Allow or forbid writing device settings to the actuators.
+
+    The step shows a warning; the checkbox is the confirmation. Ticking it
+    enables write access, clearing it disables it again. Nothing is sent to the
+    gateway or a device.
+    """
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Ask for the confirmation to write device settings."""
+        if user_input is not None:
+            allowed = user_input[CONF_ALLOW_SETTING_WRITES]
+            async_update_write_access_issue(
+                self.hass, self.config_entry, allowed=allowed
+            )
+            return self.async_create_entry(
+                data={**self.config_entry.options, CONF_ALLOW_SETTING_WRITES: allowed}
+            )
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_ALLOW_SETTING_WRITES,
+                        default=setting_writes_allowed(self.config_entry),
+                    ): bool
+                }
+            ),
         )

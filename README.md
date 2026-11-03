@@ -133,6 +133,20 @@ you only enter the password. To add it by hand, use
 | **Username** | API user, `admin` by default |
 | **Password** | API password, by default the gateway's EURID in capital letters (printed on the gateway; fictional example: `A1B2C3D4`) |
 
+### Write access to device settings
+
+Settings that change an actuator (the number and select entities, the repeater
+mode, ViNET and the action `opus_greennet.set_device_configuration`) are written
+directly to the device by radio, and a wrong value can make it malfunction. A
+**new entry therefore starts with write access off**. Reading settings (the
+*Read settings* button and the daily read) is not affected. To switch it on, open
+**Settings → Devices & services → Opus GreenNet Bridge → Configure**, read the
+warning and tick the confirmation. If you enable an entity that changes a setting
+while write access is off, a notice appears under **Settings → System → Repairs**,
+and a change is refused with a message that says where to enable it. Entries set
+up before this option existed keep writing: nothing changes for them, and the same
+dialog switches write access off if you want that.
+
 ### Gateways with WebUI 2026
 
 Gateways with the software of the new generation (WebUI 2026) no longer answer

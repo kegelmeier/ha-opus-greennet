@@ -20,6 +20,7 @@ custom_components/opus_greennet/
 ├── const.py              # Constants and EEP mappings
 ├── readings.py           # Read-only readings of profiles without a dedicated model (from the gateway catalog)
 ├── wire.py               # Typed JSON boundary helpers
+├── write_access.py       # Opt-in for writing device settings (option, notice in Repairs)
 ├── enocean_device.py     # Device and channel data model
 ├── entity.py             # Shared entity and device-registry behaviour
 ├── diagnostics.py        # Redacted diagnostics

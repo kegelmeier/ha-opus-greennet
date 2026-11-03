@@ -65,6 +65,10 @@ loads; a host name is checked when you enter it.
   restarting Home Assistant. Pending requests are cancelled.
 - An action that timed out may still have been executed: check the physical
   state before repeating it.
+- A change of a device setting that is refused with "Write access to device
+  settings is not enabled" was not sent. A new entry starts with write access
+  off: enable it under **Settings → Devices & services → Opus GreenNet Bridge →
+  Configure** (after the warning). Reading settings is not affected.
 - Changing a setting of a device (for example the vertical movement time of a
   blind) is a write followed by a read-back. If the gateway rejects the
   **write** (for example `504`, no response from device), the message says

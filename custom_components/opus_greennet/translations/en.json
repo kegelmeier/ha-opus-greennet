@@ -72,6 +72,20 @@
       "not_local_address": "The announced address is not in the local network and is ignored."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Caution: Changing device configuration",
+        "description": "These settings are written directly to the actuator. Changes may cause the device to malfunction or stop working. Incorrect settings may also damage the actuator or connected equipment.\n\nOnly enable write access if you understand the effects of the changes.",
+        "data": {
+          "allow_setting_writes": "I understand the risks and want to enable write access."
+        },
+        "data_description": {
+          "allow_setting_writes": "Allows device configuration to be written directly to the actuator. Incorrect settings may cause malfunctions, device failure, or damage to connected equipment."
+        }
+      }
+    }
+  },
   "entity": {
     "binary_sensor": {
       "contact": {
@@ -744,6 +758,9 @@
     },
     "hvac_mode_read_only": {
       "message": "This heat area reports heating or cooling but cannot be switched from Home Assistant."
+    },
+    "write_access_disabled": {
+      "message": "{device_id}: Not written. Write access to device settings is not enabled. Enable it under Settings → Devices & services → Opus GreenNet → Configure."
     }
   },
   "services": {
@@ -859,6 +876,10 @@
           }
         }
       }
+    },
+    "write_access_off": {
+      "title": "Write access to device settings is not enabled",
+      "description": "An entity that changes a device setting of {name} is enabled, but write access is not. Changes are refused until you enable write access: open Settings → Devices & services → Opus GreenNet, choose Configure and confirm the warning.\n\nWrite access allows device configuration to be written directly to the actuator. Incorrect settings may cause malfunctions, device failure, or damage to connected equipment. The notice disappears when write access is enabled or the entity is disabled again."
     }
   },
   "selector": {

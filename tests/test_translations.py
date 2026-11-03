@@ -186,15 +186,28 @@ def test_config_flow_errors_and_aborts_are_translated() -> None:
     aborts |= {"already_configured", "reauth_successful", "reconfigure_successful"}
     assert errors == set(STRINGS["config"]["error"])
     assert aborts == set(STRINGS["config"]["abort"])
-    steps = {
-        node.name.removeprefix("async_step_")
-        for node in ast.walk(tree)
-        if isinstance(node, ast.AsyncFunctionDef)
-        and node.name.startswith("async_step_")
-        # These steps only route to a step with a form.
-        and node.name not in {"async_step_reauth", "async_step_zeroconf"}
-    }
+
+    def _steps(class_name: str) -> set[str]:
+        (flow,) = (
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ClassDef) and node.name == class_name
+        )
+        return {
+            node.name.removeprefix("async_step_")
+            for node in ast.walk(flow)
+            if isinstance(node, ast.AsyncFunctionDef)
+            and node.name.startswith("async_step_")
+            # These steps only route to a step with a form.
+            and node.name not in {"async_step_reauth", "async_step_zeroconf"}
+        }
+
+    steps = _steps("OpusGreenNetConfigFlow")
     assert steps == set(STRINGS["config"]["step"])
+    # The options flow has its own strings.
+    assert _steps("OpusGreenNetOptionsFlow") == set(STRINGS["options"]["step"])
+    for texts in STRINGS["options"]["step"].values():
+        assert set(texts["data"]) == set(texts["data_description"])
     for step in steps:
         texts = STRINGS["config"]["step"][step]
         # A step without input fields (the certificate confirmation) has no

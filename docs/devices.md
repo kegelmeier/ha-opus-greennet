@@ -21,6 +21,16 @@ The settings stored on actuators, as far as the gateway's parameter catalog
 (read from one device per type) lists them. All are configuration entities and
 **disabled by default**; the details are in the sections below.
 
+**Write access.** A new entry starts with write access to device settings off:
+enabling one of these entities is not enough, and a change is refused (nothing is
+sent) until you enable write access under *Settings → Devices & services → Opus
+GreenNet Bridge → Configure*, after a warning and a confirmation. Reading the
+settings (*Read settings*, the daily read, *Settings read*) always works. The same
+applies to the repeater mode, ViNET and the action
+`opus_greennet.set_device_configuration`. Entries set up before the option existed
+keep writing. While write access is off and one of these entities is enabled, a
+notice appears under *Settings → System → Repairs*.
+
 | Device | Number entities | Select entities | Not offered |
 |--------|-----------------|-----------------|-------------|
 | Blinds (D2-05-02) | Vertical movement time, Rotation time, Maximum holding time | ViNET Router, Repeater mode | Function of rocker A and B |
