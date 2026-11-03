@@ -371,6 +371,16 @@ async def test_blind_repeater_mode_is_written_and_read_back(
     assert device.channels[0].repeater == "level_1"
 
 
+def test_no_routing_select_is_offered_for_dimmers() -> None:
+    # The gateway lists no routing time for a D2-01-03 (read on 2026-10-31,
+    # firmware 1.21.30), although the OPUS config tool can set ViNET there.
+    from custom_components.opus_greennet.select import DEVICE_SELECTS
+
+    (ROUTING,) = (s for s in DEVICE_SELECTS if s.parameter == "routingTime")
+    dimmer = EnOceanDevice("DIM", "Dimmer", [{"eep": "D2-01-03"}])
+    assert ROUTING.values_for(dimmer) is None
+
+
 # ── device information ─────────────────────────────────────────────────────
 
 
