@@ -75,13 +75,13 @@
   "options": {
     "step": {
       "init": {
-        "title": "Achtung: Gerätekonfiguration ändern",
-        "description": "Diese Einstellungen werden direkt auf den Aktor geschrieben. Änderungen können zu Fehlfunktionen oder zum Ausfall des Geräts führen. Fehlerhafte Einstellungen können außerdem Schäden am Aktor oder an angeschlossenen Geräten verursachen.\n\nAktiviere den Schreibzugriff nur, wenn du die Auswirkungen der Änderungen kennst.",
+        "title": "Schreibzugriff auf Geräteeinstellungen",
+        "description": "**Achtung: Diese Einstellungen werden direkt auf den Aktor geschrieben.**\n\nFehlerhafte Werte können:\n\n- Fehlfunktionen oder den Ausfall des Geräts verursachen\n- den Aktor oder angeschlossene Geräte beschädigen\n\nAktiviere den Schreibzugriff nur, wenn du die Auswirkungen der Änderungen kennst.",
         "data": {
           "allow_setting_writes": "Ich verstehe die Risiken und möchte den Schreibzugriff aktivieren."
         },
         "data_description": {
-          "allow_setting_writes": "Ermöglicht das direkte Schreiben der Gerätekonfiguration auf den Aktor. Fehlerhafte Einstellungen können zu Fehlfunktionen, Geräteausfällen oder Schäden an angeschlossenen Geräten führen."
+          "allow_setting_writes": "Gilt für alle Geräte dieses Gateways. Das Lesen der Einstellungen bleibt davon unberührt."
         }
       }
     }
