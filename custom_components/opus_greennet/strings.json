@@ -79,13 +79,13 @@
   "options": {
     "step": {
       "init": {
-        "title": "Caution: Changing device configuration",
-        "description": "These settings are written directly to the actuator. Changes may cause the device to malfunction or stop working. Incorrect settings may also damage the actuator or connected equipment.\n\nOnly enable write access if you understand the effects of the changes.",
+        "title": "Write access to device settings",
+        "description": "**Caution: These settings are written directly to the actuator.**\n\nIncorrect values can:\n\n- cause malfunctions or device failure\n- damage the actuator or connected equipment\n\nOnly enable write access if you understand the effects of the changes.",
         "data": {
           "allow_setting_writes": "I understand the risks and want to enable write access."
         },
         "data_description": {
-          "allow_setting_writes": "Allows device configuration to be written directly to the actuator. Incorrect settings may cause malfunctions, device failure, or damage to connected equipment."
+          "allow_setting_writes": "Applies to all devices of this gateway. Reading settings is not affected."
         }
       }
     }
