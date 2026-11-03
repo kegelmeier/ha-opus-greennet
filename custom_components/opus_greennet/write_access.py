@@ -46,15 +46,21 @@ def _writing_entity_enabled(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 @callback
-def async_update_write_access_issue(hass: HomeAssistant, entry: ConfigEntry) -> None:
+def async_update_write_access_issue(
+    hass: HomeAssistant, entry: ConfigEntry, *, allowed: bool | None = None
+) -> None:
     """Show or clear the notice for an enabled writing entity without write access.
 
-    The issue is not persistent and not fixable: every setup and every change of
-    the entity or the option decides again, and only the user can enable write
-    access (options dialog, after the warning).
+    ``allowed`` is the value the options dialog is about to store; without it the
+    stored option decides. The issue is not persistent and not fixable: every
+    setup, every enabling of an entity and every confirmed dialog decides again,
+    and only the user can enable write access (options dialog, after the
+    warning).
     """
     issue_id = f"{ISSUE_WRITE_ACCESS_OFF}_{entry.entry_id}"
-    if setting_writes_allowed(entry) or not _writing_entity_enabled(hass, entry):
+    if allowed is None:
+        allowed = setting_writes_allowed(entry)
+    if allowed or not _writing_entity_enabled(hass, entry):
         ir.async_delete_issue(hass, DOMAIN, issue_id)
         return
     ir.async_create_issue(
@@ -68,13 +74,14 @@ def async_update_write_access_issue(hass: HomeAssistant, entry: ConfigEntry) -> 
     )
 
 
-async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    async_update_write_access_issue(hass, entry)
-
-
 @callback
 def async_setup_write_access_notice(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Keep the notice up to date while the entry is loaded."""
+    """Keep the notice up to date while the entry is loaded.
+
+    No update listener of the entry is used: Home Assistant treats an entry with
+    one differently when the entry is updated by a flow. The options dialog
+    updates the notice itself.
+    """
 
     @callback
     def _registry_updated(event: Event[er.EventEntityRegistryUpdatedData]) -> None:
@@ -95,7 +102,6 @@ def async_setup_write_access_notice(hass: HomeAssistant, entry: ConfigEntry) -> 
     entry.async_on_unload(
         hass.bus.async_listen(er.EVENT_ENTITY_REGISTRY_UPDATED, _registry_updated)
     )
-    entry.async_on_unload(entry.add_update_listener(_async_options_updated))
     entry.async_on_unload(
         lambda: ir.async_delete_issue(
             hass, DOMAIN, f"{ISSUE_WRITE_ACCESS_OFF}_{entry.entry_id}"

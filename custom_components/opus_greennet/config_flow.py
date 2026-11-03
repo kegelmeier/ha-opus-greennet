@@ -53,7 +53,7 @@ from .discovery import (
     is_local_address,
     parse_host_literal,
 )
-from .write_access import setting_writes_allowed
+from .write_access import async_update_write_access_issue, setting_writes_allowed
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -474,11 +474,12 @@ class OpusGreenNetOptionsFlow(OptionsFlow):
     ) -> ConfigFlowResult:
         """Ask for the confirmation to write device settings."""
         if user_input is not None:
+            allowed = user_input[CONF_ALLOW_SETTING_WRITES]
+            async_update_write_access_issue(
+                self.hass, self.config_entry, allowed=allowed
+            )
             return self.async_create_entry(
-                data={
-                    **self.config_entry.options,
-                    CONF_ALLOW_SETTING_WRITES: user_input[CONF_ALLOW_SETTING_WRITES],
-                }
+                data={**self.config_entry.options, CONF_ALLOW_SETTING_WRITES: allowed}
             )
         return self.async_show_form(
             step_id="init",

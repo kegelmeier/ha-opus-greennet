@@ -207,12 +207,19 @@ async def test_the_notice_follows_the_entity_and_the_option(
     assert issue.is_fixable is False
     assert issue.severity is ir.IssueSeverity.WARNING
 
-    # Enabling write access clears it.
-    hass.config_entries.async_update_entry(
-        entry, options={CONF_ALLOW_SETTING_WRITES: True}
+    # Confirming the options dialog with write access on clears it; clearing the
+    # box again shows it.
+    flow = await hass.config_entries.options.async_init(entry.entry_id)
+    await hass.config_entries.options.async_configure(
+        flow["flow_id"], {CONF_ALLOW_SETTING_WRITES: True}
     )
-    await hass.async_block_till_done()
     assert issues.async_get_issue(DOMAIN, _issue_id(entry)) is None
+
+    flow = await hass.config_entries.options.async_init(entry.entry_id)
+    await hass.config_entries.options.async_configure(
+        flow["flow_id"], {CONF_ALLOW_SETTING_WRITES: False}
+    )
+    assert issues.async_get_issue(DOMAIN, _issue_id(entry)) is not None
 
 
 async def test_other_registry_changes_leave_the_notice_alone(
