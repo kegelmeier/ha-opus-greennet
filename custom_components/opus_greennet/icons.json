@@ -213,6 +213,9 @@
       },
       "daily_settings_run": {
         "default": "mdi:calendar-check-outline"
+      },
+      "gateway_receive_counter": {
+        "default": "mdi:counter"
       }
     },
     "button": {

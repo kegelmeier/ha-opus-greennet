@@ -122,6 +122,10 @@ async def async_setup_entry(
                 OpusGreenNetGatewayInfoSensor(coordinator, eag_id, key)
                 for key in GATEWAY_INFO_READINGS
             ),
+            *(
+                OpusGreenNetGatewayNumberSensor(coordinator, eag_id, key)
+                for key in GATEWAY_INFO_NUMBERS
+            ),
         ]
     )
 
@@ -1180,6 +1184,30 @@ GATEWAY_INFO_READINGS: Final[
     "gateway_ipv6_address": lambda coordinator: coordinator.gateway_address[2],
 }
 
+# Counters of the gateway (``/system/info``, read every 30 minutes): key (also
+# the translation key and the end of the unique ID) -> (field, unit, class, state
+# class). Plain gateway reads, no radio traffic.
+GATEWAY_INFO_NUMBERS: Final[
+    dict[
+        str,
+        tuple[str, str | None, SensorDeviceClass | None, SensorStateClass],
+    ]
+] = {
+    # Counts from the start of the gateway; it restarts at zero after a restart.
+    "gateway_receive_counter": (
+        "receiveCounter",
+        None,
+        None,
+        SensorStateClass.TOTAL_INCREASING,
+    ),
+    "gateway_average_dbm": (
+        "averageDbm",
+        SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
+        SensorDeviceClass.SIGNAL_STRENGTH,
+        SensorStateClass.MEASUREMENT,
+    ),
+}
+
 # Disabled by default: the EURID is the gateway's default password, the others
 # only repeat what the entry already shows.
 GATEWAY_INFO_DISABLED_BY_DEFAULT: Final = frozenset(
@@ -1190,6 +1218,60 @@ GATEWAY_INFO_DISABLED_BY_DEFAULT: Final = frozenset(
         "gateway_ipv6_address",
     }
 )
+
+
+class OpusGreenNetGatewayNumberSensor(SensorEntity):
+    """A counter or mean value of the gateway (diagnostic, gateway device).
+
+    Taken from the gateway information that is read at setup and every 30
+    minutes; nothing is polled by the entity. A field the gateway does not
+    report, or reports as anything but a number, shows as unknown.
+    """
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(
+        self, coordinator: OpusGreenNetCoordinator, eag_id: str, key: str
+    ) -> None:
+        """Initialize the sensor ``key`` of GATEWAY_INFO_NUMBERS."""
+        self._coordinator = coordinator
+        self._eag_id = eag_id
+        self._field, unit, device_class, state_class = GATEWAY_INFO_NUMBERS[key]
+        self._attr_translation_key = key
+        self._attr_unique_id = f"{eag_id}_{key}"
+        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, eag_id)})
+        self._attr_native_unit_of_measurement = unit
+        self._attr_device_class = device_class
+        self._attr_state_class = state_class
+
+    @property
+    def available(self) -> bool:
+        """Return whether the gateway is reachable."""
+        return self._coordinator.available
+
+    @property
+    def native_value(self) -> int | float | None:
+        """Return the reading, or None while the gateway did not report it."""
+        value = self._coordinator.gateway_info.get(self._field)
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return None
+        return value
+
+    async def async_added_to_hass(self) -> None:
+        """Show every new reading and every availability change."""
+        await super().async_added_to_hass()
+        for signal in (SIGNAL_GATEWAY_INFO_UPDATE, SIGNAL_AVAILABILITY_UPDATE):
+            self.async_on_remove(
+                async_dispatcher_connect(
+                    self.hass, f"{signal}_{self._eag_id}", self._handle_update
+                )
+            )
+
+    @callback
+    def _handle_update(self) -> None:
+        self.async_write_ha_state()
 
 
 class OpusGreenNetDailySettingsRunSensor(RestoreSensor):
