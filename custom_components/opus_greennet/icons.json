@@ -210,6 +210,9 @@
           "enabled": "mdi:led-on",
           "disabled": "mdi:led-off"
         }
+      },
+      "daily_settings_run": {
+        "default": "mdi:calendar-check-outline"
       }
     },
     "button": {
