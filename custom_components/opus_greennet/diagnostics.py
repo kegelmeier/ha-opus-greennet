@@ -187,6 +187,26 @@ def _info_int(info: object, key: str) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
+def _daily_settings_read(coordinator: object) -> dict[str, object]:
+    """Return the schedule and the result of the daily settings read."""
+    run = getattr(coordinator, "daily_settings_last_run", None)
+    at = getattr(coordinator, "daily_settings_time", None)
+    return {
+        "enabled": getattr(coordinator, "daily_settings_enabled", None),
+        "time": at.isoformat() if at is not None else None,
+        "last_run": (
+            None
+            if run is None
+            else {
+                "finished_at": run.finished_at.isoformat(),
+                "read": run.read,
+                "failed": run.failed,
+                "stopped": run.stopped,
+            }
+        ),
+    }
+
+
 def _gateway_versions(info: object) -> dict[str, str | None]:
     """Return firmware, application and API version from the gateway reply."""
     source = info if isinstance(info, dict) else {}
@@ -305,6 +325,7 @@ async def async_get_config_entry_diagnostics(
                 "average_dbm": _info_int(coordinator.gateway_info, "averageDbm"),
                 "info_read_at": getattr(coordinator, "gateway_info_read_at", None),
                 "uptime": coordinator.gateway_uptime,
+                "daily_settings_read": _daily_settings_read(coordinator),
                 # Seconds from opening the event stream to its first device
                 # list at setup.
                 "first_device_list_seconds": getattr(

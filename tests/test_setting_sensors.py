@@ -67,7 +67,7 @@ async def _created(eep: str) -> list:
 @pytest.mark.parametrize(
     ("eep", "numbers", "choices"),
     [
-        ("D2-05-02", 3, 1),
+        ("D2-05-02", 3, 2),
         ("D2-01-03", 3, 1),
         ("D2-01-01", 5, 5),
         ("D2-01-11", 5, 6),

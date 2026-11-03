@@ -34,15 +34,20 @@ from collections.abc import Awaitable, Callable, Coroutine, Mapping, Sequence
 from contextlib import aclosing
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from datetime import time as dtime
 from decimal import Decimal
 from enum import StrEnum
 from time import monotonic, time
 from typing import Any
 
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from homeassistant.helpers.event import async_call_later, async_track_time_interval
+from homeassistant.helpers.event import (
+    async_call_later,
+    async_track_time_change,
+    async_track_time_interval,
+)
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
@@ -132,6 +137,7 @@ SIGNAL_DEVICE_STATE_UPDATE = f"{DOMAIN}_device_state_update"
 SIGNAL_AVAILABILITY_UPDATE = f"{DOMAIN}_availability_update"
 SIGNAL_GATEWAY_UPTIME_UPDATE = f"{DOMAIN}_gateway_uptime_update"
 SIGNAL_GATEWAY_INFO_UPDATE = f"{DOMAIN}_gateway_info_update"
+SIGNAL_DAILY_SETTINGS_RUN = f"{DOMAIN}_daily_settings_run"
 
 GATEWAY_HEALTH_INTERVAL = timedelta(seconds=60)
 # A gateway of the earlier generation that fails this many health probes in a
@@ -144,6 +150,11 @@ GENERATION_CHECK_INTERVAL = 600.0
 # refreshes slowly changing metadata (battery level, signal, movement times)
 # and picks up newly paired devices.
 DEVICE_LIST_REFRESH_INTERVAL = timedelta(minutes=30)
+# Default local time of the daily read of the stored settings of the devices
+# (few switches are used at that time); the gateway device offers a switch and
+# a time entity to change it. A run stops after this many failures in a row.
+DAILY_SETTINGS_DEFAULT_TIME = dtime(5, 0)
+DAILY_SETTINGS_MAX_FAILURES = 3
 # Reconnecting the event stream (phase R4, finding B-2). Every new stream
 # starts with the complete device list, so each attempt is a full download
 # from the gateway (no radio telegram). The pause before the next attempt
@@ -400,6 +411,18 @@ class GatewayMismatchError(OpusApiError):
     """The configured address answers with a different gateway identity."""
 
 
+@dataclass(frozen=True, slots=True)
+class DailySettingsRun:
+    """How the last daily read of the stored settings ended."""
+
+    finished_at: datetime
+    read: int
+    failed: int
+    # "failures": three reads failed in a row; "unavailable": the gateway was
+    # not reachable; None: every eligible device was tried.
+    stopped: str | None
+
+
 @dataclass
 class CoverMovement:
     """One channel's replaceable travel estimate and cancellation handle."""
@@ -477,8 +500,12 @@ class OpusGreenNetCoordinator:
         *,
         on_auth_failed: Callable[[], None] | None = None,
         generation_check: Callable[[], Awaitable[bool]] | None = None,
+        write_access_allowed: Callable[[], bool] | None = None,
     ) -> None:
         """Initialize the coordinator.
+
+        ``write_access_allowed`` tells whether device settings may be written
+        (the option of the config entry); without it they may.
 
         ``generation_check`` is given for a gateway of the earlier generation
         only: it tells whether a gateway of the newer generation answers at
@@ -499,6 +526,7 @@ class OpusGreenNetCoordinator:
         )
         self._on_auth_failed = on_auth_failed
         self._generation_check = generation_check
+        self._write_access_allowed = write_access_allowed
         self._probe_failures = 0
         self._generation_checked_at: float | None = None
         self._auth_failed = False
@@ -556,6 +584,11 @@ class OpusGreenNetCoordinator:
         self._setting_writes: dict[str, int] = {}
         # Devices whose settings are being read on request right now.
         self._settings_reading: set[str] = set()
+        self._daily_settings_running = False
+        self.daily_settings_last_run: DailySettingsRun | None = None
+        self.daily_settings_enabled = True
+        self.daily_settings_time = DAILY_SETTINGS_DEFAULT_TIME
+        self._daily_settings_cancel: CALLBACK_TYPE | None = None
         self._command_waiters: dict[str, int] = {}
         self._sent_commands: dict[str, list[tuple[float, frozenset[object]]]] = {}
         self._cover_movements: dict[tuple[str, int], CoverMovement] = {}
@@ -647,6 +680,7 @@ class OpusGreenNetCoordinator:
                 self.hass, self._async_refresh_tick, DEVICE_LIST_REFRESH_INTERVAL
             )
         )
+        self._schedule_daily_settings()
         # The stream's device list carries no ``configuration`` block on real
         # gateways (OPUS-IQ-DOT 1.21.30; phase 21 hardware diagnostics: 0 of
         # 10 covers had a movement time after a stream-first start). Cover
@@ -666,6 +700,9 @@ class OpusGreenNetCoordinator:
         for cancel in self._timers:
             cancel()
         self._timers.clear()
+        if self._daily_settings_cancel is not None:
+            self._daily_settings_cancel()
+            self._daily_settings_cancel = None
         self._cancel_background_work()
         for task in self._tasks:
             task.cancel()
@@ -2419,20 +2456,32 @@ class OpusGreenNetCoordinator:
     # ReCom service requests
     # ──────────────────────────────────────────────────────────────────────
 
-    async def async_get_device_configuration(self, device_id: str) -> JsonObject:
+    async def async_get_device_configuration(
+        self, device_id: str, *, priority: int = PRIORITY_QUERY
+    ) -> JsonObject:
         """Read the configuration stored on a device."""
         path = OpusGatewayClient.device_path(device_id, "configuration")
         return await self._async_radio_request(
             device_id,
             lambda: self.client.async_get(path, timeout=RECOM_TIMEOUT),
-            priority=PRIORITY_QUERY,
+            priority=priority,
             kind="configuration_read",
         )
+
+    def _require_write_access(self, device_id: str) -> None:
+        """Refuse to write a device setting while write access is off."""
+        if self._write_access_allowed is not None and not self._write_access_allowed():
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="write_access_disabled",
+                translation_placeholders={"device_id": device_id},
+            )
 
     async def async_set_device_configuration(
         self, device_id: str, config: WireMapping
     ) -> None:
         """Write configuration to a device and wait for the acknowledgement."""
+        self._require_write_access(device_id)
         if (problem := json_body_problem(config)) is not None:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
@@ -2457,13 +2506,16 @@ class OpusGreenNetCoordinator:
         """Count a configuration write step of a device (see ``_setting_writes``)."""
         self._setting_writes[device_id] = self._setting_writes.get(device_id, 0) + 1
 
-    async def async_reread_device_settings(self, device_id: str) -> None:
-        """Read the settings stored on a device and show them (on request only).
+    async def async_reread_device_settings(
+        self, device_id: str, *, priority: int = PRIORITY_QUERY
+    ) -> None:
+        """Read the settings stored on a device and show them.
 
-        One ReCom read over the radio, never repeated and never started by the
-        integration itself. The values the device reports replace what Home
-        Assistant shows, also a value that a device list or an earlier write
-        left behind, and end the protection of a confirmed write for these
+        One ReCom read over the radio, never repeated. It is started by a button
+        press or by the daily read (``async_refresh_all_settings``). The values
+        the device reports replace what Home Assistant shows, also a value that
+        a device list or an earlier write left behind, and end the protection
+        of a confirmed write for these
         settings. A setting the device does not report keeps its known value.
         A press while the same device is being read is ignored. An answer that
         arrives after a write to the device started or finished meanwhile is
@@ -2478,11 +2530,15 @@ class OpusGreenNetCoordinator:
         started = self._setting_writes.get(device_id, 0)
         repeater: JsonObject | None = None
         try:
-            document = await self.async_get_device_configuration(device_id)
+            document = await self.async_get_device_configuration(
+                device_id, priority=priority
+            )
             if protocol.supports_repeater_state(device):
                 # A second, separate read; a failure only leaves the mode as known.
                 try:
-                    repeater = await self.async_get_repeater_state(device_id)
+                    repeater = await self.async_get_repeater_state(
+                        device_id, priority=priority
+                    )
                 except HomeAssistantError as err:
                     _LOGGER.debug(
                         "Repeater mode of device %s not read: %s", device_id, err
@@ -2518,6 +2574,114 @@ class OpusGreenNetCoordinator:
             if released:
                 self._save_setting_guards()
         self._dispatch_state(device)
+
+    async def async_refresh_all_settings(
+        self, eligible: Callable[[EnOceanDevice], bool]
+    ) -> int:
+        """Read the stored settings of the eligible devices, one after the other.
+
+        Radio traffic with the lowest priority, so every command and every
+        status query goes first. A read is never repeated; a failed device is
+        skipped and the run ends after ``DAILY_SETTINGS_MAX_FAILURES`` failures
+        in a row (gateway or radio not answering). Returns the number of devices
+        read.
+        """
+        if self._daily_settings_running:
+            return 0
+        self._daily_settings_running = True
+        read = failures = failed = 0
+        stopped: str | None = None
+        try:
+            for device_id in sorted(self.devices):
+                if self._unloaded:
+                    break
+                if not self.available:
+                    stopped = "unavailable"
+                    break
+                device = self.devices.get(device_id)
+                if device is None or not eligible(device):
+                    continue
+                try:
+                    await self.async_reread_device_settings(
+                        device_id, priority=PRIORITY_BACKGROUND
+                    )
+                except HomeAssistantError as err:
+                    failures += 1
+                    failed += 1
+                    _LOGGER.debug(
+                        "Daily settings read of device %s failed: %s", device_id, err
+                    )
+                    if failures >= DAILY_SETTINGS_MAX_FAILURES:
+                        stopped = "failures"
+                        _LOGGER.warning(
+                            "Daily settings read of EAG %s stopped after %d failures "
+                            "in a row",
+                            self.eag_id,
+                            failures,
+                        )
+                        break
+                else:
+                    failures = 0
+                    read += 1
+        finally:
+            self._daily_settings_running = False
+        if not self._unloaded:
+            self.daily_settings_last_run = DailySettingsRun(
+                dt_util.utcnow().replace(microsecond=0), read, failed, stopped
+            )
+            async_dispatcher_send(
+                self.hass, f"{SIGNAL_DAILY_SETTINGS_RUN}_{self.eag_id}"
+            )
+        _LOGGER.debug(
+            "Daily settings read of EAG %s: %d devices read, %d failed",
+            self.eag_id,
+            read,
+            failed,
+        )
+        return read
+
+    @callback
+    def _schedule_daily_settings(self) -> None:
+        """(Re)start the daily read at the chosen local time, unless it is off."""
+        if self._daily_settings_cancel is not None:
+            self._daily_settings_cancel()
+            self._daily_settings_cancel = None
+        if self._unloaded or not self.daily_settings_enabled:
+            return
+        self._daily_settings_cancel = async_track_time_change(
+            self.hass,
+            self._async_daily_settings_tick,
+            hour=self.daily_settings_time.hour,
+            minute=self.daily_settings_time.minute,
+            second=0,
+        )
+
+    @callback
+    def async_set_daily_settings(
+        self, *, enabled: bool | None = None, at: dtime | None = None
+    ) -> None:
+        """Switch the daily read on or off, or move it to another local time."""
+        if enabled is not None:
+            self.daily_settings_enabled = enabled
+        if at is not None:
+            self.daily_settings_time = dtime(at.hour, at.minute)
+        self._schedule_daily_settings()
+
+    @callback
+    def _async_daily_settings_tick(self, _now: datetime) -> None:
+        """Start the daily read of the stored settings."""
+        self._create_task(self._async_daily_settings_read(), "daily settings read")
+
+    async def _async_daily_settings_read(self) -> None:
+        # Imported here: the button platform imports this module.
+        from .button import has_settings
+
+        def eligible(device: EnOceanDevice) -> bool:
+            # Battery powered presence detectors answer a radio read only in
+            # their wake window: no reading on a schedule.
+            return has_settings(device) and not device.is_presence_detector
+
+        await self.async_refresh_all_settings(eligible)
 
     async def async_restore_setting_guards(self, store: Store[dict[str, Any]]) -> None:
         """Take the protection saved before the last restart, and keep it saved.
@@ -2695,6 +2859,7 @@ class OpusGreenNetCoordinator:
         read: Callable[[JsonObject, str], Any],
         same: Callable[[Any], bool],
     ) -> None:
+        self._require_write_access(device_id)
         device = self.get_device(device_id)
         if device is None:
             raise request_error("device_not_found", device_id)
@@ -2786,13 +2951,15 @@ class OpusGreenNetCoordinator:
         self._guard_confirmed_setting(device_id, KEY_ROUTING_TIME, previous, stored)
         self._dispatch_state(device)
 
-    async def async_get_repeater_state(self, device_id: str) -> JsonObject:
+    async def async_get_repeater_state(
+        self, device_id: str, *, priority: int = PRIORITY_QUERY
+    ) -> JsonObject:
         """Read the repeater mode of a device (``GET .../repeaterState``)."""
         path = OpusGatewayClient.device_path(device_id, "repeaterState")
         return await self._async_radio_request(
             device_id,
             lambda: self.client.async_get(path, timeout=RECOM_TIMEOUT),
-            priority=PRIORITY_QUERY,
+            priority=priority,
             kind="repeater_state_read",
         )
 
@@ -2806,6 +2973,7 @@ class OpusGreenNetCoordinator:
         step is reported with its own message.
         """
         device_id = device.device_id
+        self._require_write_access(device_id)
         path = OpusGatewayClient.device_path(device_id, "repeaterState")
         body = {KEY_REPEATER_STATE: option}
         self._note_setting_write(device_id)

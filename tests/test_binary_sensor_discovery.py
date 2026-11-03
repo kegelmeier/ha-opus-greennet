@@ -22,6 +22,7 @@ from tests.ha_helpers import setup_bridge, wait_for_entity, wait_until
 PROFILES = [
     ("D5-00-01", 1),
     ("F6-05-01", 1),
+    ("D1-4B-03", 4),
     ("D1-4B-05", 5),
     ("D1-4B-06", 4),
     ("D1-4B-07", 3),

@@ -19,7 +19,7 @@ Rule -> implementation -> tests -> documentation for every rule in
   official rule keys, the applicable official validators (`config-flow`,
   `runtime-data`, `strict-typing`, `test-before-setup`, `unique-config-entry`,
   `discovery`) and checks that this table matches the YAML.
-- Summary: 49 done, 5 exempt, 0 todo. Open items stay visible as `todo`.
+- Summary: 50 done, 4 exempt, 0 todo. Open items stay visible as `todo`.
   Exempt rules are self-assessed and would need an official review to be
   accepted, so no tier is claimed.
 
@@ -56,7 +56,7 @@ Rule -> implementation -> tests -> documentation for every rule in
 |------|--------|----------------|-------|---------------|
 | `action-exceptions` | done | `ServiceValidationError` for invalid input, translated `HomeAssistantError` (`request_error`) for failed requests and entity commands | `test_service_actions.py::test_unknown_device_is_a_validation_error_without_request`, `::test_rejected_read_surfaces_translated_error`; `test_coordinator_commands.py::test_rejected_or_malformed_ack_fails_action`, `::test_offline_commands_are_never_sent` | README Troubleshooting, docs/troubleshooting.md |
 | `config-entry-unloading` | done | `async_unload_entry` unloads platforms, then stops the coordinator (event stream, timers, queued requests) | `test_init.py::test_unload_stops_coordinator_after_platforms`, `::test_failed_platform_unload_keeps_coordinator_running`; `test_coordinator_stream.py::test_unload_stops_stream_and_timers`; `test_coordinator_commands.py::test_unload_cancels_queued_request` | – |
-| `docs-configuration-parameters` | exempt | No options flow | – | README Known limitations, docs/how-it-works.md |
+| `docs-configuration-parameters` | done | One option, write access to device settings, with a warning and a confirmation in the options flow | `test_write_access.py::test_the_options_dialog_enables_and_disables_write_access` | README Configuration (Write access to device settings) |
 | `docs-installation-parameters` | done | `data_description` for host, port, username and password | TR `test_config_flow_errors_and_aborts_are_translated` | README Configuration |
 | `entity-unavailable` | done | `OpusGreenNetEntity.available` follows `coordinator.available` | `test_ha_lifecycle.py::test_entity_service_and_gateway_outage`; `test_coordinator_stream.py::test_gateway_outage_marks_entities_unavailable_until_it_returns` | docs/how-it-works.md Updates and availability |
 | `integration-owner` | done | `manifest.json` `codeowners` | QS `test_integration_owner` | – |

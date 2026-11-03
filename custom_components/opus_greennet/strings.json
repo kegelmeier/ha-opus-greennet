@@ -76,6 +76,20 @@
       "not_local_address": "The announced address is not in the local network and is ignored."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Caution: Changing device configuration",
+        "description": "These settings are written directly to the actuator. Changes may cause the device to malfunction or stop working. Incorrect settings may also damage the actuator or connected equipment.\n\nOnly enable write access if you understand the effects of the changes.",
+        "data": {
+          "allow_setting_writes": "I understand the risks and want to enable write access."
+        },
+        "data_description": {
+          "allow_setting_writes": "Allows device configuration to be written directly to the actuator. Incorrect settings may cause malfunctions, device failure, or damage to connected equipment."
+        }
+      }
+    }
+  },
   "entity": {
     "binary_sensor": {
       "contact": {
@@ -131,6 +145,72 @@
       },
       "lock_bolt": {
         "name": "Lock bolt"
+      },
+      "rcu_communication_error": {
+        "name": "Room control unit communication"
+      },
+      "heat_circuits_error": {
+        "name": "Heat circuits"
+      },
+      "rcu_battery": {
+        "name": "Room control unit battery"
+      },
+      "rcu_malfunction": {
+        "name": "Room control unit malfunction"
+      },
+      "actuator_obstructed": {
+        "name": "Actuator obstructed"
+      },
+      "circuit_mismatch": {
+        "name": "Heat circuit mismatch"
+      },
+      "data_mismatch": {
+        "name": "Data mismatch"
+      },
+      "digital_input_0": {
+        "name": "Digital input 0"
+      },
+      "digital_input_1": {
+        "name": "Digital input 1"
+      },
+      "digital_input_2": {
+        "name": "Digital input 2"
+      },
+      "digital_input_3": {
+        "name": "Digital input 3"
+      },
+      "energy_input": {
+        "name": "Energy harvesting"
+      },
+      "energy_storage_charged": {
+        "name": "Energy storage charged"
+      },
+      "mh_not_found": {
+        "name": "Moellenhoff not found"
+      },
+      "missing_data": {
+        "name": "Missing data"
+      },
+      "occupancy": {
+        "name": "Occupancy"
+      },
+      "occupancy_button": {
+        "name": "Occupancy button"
+      },
+      "past_leak_detection": {
+        "name": "Leak detected in the last 14 days"
+      },
+      "power_failure": {
+        "name": "Power failure"
+      },
+      "radio_error": {
+        "name": "Radio error"
+      },
+      "radio_signal_weak": {
+        "name": "Weak radio signal"
+      },
+      "wake_signal": {
+        "name": "Wake signal"
       }
     },
     "cover": {
@@ -320,6 +400,167 @@
       },
       "device_id": {
         "name": "Device ID"
+      },
+      "valve_position": {
+        "name": "Valve position"
+      },
+      "acceleration_status": {
+        "name": "Acceleration status",
+        "state": {
+          "heartbeat": "Heartbeat",
+          "threshold1": "Threshold 1 exceeded",
+          "threshold2": "Threshold 2 exceeded"
+        }
+      },
+      "acceleration_x": {
+        "name": "Acceleration X"
+      },
+      "acceleration_y": {
+        "name": "Acceleration Y"
+      },
+      "acceleration_z": {
+        "name": "Acceleration Z"
+      },
+      "actuator_mode": {
+        "name": "Actuator mode",
+        "state": {
+          "managed": "Managed by application",
+          "off": "Off",
+          "on": "On",
+          "error": "Error"
+        }
+      },
+      "base_setpoint": {
+        "name": "Base setpoint"
+      },
+      "channel_count": {
+        "name": "Channel count"
+      },
+      "current_1": {
+        "name": "Current channel 1"
+      },
+      "current_2": {
+        "name": "Current channel 2"
+      },
+      "current_3": {
+        "name": "Current channel 3"
+      },
+      "device_type": {
+        "name": "Device type"
+      },
+      "fan_speed": {
+        "name": "Fan speed",
+        "state": {
+          "auto": "Automatic",
+          "speed0": "Speed 0",
+          "speed1": "Speed 1",
+          "speed2": "Speed 2",
+          "speed3": "Speed 3"
+        }
+      },
+      "hardware_version": {
+        "name": "Hardware version"
+      },
+      "heater_mode": {
+        "name": "Heater mode",
+        "state": {
+          "heating": "Heating",
+          "cooling": "Cooling"
+        }
+      },
+      "ip_address": {
+        "name": "IP address"
+      },
+      "led_status": {
+        "name": "LED status",
+        "state": {
+          "disabled": "Disabled",
+          "enabled": "Enabled"
+        }
+      },
+      "load": {
+        "name": "Load"
+      },
+      "manufacturer": {
+        "name": "Manufacturer"
+      },
+      "network_version": {
+        "name": "Network version"
+      },
+      "outdoor_temperature": {
+        "name": "Outdoor temperature"
+      },
+      "power": {
+        "name": "Power"
+      },
+      "serial": {
+        "name": "Serial number"
+      },
+      "setpoint_shift": {
+        "name": "Setpoint shift"
+      },
+      "setpoint_type": {
+        "name": "Setpoint type",
+        "state": {
+          "absolute": "Absolute",
+          "relative": "Relative"
+        }
+      },
+      "software_version": {
+        "name": "Software version"
+      },
+      "system_error": {
+        "name": "System error",
+        "state": {
+          "general_error": "General error",
+          "heat_circuit_error": "Heat circuit error",
+          "no_error": "No error"
+        }
+      },
+      "temperature_setpoint": {
+        "name": "Setpoint"
+      },
+      "total_current": {
+        "name": "Total current"
+      },
+      "total_power": {
+        "name": "Total power"
+      },
+      "uptime": {
+        "name": "Uptime"
+      },
+      "version": {
+        "name": "Version"
+      },
+      "daily_settings_run": {
+        "name": "Last daily settings read"
+      },
+      "gateway_receive_counter": {
+        "name": "Received telegrams"
+      },
+      "gateway_average_dbm": {
+        "name": "Average signal strength"
+      },
+      "channel_temperature": {
+        "name": "Channel {channel} temperature"
+      },
+      "channel_temperature_setpoint": {
+        "name": "Channel {channel} setpoint"
+      },
+      "channel_circuit_state": {
+        "name": "Channel {channel} heating circuit",
+        "state": {
+          "off": "Off",
+          "on": "On"
+        }
+      },
+      "channel_operation_mode": {
+        "name": "Channel {channel} mode",
+        "state": {
+          "emergency": "Emergency",
+          "off": "Off",
+          "on": "On"
+        }
       }
     },
     "switch": {
@@ -328,6 +569,9 @@
       },
       "blockage": {
         "name": "Blockage"
+      },
+      "daily_settings_read": {
+        "name": "Daily settings read"
       }
     },
     "lock": {
@@ -436,6 +680,11 @@
           "on": "On"
         }
       }
+    },
+    "time": {
+      "daily_settings_read_time": {
+        "name": "Daily settings read time"
+      }
     }
   },
   "exceptions": {
@@ -510,6 +759,12 @@
     },
     "webui_2026_login_required": {
       "message": "The OPUS gateway now requires the login of the new gateway generation (WebUI 2026). Enter the user and password of its web interface to continue; all devices and entities are kept."
+    },
+    "hvac_mode_read_only": {
+      "message": "This heat area reports heating or cooling but cannot be switched from Home Assistant."
+    },
+    "write_access_disabled": {
+      "message": "{device_id}: Not written. Write access to device settings is not enabled. Enable it under Settings → Devices & services → Opus GreenNet → Configure."
     }
   },
   "services": {
@@ -625,6 +880,10 @@
           }
         }
       }
+    },
+    "write_access_off": {
+      "title": "Write access to device settings is not enabled",
+      "description": "An entity that changes a device setting of {name} is enabled, but write access is not. Changes are refused until you enable write access: open Settings → Devices & services → Opus GreenNet, choose Configure and confirm the warning.\n\nWrite access allows device configuration to be written directly to the actuator. Incorrect settings may cause malfunctions, device failure, or damage to connected equipment. The notice disappears when write access is enabled or the entity is disabled again."
     }
   },
   "selector": {

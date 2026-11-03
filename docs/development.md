@@ -18,7 +18,9 @@ custom_components/opus_greennet/
 ├── protocol.py           # Pure helpers that read gateway documents
 ├── coordinator.py        # Event stream, health check, device state and commands
 ├── const.py              # Constants and EEP mappings
+├── readings.py           # Read-only readings of profiles without a dedicated model (from the gateway catalog)
 ├── wire.py               # Typed JSON boundary helpers
+├── write_access.py       # Opt-in for writing device settings (option, notice in Repairs)
 ├── enocean_device.py     # Device and channel data model
 ├── entity.py             # Shared entity and device-registry behaviour
 ├── diagnostics.py        # Redacted diagnostics
@@ -28,6 +30,7 @@ custom_components/opus_greennet/
 ├── button.py             # Reference-run buttons for D2-05 blinds
 ├── number.py             # Time and threshold settings (blinds, dimmers, switches)
 ├── select.py             # Selectable settings of D2-01 switches
+├── time.py               # Time of the daily settings read (gateway device)
 ├── services.yaml         # Action definitions
 ├── strings.json          # Translation source
 └── translations/         # en, de
@@ -36,6 +39,7 @@ tests/
 ├── fake_gateway.py       # In-process OPUS gateway serving the REST API over HTTP
 ├── ha_helpers.py         # Config flow and waiting helpers
 ├── fixtures/             # Anonymized parameter catalogs and configurations read from a gateway (one device per actuator type)
+│                         # and the reported functions of the read-only device profiles (checked against readings.py)
 └── test_*.py             # One module per area (api, coordinator, platforms, flows, …)
 script/
 ├── check_coverage.py     # Per-module coverage gate used by CI
@@ -57,7 +61,7 @@ pytest -v --cov --cov-report=json:coverage.json
 python script/check_coverage.py coverage.json
 ```
 
-The suite has 2,656 tests. They run against real Home Assistant core and an
+The suite has 3,175 tests. They run against real Home Assistant core and an
 in-process gateway that serves the REST API and its event stream over real HTTP
 (`tests/fake_gateway.py`).
 

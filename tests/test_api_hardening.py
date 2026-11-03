@@ -307,7 +307,8 @@ def test_client_modules_import_no_home_assistant_or_integration_code(
     ("name", "allowed_relative"),
     [
         ("const.py", set()),
-        ("enocean_device.py", {"const", "wire"}),
+        ("readings.py", set()),
+        ("enocean_device.py", {"const", "readings", "wire"}),
         ("protocol.py", {"const", "enocean_device", "wire"}),
     ],
 )

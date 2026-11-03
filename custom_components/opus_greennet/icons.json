@@ -13,6 +13,68 @@
         "state": {
           "on": "mdi:alert-circle"
         }
+      },
+      "digital_input_0": {
+        "default": "mdi:help-circle-outline",
+        "state": {
+          "on": "mdi:toggle-switch",
+          "off": "mdi:toggle-switch-off"
+        }
+      },
+      "digital_input_1": {
+        "default": "mdi:help-circle-outline",
+        "state": {
+          "on": "mdi:toggle-switch",
+          "off": "mdi:toggle-switch-off"
+        }
+      },
+      "digital_input_2": {
+        "default": "mdi:help-circle-outline",
+        "state": {
+          "on": "mdi:toggle-switch",
+          "off": "mdi:toggle-switch-off"
+        }
+      },
+      "digital_input_3": {
+        "default": "mdi:help-circle-outline",
+        "state": {
+          "on": "mdi:toggle-switch",
+          "off": "mdi:toggle-switch-off"
+        }
+      },
+      "wake_signal": {
+        "default": "mdi:alarm"
+      },
+      "occupancy_button": {
+        "default": "mdi:gesture-tap-button"
+      },
+      "energy_input": {
+        "default": "mdi:help-circle-outline",
+        "state": {
+          "on": "mdi:solar-power",
+          "off": "mdi:solar-power-variant-outline"
+        }
+      },
+      "energy_storage_charged": {
+        "default": "mdi:help-circle-outline",
+        "state": {
+          "on": "mdi:battery-high",
+          "off": "mdi:battery-low"
+        }
+      },
+      "radio_signal_weak": {
+        "default": "mdi:help-circle-outline",
+        "state": {
+          "on": "mdi:wifi-strength-alert-outline",
+          "off": "mdi:wifi-strength-4"
+        }
+      },
+      "radio_error": {
+        "default": "mdi:help-circle-outline",
+        "state": {
+          "on": "mdi:access-point-network-off",
+          "off": "mdi:access-point-network"
+        }
       }
     },
     "sensor": {
@@ -68,6 +130,105 @@
       },
       "gateway_ipv6_address": {
         "default": "mdi:ip-network-outline"
+      },
+      "valve_position": {
+        "default": "mdi:valve"
+      },
+      "setpoint_shift": {
+        "default": "mdi:plus-minus-variant"
+      },
+      "acceleration_x": {
+        "default": "mdi:axis-x-arrow"
+      },
+      "acceleration_y": {
+        "default": "mdi:axis-y-arrow"
+      },
+      "acceleration_z": {
+        "default": "mdi:axis-z-arrow"
+      },
+      "fan_speed": {
+        "default": "mdi:fan"
+      },
+      "actuator_mode": {
+        "default": "mdi:cog-outline"
+      },
+      "setpoint_type": {
+        "default": "mdi:swap-vertical"
+      },
+      "load": {
+        "default": "mdi:gauge"
+      },
+      "channel_count": {
+        "default": "mdi:counter"
+      },
+      "ip_address": {
+        "default": "mdi:ip-network-outline"
+      },
+      "hardware_version": {
+        "default": "mdi:chip"
+      },
+      "software_version": {
+        "default": "mdi:application-outline"
+      },
+      "network_version": {
+        "default": "mdi:lan"
+      },
+      "device_type": {
+        "default": "mdi:shape-outline"
+      },
+      "manufacturer": {
+        "default": "mdi:factory"
+      },
+      "serial": {
+        "default": "mdi:identifier"
+      },
+      "version": {
+        "default": "mdi:tag-outline"
+      },
+      "temperature_setpoint": {
+        "default": "mdi:thermostat"
+      },
+      "acceleration_status": {
+        "default": "mdi:vibrate"
+      },
+      "heater_mode": {
+        "default": "mdi:thermostat-box",
+        "state": {
+          "heating": "mdi:fire",
+          "cooling": "mdi:snowflake"
+        }
+      },
+      "system_error": {
+        "default": "mdi:alert-circle-outline",
+        "state": {
+          "no_error": "mdi:check-circle-outline"
+        }
+      },
+      "led_status": {
+        "default": "mdi:help-circle-outline",
+        "state": {
+          "enabled": "mdi:led-on",
+          "disabled": "mdi:led-off"
+        }
+      },
+      "daily_settings_run": {
+        "default": "mdi:calendar-check-outline"
+      },
+      "gateway_receive_counter": {
+        "default": "mdi:counter"
+      },
+      "channel_circuit_state": {
+        "default": "mdi:help-circle-outline",
+        "state": {
+          "on": "mdi:radiator",
+          "off": "mdi:radiator-off"
+        }
+      },
+      "channel_operation_mode": {
+        "default": "mdi:cog-outline"
+      },
+      "channel_temperature_setpoint": {
+        "default": "mdi:thermostat"
       }
     },
     "button": {
@@ -79,6 +240,16 @@
       },
       "read_settings": {
         "default": "mdi:refresh"
+      }
+    },
+    "switch": {
+      "daily_settings_read": {
+        "default": "mdi:calendar-sync-outline"
+      }
+    },
+    "time": {
+      "daily_settings_read_time": {
+        "default": "mdi:clock-outline"
       }
     }
   },
