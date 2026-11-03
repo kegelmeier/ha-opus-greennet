@@ -79,8 +79,8 @@ in-process gateway that serves the REST API and its event stream over real HTTP
 
 ## Beta testing
 
-Enable pre-release versions for this repository in HACS, select the beta and
-restart Home Assistant. Existing entity IDs and rocker event names are kept.
+In HACS, open the integration, choose **⋮ → Redownload**, turn on **Show beta
+versions**, select the beta and restart Home Assistant. Existing entity IDs and rocker event names are kept.
 
 Please check physical controls, low brightness, both channels of 2-channel
 actuators, cover position and tilt, climate activity and rapid rocker presses.
