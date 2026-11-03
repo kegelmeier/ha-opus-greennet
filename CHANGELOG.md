@@ -37,6 +37,7 @@ Support for gateways with **WebUI 2026**, settings you can **read on request**, 
   - D2-32-00 and D2-32-02: current clamps with 1 and 3 channels; D2-34-10: CosiTherm actuators (system report only); D2-35-00: Oekoswiss heating actuator for infrared panels.
   - D1-4B-00, -01, -02, -10, -15 and -50: Moellenhoff actuator and heat area profiles, WirelessMBus virtual device, Pressac power clamp, REG central control unit (as named in the gateway profiles).
   - A value the profile lists as not available or an error shows as unknown; a malformed value keeps the last known one. The entities are listed in `docs/devices.md`.
+  - **Icons** for the new entities that have no device class (valve position, digital inputs, heater mode, versions and others), checked against the Home Assistant MDI catalogue.
   - **Not tested with real devices:** none of these devices is part of the test installation, so the keys and ranges come from the gateway profiles only.
   - **Not mapped:** D2-05-04 (REG-RJ), D2-70-00 (REG-CPU) and D2-74-20 (REG-FBH), because the gateway has no profile for them yet; the per-channel values of D2-34-10; `temperature` and `presence` of D2-35-00, whose gateway text is contradictory; the raw payload of D1-4B-10.
 
