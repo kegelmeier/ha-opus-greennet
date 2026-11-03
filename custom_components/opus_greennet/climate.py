@@ -103,7 +103,7 @@ class OpusGreenNetClimate(OpusGreenNetEntity, ClimateEntity):
         # D1-4B-06 (CosiTherm) supports thermalMode cooling/heating
         if device.primary_eep == "D1-4B-06":
             self._attr_hvac_modes = [HVACMode.HEAT_COOL, HVACMode.OFF]
-        elif device.primary_eep == "D1-4B-03":
+        elif device.is_heat_area_3:
             # The room control unit reports heating or cooling; the gateway
             # profile has no command for it, so the mode is read-only.
             self._attr_hvac_modes = [HVACMode.HEAT, HVACMode.COOL]
@@ -140,7 +140,7 @@ class OpusGreenNetClimate(OpusGreenNetEntity, ClimateEntity):
             return None
 
         mode = channel.heater_mode
-        if mode == "cooling" and self._device.primary_eep == "D1-4B-03":
+        if mode == "cooling" and self._device.is_heat_area_3:
             return HVACMode.COOL
         if mode in ("heating", "on", "autoOff"):
             if self._device.primary_eep == "D1-4B-06":
@@ -193,7 +193,7 @@ class OpusGreenNetClimate(OpusGreenNetEntity, ClimateEntity):
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set new HVAC mode."""
-        if self._device.primary_eep == "D1-4B-03":
+        if self._device.is_heat_area_3:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
                 translation_key="hvac_mode_read_only",
