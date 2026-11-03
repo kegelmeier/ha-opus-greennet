@@ -9,13 +9,16 @@ from homeassistant.components.switch.const import DOMAIN as SWITCH_DOMAIN
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
 
 from . import OpusGreenNetConfigEntry
 from .const import (
     CONF_EAG_ID,
     DEFAULT_CHANNEL,
+    DOMAIN,
     LOCKING_MODE_ALARM,
     LOCKING_MODE_BLOCK,
     LOCKING_MODE_UNBLOCK,
@@ -42,6 +45,7 @@ async def async_setup_entry(
     gateway_device_id = entry.runtime_data.gateway_device_id
     eag_id = entry.data[CONF_EAG_ID]
     entity_registry = er.async_get(hass)
+    async_add_entities([OpusGreenNetDailySettingsSwitch(coordinator, eag_id)])
 
     @callback
     def async_add_switch(device: EnOceanDevice) -> None:
@@ -219,3 +223,46 @@ class OpusGreenNetBlockageSwitch(OpusGreenNetEntity, SwitchEntity):
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Release the blockage."""
         await self._async_set_mode(LOCKING_MODE_UNBLOCK)
+
+
+class OpusGreenNetDailySettingsSwitch(SwitchEntity, RestoreEntity):
+    """Whether the stored settings are read once a day (gateway device).
+
+    The read runs at the local time of the entity *Daily settings read time*.
+    Nothing is written to the devices. The choice is restored after a restart
+    of Home Assistant.
+    """
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_translation_key = "daily_settings_read"
+
+    def __init__(self, coordinator: OpusGreenNetCoordinator, eag_id: str) -> None:
+        """Initialize the entity for the gateway ``eag_id``."""
+        self._coordinator = coordinator
+        self._attr_unique_id = f"{eag_id}_daily_settings_read"
+        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, eag_id)})
+
+    @property
+    def is_on(self) -> bool:
+        """Return whether the daily read is switched on."""
+        return self._coordinator.daily_settings_enabled
+
+    async def async_added_to_hass(self) -> None:
+        """Restore the choice made before the restart."""
+        await super().async_added_to_hass()
+        if (last := await self.async_get_last_state()) is None:
+            return
+        if last.state in ("on", "off"):
+            self._coordinator.async_set_daily_settings(enabled=last.state == "on")
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Switch the daily read on."""
+        self._coordinator.async_set_daily_settings(enabled=True)
+        self.async_write_ha_state()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Switch the daily read off."""
+        self._coordinator.async_set_daily_settings(enabled=False)
+        self.async_write_ha_state()

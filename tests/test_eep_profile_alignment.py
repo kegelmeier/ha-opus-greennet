@@ -738,12 +738,21 @@ async def test_deferred_blockage_command_keeps_the_reported_mode() -> None:
     entity.async_write_ha_state.assert_not_called()
 
 
+async def _device_switches(device: EnOceanDevice) -> list:
+    """The switches of a device; the gateway's own switch is not one of them."""
+    return [
+        entity
+        for entity in await _platform_entities(async_setup_switches, device)
+        if entity.unique_id != f"{EAG_ID}_daily_settings_read"
+    ]
+
+
 async def test_switch_platform_adds_blockage_only_for_locking_blinds() -> None:
-    added = await _platform_entities(async_setup_switches, _device("D2-05-02"))
+    added = await _device_switches(_device("D2-05-02"))
     assert [entity.unique_id for entity in added] == [f"{EAG_ID}_DEV1_blockage"]
-    assert await _platform_entities(async_setup_switches, _device("D2-05-01")) == []
-    two_channel = await _platform_entities(
-        async_setup_switches, _device("D2-05-02", profile=TWO_CHANNEL_SWITCH_PROFILE)
+    assert await _device_switches(_device("D2-05-01")) == []
+    two_channel = await _device_switches(
+        _device("D2-05-02", profile=TWO_CHANNEL_SWITCH_PROFILE)
     )
     # A blind profile without a locking mode: no blockage switch.
     assert two_channel == []

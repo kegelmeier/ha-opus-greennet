@@ -408,7 +408,11 @@ def test_parallel_updates_in_every_platform() -> None:
 
 # Entities of the gateway device itself (no EnOcean device behind them).
 GATEWAY_LEVEL_ENTITY_CLASSES = frozenset(
-    {"OpusGreenNetGatewayUptimeSensor", "OpusGreenNetGatewayInfoSensor"}
+    {
+        "OpusGreenNetGatewayUptimeSensor",
+        "OpusGreenNetGatewayInfoSensor",
+        "OpusGreenNetDailySettingsSwitch",
+    }
 )
 
 

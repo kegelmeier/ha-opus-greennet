@@ -85,6 +85,7 @@ PLATFORMS: list[Platform] = [
     Platform.LOCK,
     Platform.NUMBER,
     Platform.SELECT,
+    Platform.TIME,
 ]
 
 SERVICE_GET_DEVICE_CONFIG = "get_device_configuration"
