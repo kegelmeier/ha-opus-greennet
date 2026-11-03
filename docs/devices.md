@@ -98,8 +98,8 @@ The tool warns about combinations that make little sense: a cleaning mode time
 shorter than the run-on time, a switch-off warning time longer than the run-on
 time, a blind's drive time shorter than its rotation time, and a maximum
 holding time shorter than the drive time. It also notes that a run-on time under
-30 s needs actuator firmware 2.0.7.0 or newer. The integration does not check
-these combinations.
+30 s needs actuator firmware 2.0.7.0 or newer. The integration refuses a write
+that creates such a combination (see below).
 
 **Settings only the config tool has.** The gateway's REST API does not offer the
 following settings, so the integration can neither show nor change them; use the
@@ -116,6 +116,21 @@ config tool. This list comes from a config tool project, not from the gateway.
   repetitions and sensitivity, the temperature, humidity and light reporting and
   the wind values. The integration shows three of them.
 - Window contacts: the alive cycle and the debounce times.
+
+**Contradicting settings are refused.** The OPUS config tool warns about
+settings that contradict each other. The integration goes one step further: it
+refuses a write that would create or worsen such a combination, before anything
+is sent to the gateway, and shows an error that names the combination. The
+combinations are a blind's maximum holding time shorter than its vertical
+movement time (the blind would stop before it is fully open), a vertical
+movement time shorter than the rotation time, a switch's timer duration (long
+press) shorter than its timer duration, and a switch-off warning longer than the
+timer duration. A write that keeps or reduces an existing conflict is allowed,
+so a wrong combination can be fixed step by step, and a value that is not known
+yet is never compared. The check uses the values Home Assistant shows; if one of
+them is outdated, press *Read settings* and try again. Change the other setting
+first when a value is refused, for example raise the maximum holding time before
+the vertical movement time.
 
 Every actuator whose device list contains a link table also has the diagnostic
 sensor *Wall switch links* (see [Sensor values](#sensor-values)). The
