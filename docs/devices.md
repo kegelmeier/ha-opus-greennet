@@ -23,7 +23,7 @@ The settings stored on actuators, as far as the gateway's parameter catalog
 
 | Device | Number entities | Select entities | Not offered |
 |--------|-----------------|-----------------|-------------|
-| Blinds (D2-05-02) | Vertical movement time, Rotation time, Maximum holding time | Repeater mode | Function of rocker A and B, routing time |
+| Blinds (D2-05-02) | Vertical movement time, Rotation time, Maximum holding time | ViNET Router, Repeater mode | Function of rocker A and B |
 | Dimmers (D2-01-03) | Ramping time, Short-press time, Long-press time | Repeater mode | – |
 | Switches (D2-01-01) | Timer duration, Timer duration (long press), Switch-off warning, Switch-off warning signal, Illumination threshold | Operation mode, LED colour, External input function, ViNET Router, Repeater mode | Function of rocker A and B |
 | 2-channel switches (D2-01-11) | as D2-01-01 | as D2-01-01, plus LED channel | as D2-01-01 |
@@ -275,9 +275,10 @@ ReCom parameter but the device resource `/devices/{id}/repeaterState` (`off`,
 `level_1`, `level_2`); it is written and read back there. *Read settings*
 reads both. The device list carries the repeater mode too, so it is shown after a restart without a radio request. Switches have a diagnostic sensor (*ViNET Router (stored)*, *Repeater mode
 (stored)*) and a select in the configuration category (disabled by default)
-for each. Dimmers (D2-01-03) and blinds (D2-05-02) report the repeater mode as
-well and get the *Repeater mode* sensor and select only (no *ViNET Router*
-entities); writing it on a dimmer is untested.
+for each, and so do blinds (D2-05-02), whose parameter catalog lists the same
+*ViNET Router* setting as the switches. Dimmers (D2-01-03) report the repeater
+mode as well and get the *Repeater mode* sensor and select only (no *ViNET
+Router* entities); writing it on a dimmer is untested.
 Writing the repeater mode was tested on one D2-01-01 switch and on one D2-05-02
 blind (off, level 1 and back to off; level 2 untested) through the gateway
 interface, not through these entities. The gateway accepted the value and

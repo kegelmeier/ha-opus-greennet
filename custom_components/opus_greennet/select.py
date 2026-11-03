@@ -23,6 +23,7 @@ from .const import (
     KEY_REPEATER_STATE,
     KEY_ROUTING_TIME,
     REPEATER_EEPS,
+    ROUTING_EEPS,
     ROUTING_OFF,
     ROUTING_ON,
     SWITCH_EEPS,
@@ -92,7 +93,7 @@ EXTRA_SELECTS: tuple[DeviceSelect, ...] = (
         "routing",
         KEY_ROUTING_TIME,
         "routing",
-        dict.fromkeys(SWITCH_EEPS, ROUTING_STATES),
+        dict.fromkeys(ROUTING_EEPS, ROUTING_STATES),
     ),
     # Device resource /repeaterState, written and read back there.
     DeviceSelect(

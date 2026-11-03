@@ -256,7 +256,8 @@ KEY_FUNCTION_EXTERNAL_INPUT: Final = "functionExternalInput"
 # switch with ViNET on in the OPUS config tool reported 0.3 (device list,
 # 2026-10-31, firmware 1.21.30). It is shown as off/on: any time is "on". "on" is
 # written as 0.3 s, the value seen on that device; other times are untested.
-# D2-01-03 dimmers report no routing parameter. The repeater mode is no ReCom
+# D2-05-02 blinds list the same parameter as the switches; D2-01-03 dimmers
+# report none. The repeater mode is no ReCom
 # parameter but the device resource /repeaterState (off, level_1, level_2).
 KEY_ROUTING_TIME: Final = "routingTime"
 KEY_REPEATER_STATE: Final = "repeaterState"
@@ -270,6 +271,10 @@ SWITCH_EEPS: Final = ("D2-01-01", "D2-01-11")
 # Devices that report the repeater mode. Written on a D2-01-01 switch and on a
 # D2-05-02 blind (off and level 1); D2-01-03 was read from a dimmer, not written.
 REPEATER_EEPS: Final = (*SWITCH_EEPS, "D2-01-03", "D2-05-02")
+# Devices whose parameter catalog lists ViNET routing (``routingTime``, off or
+# 0.3 to 2.55 s): the switches and the D2-05-02 blinds. D2-01-03 dimmers list
+# none.
+ROUTING_EEPS: Final = (*SWITCH_EEPS, "D2-05-02")
 ROUTING_OFF: Final = "off"
 ROUTING_ON: Final = "on"
 DEVICE_OPTIONS: Final = {

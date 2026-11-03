@@ -450,3 +450,75 @@ def test_the_device_id_is_a_diagnostic_sensor_disabled_by_default() -> None:
     assert sensor.unique_id == "AABB0011_019D6415_device_id"
     assert sensor.entity_category is EntityCategory.DIAGNOSTIC
     assert sensor.entity_registry_enabled_default is False
+
+
+# ── ViNET routing on blinds ────────────────────────────────────────────────
+
+
+def _blind() -> EnOceanDevice:
+    return EnOceanDevice("DEV1", "Blind", [{"eep": "D2-05-02"}])
+
+
+def test_routing_is_offered_for_blinds_but_not_for_other_devices() -> None:
+    """The blind catalog lists routingTime like the switch catalog does."""
+    from custom_components.opus_greennet.select import DEVICE_SELECTS
+
+    (ROUTING,) = (s for s in DEVICE_SELECTS if s.parameter == "routingTime")
+    assert ROUTING.values_for(_blind()) == ("off", "on")
+    assert ROUTING.values_for(_switch()) == ("off", "on")
+    for eep in ("D2-01-03", "A5-07-03", "D1-4B-03"):
+        assert ROUTING.values_for(EnOceanDevice("X", "X", [{"eep": eep}])) is None
+
+
+def test_a_blind_reads_the_routing_of_the_configuration() -> None:
+    blind = _blind()
+    functions = protocol.configuration_state_functions(
+        _document(routingTime=0.3, maxHoldingTime=29)
+    )
+    blind.update_from_telegram({"functions": functions})
+    assert blind.channels[0].routing == "on"
+    assert blind.setting_reading("routingTime") == "on"
+
+
+async def test_blind_routing_on_is_written_as_the_smallest_time_and_read_back(
+    radio, connected_coordinator
+) -> None:
+    coord = connected_coordinator
+    device = coord.devices["DEV1"] = _blind()
+    device.get_or_create_channel().routing = "off"
+    radio.response = _document(routingTime=ROUTING_ON_SECONDS)
+
+    await coord.async_set_device_option("DEV1", "routingTime", "on")
+
+    assert radio.sent == [
+        (
+            "PUT",
+            CONFIG_PATH,
+            {
+                "configuration": {
+                    "parameters": [{"key": "routingTime", "value": ROUTING_ON_SECONDS}]
+                }
+            },
+        ),
+        ("GET", CONFIG_PATH, None),
+    ]
+    assert device.channels[0].routing == "on"
+
+
+async def test_blind_routing_off_is_written_as_text_and_the_same_state_sends_nothing(
+    radio, connected_coordinator
+) -> None:
+    coord = connected_coordinator
+    device = coord.devices["DEV1"] = _blind()
+    device.get_or_create_channel().routing = "on"
+    radio.response = _document(routingTime="off")
+
+    await coord.async_set_device_option("DEV1", "routingTime", "off")
+    assert radio.sent[0][2]["configuration"]["parameters"] == [
+        {"key": "routingTime", "value": "off"}
+    ]
+    assert device.channels[0].routing == "off"
+
+    radio.sent.clear()
+    await coord.async_set_device_option("DEV1", "routingTime", "off")
+    assert radio.sent == []
