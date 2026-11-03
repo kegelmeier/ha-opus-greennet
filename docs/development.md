@@ -18,6 +18,7 @@ custom_components/opus_greennet/
 ├── protocol.py           # Pure helpers that read gateway documents
 ├── coordinator.py        # Event stream, health check, device state and commands
 ├── const.py              # Constants and EEP mappings
+├── readings.py           # Read-only readings of profiles without a dedicated model (from the gateway catalog)
 ├── wire.py               # Typed JSON boundary helpers
 ├── enocean_device.py     # Device and channel data model
 ├── entity.py             # Shared entity and device-registry behaviour

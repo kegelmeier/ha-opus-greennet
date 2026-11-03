@@ -79,10 +79,17 @@ EEP_MAPPINGS: Final = {
     "D2-05-01": ("cover", "Blinds Control for Position"),
     "D2-05-02": ("cover", "Blinds Control for Position and Angle, Lock"),
     # HeatArea (D1-4B-xx) - Proprietary OPUS profiles
+    "D1-4B-00": ("sensor", "Moellenhoff Actuator"),
+    "D1-4B-01": ("sensor", "Moellenhoff Heat Area"),
+    "D1-4B-02": ("sensor", "Moellenhoff Actuator 3.0"),
     "D1-4B-03": ("climate", "Moellenhoff Heat Area 3.0 Physical"),
+    "D1-4B-04": ("climate", "Moellenhoff Heat Area 3.0 Virtual"),
     "D1-4B-05": ("climate", "OPUS Valve Area"),
     "D1-4B-06": ("climate", "OPUS CosiTherm Area"),
     "D1-4B-07": ("climate", "OPUS Electro Heating Area"),
+    "D1-4B-10": ("sensor", "WirelessMBus Virtual Device"),
+    "D1-4B-15": ("sensor", "Pressac Power Clamp"),
+    "D1-4B-50": ("sensor", "REG Central Control Unit"),
     # Lighting Control (A5-38-xx)
     "A5-38-08": ("light", "Gateway Dimming"),
     "A5-38-09": ("light", "Gateway Switching"),
@@ -99,8 +106,18 @@ EEP_MAPPINGS: Final = {
     "A5-04-01": ("sensor", "Temperature and Humidity Sensor"),
     "A5-04-02": ("sensor", "Temperature and Humidity Sensor"),
     "A5-04-03": ("sensor", "Temperature and Humidity Sensor"),
+    "A5-08-01": ("sensor", "Light, Temperature and Occupancy Sensor"),
+    "A5-20-06": ("sensor", "Harvesting-powered Valve Actuator"),
+    "A5-30-03": ("binary_sensor", "Digital Input, 4 Inputs"),
     "D5-00-01": ("binary_sensor", "Single Input Contact"),
     "D2-06-40": ("lock", "HOPPE SecureConnect Window Handle"),
+    "D2-11-01": ("sensor", "Bidirectional Room Operating Panel"),
+    "D2-14-41": ("sensor", "IoT Multisensor"),
+    "D2-14-54": ("sensor", "Temperature, Humidity and Leak Sensor"),
+    "D2-32-00": ("sensor", "A.C. Current Clamp, 1 channel"),
+    "D2-32-02": ("sensor", "A.C. Current Clamp, 3 channels"),
+    "D2-34-10": ("sensor", "Gateway controlled heating actuator"),
+    "D2-35-00": ("sensor", "Infrared Heating Actuator"),
     "F6-10-00": ("sensor", "HOPPE Window Handle"),
     "D2-03-10": ("sensor", "HOPPE Window Handle"),
     # Liquid Leakage Sensor (F6-05-01)
@@ -347,6 +364,10 @@ BUTTON_VALUE_RELEASED: Final = "released"
 STATE_ON: Final = "on"
 STATE_OFF: Final = "off"
 
+
+# Moellenhoff Heat Area 3.0: the unit reports heating or cooling, and the
+# gateway profile has no command for the mode.
+HEAT_AREA_3_EEPS: Final = frozenset({"D1-4B-03", "D1-4B-04"})
 
 # Climate heater mode values
 HEATER_MODE_HEATING: Final = "heating"

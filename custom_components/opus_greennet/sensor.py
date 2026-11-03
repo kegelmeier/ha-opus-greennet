@@ -49,6 +49,7 @@ from .coordinator import (
 from .enocean_device import EnOceanChannel, EnOceanDevice
 from .entity import OpusGreenNetEntity, migrate_legacy_entity_suffix
 from .number import DEVICE_TIMES, PRESENCE_SETTINGS, DeviceTime
+from .readings import READINGS, ReadingSpec
 from .select import DEVICE_SELECTS, DeviceSelect, option_slug
 
 # Actuators hold link tables; sensors and wall switches never list one.
@@ -130,7 +131,7 @@ async def async_setup_entry(
         # Climate devices get humidity, feed temperature, and energy sensors
         if device.is_climate:
             # Humidity sensor (HeatArea types; D1-4B-03 reports no humidity)
-            if device.primary_eep != "D1-4B-03":
+            if not device.is_heat_area_3:
                 entities.append(
                     OpusGreenNetHumiditySensor(
                         coordinator=coordinator,
@@ -140,8 +141,8 @@ async def async_setup_entry(
                     )
                 )
 
-            # Valve position (D1-4B-03 Heat Area 3.0 Physical only)
-            if device.primary_eep == "D1-4B-03":
+            # Valve position (Heat Area 3.0, D1-4B-03 and -04)
+            if device.is_heat_area_3:
                 entities.append(
                     OpusGreenNetValvePositionSensor(
                         coordinator=coordinator,
@@ -172,6 +173,14 @@ async def async_setup_entry(
                         device=device,
                     )
                 )
+
+        entities.extend(
+            OpusGreenNetReadingSensor(
+                coordinator, eag_id, gateway_device_id, device, spec
+            )
+            for spec in READINGS.get(device.primary_eep or "", ())
+            if spec.kind != "bool"
+        )
 
         if device.is_presence_detector:
             if f"{eag_id}_{device.device_id}_illuminance" not in added_unique_ids:
@@ -899,6 +908,48 @@ class OpusGreenNetMeasurementSensor(OpusGreenNetBaseSensor):
         channel = self._device.channels.get(DEFAULT_CHANNEL)
         over_range = channel.illuminance_over_range if channel else None
         return None if over_range is None else {"over_range": over_range}
+
+
+class OpusGreenNetReadingSensor(OpusGreenNetBaseSensor):
+    """A validated read-only reading defined in ``readings.py``."""
+
+    def __init__(
+        self,
+        coordinator: OpusGreenNetCoordinator,
+        eag_id: str,
+        gateway_device_id: str,
+        device: EnOceanDevice,
+        spec: ReadingSpec,
+    ) -> None:
+        """Initialize the reading sensor."""
+        super().__init__(
+            coordinator, eag_id, gateway_device_id, device, spec.suffix, spec.suffix
+        )
+        self._spec = spec
+        self._attr_native_unit_of_measurement = spec.unit
+        if spec.device_class is not None:
+            self._attr_device_class = SensorDeviceClass(spec.device_class)
+        if spec.kind == "enum":
+            self._attr_device_class = SensorDeviceClass.ENUM
+            self._attr_options = [option_slug(option) for option in spec.options]
+        elif spec.kind == "number" and spec.measurement:
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+        if spec.diagnostic:
+            self._attr_entity_category = EntityCategory.DIAGNOSTIC
+        self._attr_entity_registry_enabled_default = spec.enabled
+        if spec.precision is not None:
+            self._attr_suggested_display_precision = spec.precision
+
+    @property
+    def native_value(self) -> float | str | None:
+        """Return the validated reading, or unknown before the first valid one."""
+        channel = self._device.channels.get(DEFAULT_CHANNEL)
+        value = channel.readings.get(self._spec.key) if channel else None
+        if isinstance(value, bool) or value is None:
+            return None
+        if self._spec.kind == "enum" and isinstance(value, str):
+            return option_slug(value)
+        return value
 
 
 class OpusGreenNetHandleSensor(OpusGreenNetBaseSensor):
