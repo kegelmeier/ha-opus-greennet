@@ -72,6 +72,20 @@
       "not_local_address": "Die angekündigte Adresse liegt nicht im lokalen Netzwerk und wird ignoriert."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Achtung: Gerätekonfiguration ändern",
+        "description": "Diese Einstellungen werden direkt auf den Aktor geschrieben. Änderungen können zu Fehlfunktionen oder zum Ausfall des Geräts führen. Fehlerhafte Einstellungen können außerdem Schäden am Aktor oder an angeschlossenen Geräten verursachen.\n\nAktiviere den Schreibzugriff nur, wenn du die Auswirkungen der Änderungen kennst.",
+        "data": {
+          "allow_setting_writes": "Ich verstehe die Risiken und möchte den Schreibzugriff aktivieren."
+        },
+        "data_description": {
+          "allow_setting_writes": "Ermöglicht das direkte Schreiben der Gerätekonfiguration auf den Aktor. Fehlerhafte Einstellungen können zu Fehlfunktionen, Geräteausfällen oder Schäden an angeschlossenen Geräten führen."
+        }
+      }
+    }
+  },
   "entity": {
     "binary_sensor": {
       "contact": {
@@ -744,6 +758,9 @@
     },
     "hvac_mode_read_only": {
       "message": "Diese Heizzone meldet Heizen oder Kühlen, lässt sich aber nicht von Home Assistant umschalten."
+    },
+    "write_access_disabled": {
+      "message": "{device_id}: Nicht geschrieben. Der Schreibzugriff auf Geräteeinstellungen ist nicht aktiviert. Aktiviere ihn unter Einstellungen → Geräte & Dienste → Opus GreenNet → Konfigurieren."
     }
   },
   "services": {
@@ -859,6 +876,10 @@
           }
         }
       }
+    },
+    "write_access_off": {
+      "title": "Schreibzugriff auf Geräteeinstellungen ist nicht aktiviert",
+      "description": "Eine Entität, die eine Geräteeinstellung von {name} ändert, ist aktiviert, der Schreibzugriff aber nicht. Änderungen werden abgelehnt, bis du den Schreibzugriff aktivierst: Öffne Einstellungen → Geräte & Dienste → Opus GreenNet, wähle Konfigurieren und bestätige den Warnhinweis.\n\nDer Schreibzugriff ermöglicht das direkte Schreiben der Gerätekonfiguration auf den Aktor. Fehlerhafte Einstellungen können zu Fehlfunktionen, Geräteausfällen oder Schäden an angeschlossenen Geräten führen. Der Hinweis verschwindet, wenn der Schreibzugriff aktiviert oder die Entität wieder deaktiviert wird."
     }
   },
   "selector": {

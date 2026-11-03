@@ -20,6 +20,11 @@ DEFAULT_USERNAME: Final = "admin"
 # Gateways with WebUI 2026 serve the same paths only over HTTPS (port 443) with
 # a user login and a token, and a self-signed certificate that is remembered.
 CONF_GENERATION: Final = "generation"
+# Option: may Home Assistant write device settings to the actuators? A new entry
+# starts with False (opt-in, confirmed in the options dialog). An entry set up
+# before the option existed has none and keeps writing.
+CONF_ALLOW_SETTING_WRITES: Final = "allow_setting_writes"
+ISSUE_WRITE_ACCESS_OFF: Final = "write_access_off"
 CONF_CERTIFICATE_FINGERPRINT: Final = "certificate_fingerprint"
 WEBUI_2026_PORT: Final = 443
 

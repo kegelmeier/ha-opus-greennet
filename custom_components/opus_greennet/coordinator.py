@@ -500,8 +500,12 @@ class OpusGreenNetCoordinator:
         *,
         on_auth_failed: Callable[[], None] | None = None,
         generation_check: Callable[[], Awaitable[bool]] | None = None,
+        write_access_allowed: Callable[[], bool] | None = None,
     ) -> None:
         """Initialize the coordinator.
+
+        ``write_access_allowed`` tells whether device settings may be written
+        (the option of the config entry); without it they may.
 
         ``generation_check`` is given for a gateway of the earlier generation
         only: it tells whether a gateway of the newer generation answers at
@@ -522,6 +526,7 @@ class OpusGreenNetCoordinator:
         )
         self._on_auth_failed = on_auth_failed
         self._generation_check = generation_check
+        self._write_access_allowed = write_access_allowed
         self._probe_failures = 0
         self._generation_checked_at: float | None = None
         self._auth_failed = False
@@ -2463,10 +2468,20 @@ class OpusGreenNetCoordinator:
             kind="configuration_read",
         )
 
+    def _require_write_access(self, device_id: str) -> None:
+        """Refuse to write a device setting while write access is off."""
+        if self._write_access_allowed is not None and not self._write_access_allowed():
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="write_access_disabled",
+                translation_placeholders={"device_id": device_id},
+            )
+
     async def async_set_device_configuration(
         self, device_id: str, config: WireMapping
     ) -> None:
         """Write configuration to a device and wait for the acknowledgement."""
+        self._require_write_access(device_id)
         if (problem := json_body_problem(config)) is not None:
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
@@ -2844,6 +2859,7 @@ class OpusGreenNetCoordinator:
         read: Callable[[JsonObject, str], Any],
         same: Callable[[Any], bool],
     ) -> None:
+        self._require_write_access(device_id)
         device = self.get_device(device_id)
         if device is None:
             raise request_error("device_not_found", device_id)
@@ -2957,6 +2973,7 @@ class OpusGreenNetCoordinator:
         step is reported with its own message.
         """
         device_id = device.device_id
+        self._require_write_access(device_id)
         path = OpusGatewayClient.device_path(device_id, "repeaterState")
         body = {KEY_REPEATER_STATE: option}
         self._note_setting_write(device_id)
