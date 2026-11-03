@@ -127,6 +127,18 @@
       },
       "lock_bolt": {
         "name": "Riegel"
+      },
+      "rcu_communication_error": {
+        "name": "Kommunikation Raumregler"
+      },
+      "heat_circuits_error": {
+        "name": "Heizkreise"
+      },
+      "rcu_battery": {
+        "name": "Batterie Raumregler"
+      },
+      "rcu_malfunction": {
+        "name": "Störung Raumregler"
       }
     },
     "cover": {
@@ -316,6 +328,9 @@
       },
       "device_id": {
         "name": "Geräte-ID"
+      },
+      "valve_position": {
+        "name": "Ventilstellung"
       }
     },
     "switch": {
@@ -494,6 +509,9 @@
     },
     "webui_2026_login_required": {
       "message": "Das OPUS-Gateway verlangt jetzt die Anmeldung der neuen Gateway-Generation (WebUI 2026). Gib Benutzer und Passwort seiner Weboberfläche ein, um fortzufahren; alle Geräte und Entitäten bleiben erhalten."
+    },
+    "hvac_mode_read_only": {
+      "message": "Diese Heizzone meldet Heizen oder Kühlen, lässt sich aber nicht von Home Assistant umschalten."
     }
   },
   "services": {

@@ -32,23 +32,27 @@ from .const import (
     KEY_BUTTON_NO_MOTION,
     KEY_CHANNEL,
     KEY_CIRCUIT_IN_USE,
+    KEY_COMMUNICATION_ERROR,
     KEY_CONTACT,
     KEY_DIMMER,
     KEY_ENERGY,
     KEY_ENERGY_CONSUMPTION,
     KEY_ERROR_CODE,
     KEY_FEED_TEMPERATURE,
+    KEY_HEAT_CIRCUITS_ERROR,
     KEY_HEATER_MODE,
     KEY_HUMIDITY,
     KEY_ILLUMINATION,
     KEY_LIQUID_DETECTED,
     KEY_LOCAL_CONTROL,
     KEY_LOCKING_MODE,
+    KEY_LOW_BATTERY,
     KEY_MAX_HOLDING_TIME,
     KEY_MISSING_TEMPERATURE,
     KEY_POSITION,
     KEY_POWER,
     KEY_POWER_STATE,
+    KEY_RCU_MALFUNCTION,
     KEY_REPOSITIONING,
     KEY_ROTATION_TIME,
     KEY_ROUTING_TIME,
@@ -59,6 +63,7 @@ from .const import (
     KEY_TEMPERATURE_SETPOINT,
     KEY_THERMAL_MODE,
     KEY_UNLOCK,
+    KEY_VALVE_POSITION,
     KEY_VERTICAL_MOVEMENT_TIME,
     KEY_WINDOW_OPEN,
     LOCAL_CONTROL_EEPS,
@@ -204,6 +209,12 @@ class EnOceanChannel:
     actuator_not_responding: str | None = None
     missing_temperature: str | None = None
     circuit_in_use: str | None = None
+    # Heat Area 3.0 Physical (D1-4B-03)
+    valve_position: float | None = None
+    communication_error: str | None = None
+    heat_circuits_error: str | None = None
+    rcu_low_battery: str | None = None
+    rcu_malfunction: str | None = None
     # Transient rocker-switch state: set only by the most recent telegram and
     # emitted by the event entity. Reset on every update_from_telegram call.
     last_button: str | None = None
@@ -558,7 +569,7 @@ class EnOceanDevice:
         """Check if this device is a climate/heating device."""
         eep = self.primary_eep
         if eep:
-            return eep in ["D1-4B-05", "D1-4B-06", "D1-4B-07"]
+            return eep in ["D1-4B-03", "D1-4B-05", "D1-4B-06", "D1-4B-07"]
         return False
 
     @property
@@ -566,6 +577,7 @@ class EnOceanDevice:
         """Return the specific heat area type."""
         eep = self.primary_eep
         eep_type_map = {
+            "D1-4B-03": "physical",
             "D1-4B-05": "valve",
             "D1-4B-06": "cositherm",
             "D1-4B-07": "electro",
@@ -577,7 +589,16 @@ class EnOceanDevice:
         """Return the temperature setpoint step size for this device."""
         if self.primary_eep == "D1-4B-05":
             return 0.5
+        if self.primary_eep == "D1-4B-03":
+            return 0.2
         return 0.1  # D1-4B-06 and D1-4B-07 both use 0.1
+
+    @property
+    def setpoint_limits(self) -> tuple[float, float]:
+        """Return the (minimum, maximum) setpoint of the gateway profile."""
+        if self.primary_eep == "D1-4B-03":
+            return (5.0, 30.0)
+        return (0.0, 40.0)
 
     @property
     def channel_count(self) -> int:
@@ -1079,6 +1100,7 @@ class EnOceanDevice:
             elif key == KEY_HEATER_MODE:
                 if value in (
                     "heating",
+                    "cooling",
                     "on",
                     "off",
                     "autoOff",
@@ -1142,6 +1164,28 @@ class EnOceanDevice:
             elif key == KEY_CIRCUIT_IN_USE:
                 if value in ("error", "reset"):
                     channel.circuit_in_use = value
+
+            # Heat Area 3.0 Physical (D1-4B-03)
+            elif key == KEY_VALVE_POSITION:
+                channel.valve_position = self._float_reading(
+                    channel.valve_position, value, 0, 100, allow_unavailable=True
+                )
+
+            elif key == KEY_COMMUNICATION_ERROR:
+                if value in ("error", "reset"):
+                    channel.communication_error = value
+
+            elif key == KEY_HEAT_CIRCUITS_ERROR:
+                if value in ("error", "reset"):
+                    channel.heat_circuits_error = value
+
+            elif key == KEY_LOW_BATTERY:
+                if value in ("warning", "reset"):
+                    channel.rcu_low_battery = value
+
+            elif key == KEY_RCU_MALFUNCTION:
+                if value in ("error", "reset"):
+                    channel.rcu_malfunction = value
 
         # Update last seen from telegram
         if (timestamp := string_key(telegram, "timestamp")) is not None:

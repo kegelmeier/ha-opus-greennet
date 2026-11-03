@@ -129,15 +129,27 @@ async def async_setup_entry(
 
         # Climate devices get humidity, feed temperature, and energy sensors
         if device.is_climate:
-            # Humidity sensor (all HeatArea types)
-            entities.append(
-                OpusGreenNetHumiditySensor(
-                    coordinator=coordinator,
-                    eag_id=eag_id,
-                    gateway_device_id=gateway_device_id,
-                    device=device,
+            # Humidity sensor (HeatArea types; D1-4B-03 reports no humidity)
+            if device.primary_eep != "D1-4B-03":
+                entities.append(
+                    OpusGreenNetHumiditySensor(
+                        coordinator=coordinator,
+                        eag_id=eag_id,
+                        gateway_device_id=gateway_device_id,
+                        device=device,
+                    )
                 )
-            )
+
+            # Valve position (D1-4B-03 Heat Area 3.0 Physical only)
+            if device.primary_eep == "D1-4B-03":
+                entities.append(
+                    OpusGreenNetValvePositionSensor(
+                        coordinator=coordinator,
+                        eag_id=eag_id,
+                        gateway_device_id=gateway_device_id,
+                        device=device,
+                    )
+                )
 
             # Feed temperature (D1-4B-05 Valve Area only)
             if device.primary_eep == "D1-4B-05":
@@ -460,6 +472,40 @@ class OpusGreenNetHumiditySensor(OpusGreenNetBaseSensor):
         """Return the humidity value."""
         channel = self._device.channels.get(DEFAULT_CHANNEL)
         return channel.humidity if channel else None
+
+
+class OpusGreenNetValvePositionSensor(OpusGreenNetBaseSensor):
+    """Valve position of a Heat Area 3.0 Physical (D1-4B-03).
+
+    The value is the share of the next hour the valve will be open, a plan of
+    the room control unit and not a measured valve state.
+    """
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = UnitOfRatio.PERCENTAGE
+
+    def __init__(
+        self,
+        coordinator: OpusGreenNetCoordinator,
+        eag_id: str,
+        gateway_device_id: str,
+        device: EnOceanDevice,
+    ) -> None:
+        """Initialize the valve position sensor."""
+        super().__init__(
+            coordinator,
+            eag_id,
+            gateway_device_id,
+            device,
+            "valve_position",
+            "valve_position",
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the planned open share of the next hour in percent."""
+        channel = self._device.channels.get(DEFAULT_CHANNEL)
+        return channel.valve_position if channel else None
 
 
 class OpusGreenNetFeedTemperatureSensor(OpusGreenNetBaseSensor):

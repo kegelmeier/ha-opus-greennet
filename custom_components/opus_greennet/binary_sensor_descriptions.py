@@ -23,6 +23,14 @@ class OpusBinarySensorDescription:
     enabled_by_default: bool = True
 
 
+def virtual_heat_area(device: EnOceanDevice) -> bool:
+    """Return whether this is a HeatArea that reports window and timeout states.
+
+    The physical Heat Area 3.0 (D1-4B-03) has its own error reports instead.
+    """
+    return device.is_climate and device.primary_eep != "D1-4B-03"
+
+
 def channel_boolean(
     device: EnOceanDevice, read: Callable[[EnOceanChannel], bool | None]
 ) -> bool | None:
@@ -71,14 +79,14 @@ BINARY_SENSOR_DESCRIPTIONS = (
     OpusBinarySensorDescription(
         key="window_open",
         translation_key="window",
-        applies_to=lambda device: device.is_climate,
+        applies_to=lambda device: virtual_heat_area(device),
         value_fn=lambda device: channel_boolean(device, lambda c: c.window_open),
         device_class=BinarySensorDeviceClass.WINDOW,
     ),
     OpusBinarySensorDescription(
         key="actuator_not_responding",
         translation_key="actuator_not_responding",
-        applies_to=lambda device: device.is_climate,
+        applies_to=lambda device: virtual_heat_area(device),
         value_fn=lambda device: diagnostic_value(
             device, lambda c: c.actuator_not_responding
         ),
@@ -88,7 +96,7 @@ BINARY_SENSOR_DESCRIPTIONS = (
     OpusBinarySensorDescription(
         key="missing_temperature",
         translation_key="missing_temperature",
-        applies_to=lambda device: device.is_climate,
+        applies_to=lambda device: virtual_heat_area(device),
         value_fn=lambda device: diagnostic_value(
             device, lambda c: c.missing_temperature
         ),
@@ -120,6 +128,43 @@ BINARY_SENSOR_DESCRIPTIONS = (
         translation_key="circuit_in_use",
         applies_to=lambda device: device.primary_eep == "D1-4B-06",
         value_fn=lambda device: diagnostic_value(device, lambda c: c.circuit_in_use),
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # Heat Area 3.0 Physical (D1-4B-03): reports from the room control unit.
+    OpusBinarySensorDescription(
+        key="communication_error",
+        translation_key="rcu_communication_error",
+        applies_to=lambda device: device.primary_eep == "D1-4B-03",
+        value_fn=lambda device: diagnostic_value(
+            device, lambda c: c.communication_error
+        ),
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    OpusBinarySensorDescription(
+        key="heat_circuits_error",
+        translation_key="heat_circuits_error",
+        applies_to=lambda device: device.primary_eep == "D1-4B-03",
+        value_fn=lambda device: diagnostic_value(
+            device, lambda c: c.heat_circuits_error
+        ),
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    OpusBinarySensorDescription(
+        key="rcu_low_battery",
+        translation_key="rcu_battery",
+        applies_to=lambda device: device.primary_eep == "D1-4B-03",
+        value_fn=lambda device: diagnostic_value(device, lambda c: c.rcu_low_battery),
+        device_class=BinarySensorDeviceClass.BATTERY,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    OpusBinarySensorDescription(
+        key="rcu_malfunction",
+        translation_key="rcu_malfunction",
+        applies_to=lambda device: device.primary_eep == "D1-4B-03",
+        value_fn=lambda device: diagnostic_value(device, lambda c: c.rcu_malfunction),
         device_class=BinarySensorDeviceClass.PROBLEM,
         entity_category=EntityCategory.DIAGNOSTIC,
     ),

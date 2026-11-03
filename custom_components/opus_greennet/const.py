@@ -79,6 +79,7 @@ EEP_MAPPINGS: Final = {
     "D2-05-01": ("cover", "Blinds Control for Position"),
     "D2-05-02": ("cover", "Blinds Control for Position and Angle, Lock"),
     # HeatArea (D1-4B-xx) - Proprietary OPUS profiles
+    "D1-4B-03": ("climate", "Moellenhoff Heat Area 3.0 Physical"),
     "D1-4B-05": ("climate", "OPUS Valve Area"),
     "D1-4B-06": ("climate", "OPUS CosiTherm Area"),
     "D1-4B-07": ("climate", "OPUS Electro Heating Area"),
@@ -311,6 +312,14 @@ KEY_ACTUATOR_NOT_RESPONDING: Final = "actuatorNotResponding"
 KEY_MISSING_TEMPERATURE: Final = "missingTemperature"
 KEY_CIRCUIT_IN_USE: Final = "circuitInUse"
 
+# Heat Area 3.0 Physical (D1-4B-03): room control unit (RCU) of a heating
+# controller. Valve position is the share of the next hour the valve is open.
+KEY_VALVE_POSITION: Final = "valvePosition"
+KEY_COMMUNICATION_ERROR: Final = "communicationError"
+KEY_HEAT_CIRCUITS_ERROR: Final = "heatCircuitsError"
+KEY_LOW_BATTERY: Final = "lowBattery"
+KEY_RCU_MALFUNCTION: Final = "rcuMalfunction"
+
 # Rocker switch button keys. F6-02-xx has the rockers A and B, F6-03-xx
 # additionally C and D.
 ROCKER_2_BUTTON_KEYS: Final = (
@@ -341,6 +350,7 @@ STATE_OFF: Final = "off"
 
 # Climate heater mode values
 HEATER_MODE_HEATING: Final = "heating"
+HEATER_MODE_COOLING: Final = "cooling"
 HEATER_MODE_ON: Final = "on"
 HEATER_MODE_OFF: Final = "off"
 HEATER_MODE_AUTO_OFF: Final = "autoOff"
@@ -396,6 +406,11 @@ KNOWN_STATE_KEYS: Final = frozenset(
         "actuatorNotResponding",
         "missingTemperature",
         "circuitInUse",
+        KEY_VALVE_POSITION,
+        KEY_COMMUNICATION_ERROR,
+        KEY_HEAT_CIRCUITS_ERROR,
+        KEY_LOW_BATTERY,
+        KEY_RCU_MALFUNCTION,
         KEY_LOCKING_MODE,
         KEY_ERROR_CODE,
         *BUTTON_KEYS,
