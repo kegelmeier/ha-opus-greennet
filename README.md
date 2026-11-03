@@ -144,9 +144,11 @@ on port 443, with the user and password of the gateway's web interface (role
   Assistant looks for a WebUI 2026 gateway on port 443 (`/auth/setup-status`,
   no login). Enter the web interface user and password.
 - The gateway's self-signed certificate is remembered at the first connection
-  and checked on every later one. If it changes (factory reset, replaced
-  device), the entry asks you to confirm the new certificate; nothing is sent to
-  it before.
+  and checked on every later one. Home Assistant shows its fingerprint and asks
+  you to confirm it before anything is sent to the gateway, also when a gateway
+  of an earlier generation is updated. If it changes (factory reset, replaced
+  device), or when you add a configured gateway again, the entry asks you to
+  confirm the new certificate; nothing is sent to it before.
 - The access token is requested by Home Assistant and kept in memory only; the
   password is stored in the entry like before. A rejected token is requested
   again with the next request; the request that met the rejection is not

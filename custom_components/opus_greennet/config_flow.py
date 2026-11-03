@@ -128,6 +128,10 @@ class OpusGreenNetConfigFlow(ConfigFlow, domain=DOMAIN):
     # A changed certificate waiting for the user's confirmation, and the one
     # the user already confirmed.
     _certificate_review: str | None = None
+    # Whether a certificate was remembered before (shown differently from a
+    # first contact), and the gateway it was remembered for.
+    _certificate_changed: bool = False
+    _certificate_gateway: str = ""
     _trusted_fingerprint: str | None = None
     _connection_step: str = ""
     _pending_input: dict[str, Any] | None = None
@@ -146,6 +150,7 @@ class OpusGreenNetConfigFlow(ConfigFlow, domain=DOMAIN):
         """
         self._extra = {}
         self._certificate_review = None
+        self._certificate_gateway = "" if known is None else known.get(CONF_EAG_ID, "")
         host = user_input[CONF_HOST].strip()
         if not _is_host(host):
             errors[CONF_HOST] = "invalid_host"
@@ -210,9 +215,9 @@ class OpusGreenNetConfigFlow(ConfigFlow, domain=DOMAIN):
     ) -> str | None:
         """Read the EAG identifier of a WebUI 2026 gateway (HTTPS, user login).
 
-        The certificate of the first contact is remembered. A different one
-        than the remembered certificate is not used before the user confirmed
-        it: no credentials are sent to it.
+        The certificate of the first contact is remembered, and so is a different
+        one, but neither is used before the user confirmed it: no credentials are
+        sent to it.
         """
         if endpoint is None:
             endpoint = await async_detect_webui_2026(
@@ -221,11 +226,11 @@ class OpusGreenNetConfigFlow(ConfigFlow, domain=DOMAIN):
         if endpoint is None:
             errors["base"] = "cannot_connect"
             return None
-        if known_fingerprint is not None and endpoint.fingerprint not in (
-            known_fingerprint,
-            self._trusted_fingerprint,
-        ):
+        if endpoint.fingerprint not in (known_fingerprint, self._trusted_fingerprint):
+            # The first contact is confirmed like a changed certificate: the
+            # fingerprint is shown before anything is sent to the gateway.
             self._certificate_review = endpoint.fingerprint
+            self._certificate_changed = known_fingerprint is not None
             return None
         extra = {
             CONF_PORT: endpoint.port,
@@ -256,13 +261,39 @@ class OpusGreenNetConfigFlow(ConfigFlow, domain=DOMAIN):
         """Add a gateway by its address."""
         errors: dict[str, str] = {}
         if user_input is not None:
-            eag_id = await self._async_validate(user_input, errors)
+            # A gateway entered again at the address of a configured one keeps
+            # its remembered certificate until the user confirms another.
+            known = self._known_entry_data(user_input[CONF_HOST].strip())
+            eag_id = await self._async_validate(user_input, errors, known)
+            if self._certificate_review is not None:
+                self._connection_step = "user"
+                self._pending_input = user_input
+                return await self._async_review_certificate()
             if eag_id is not None:
                 data = {**_connection_data(user_input), **self._extra}
                 await self.async_set_unique_id(eag_id)
                 # Adding a known gateway again updates its address (this also
                 # completes the move of an entry from the former MQTT setup).
-                self._abort_if_unique_id_configured(updates=data)
+                # The generation and the certificate are those of the gateway
+                # just validated: what a newer generation had is dropped when
+                # the gateway answers as an earlier one.
+                if (
+                    known_entry
+                    := self.hass.config_entries.async_entry_for_domain_unique_id(
+                        DOMAIN, eag_id
+                    )
+                ) is not None:
+                    kept = {
+                        key: value
+                        for key, value in known_entry.data.items()
+                        if key not in (CONF_GENERATION, CONF_CERTIFICATE_FINGERPRINT)
+                    }
+                    return self.async_update_reload_and_abort(
+                        known_entry,
+                        data={**kept, **data},
+                        reason="already_configured",
+                        reload_even_if_entry_is_unchanged=False,
+                    )
                 return self.async_create_entry(
                     title=f"Opus GreenNet ({eag_id})",
                     data={CONF_EAG_ID: eag_id, **data},
@@ -275,6 +306,13 @@ class OpusGreenNetConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=_connection_schema({**defaults, **(user_input or {})}),
             errors=errors,
         )
+
+    def _known_entry_data(self, host: str) -> Mapping[str, Any] | None:
+        """Return the data of the configured entry at ``host``, if there is one."""
+        for entry in self._async_current_entries(include_ignore=False):
+            if entry.data.get(CONF_HOST) == host:
+                return entry.data
+        return None
 
     async def async_step_zeroconf(
         self, discovery_info: ZeroconfServiceInfo
@@ -385,7 +423,7 @@ class OpusGreenNetConfigFlow(ConfigFlow, domain=DOMAIN):
             if self._certificate_review is not None:
                 self._connection_step = step_id
                 self._pending_input = user_input
-                return await self.async_step_certificate()
+                return await self._async_review_certificate()
             if found is not None and found != eag_id:
                 errors["base"] = "wrong_gateway"
             elif found is not None:
@@ -414,6 +452,12 @@ class OpusGreenNetConfigFlow(ConfigFlow, domain=DOMAIN):
             description_placeholders={"eag_id": eag_id},
         )
 
+    async def _async_review_certificate(self) -> ConfigFlowResult:
+        """Show the step that fits the certificate waiting for the user."""
+        if self._certificate_changed:
+            return await self.async_step_certificate()
+        return await self.async_step_certificate_new()
+
     async def async_step_certificate(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
@@ -423,12 +467,29 @@ class OpusGreenNetConfigFlow(ConfigFlow, domain=DOMAIN):
         first contact: after a factory reset or a replaced device, but also when
         something else answers at the address. Nothing was sent to it.
         """
+        return await self._async_confirm_certificate("certificate", user_input)
+
+    async def async_step_certificate_new(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Ask whether to remember the certificate of a gateway met the first time.
+
+        The certificate is self-signed, so only the user can tell whether it
+        belongs to the gateway. Nothing was sent to it.
+        """
+        return await self._async_confirm_certificate("certificate_new", user_input)
+
+    async def _async_confirm_certificate(
+        self, step_id: str, user_input: dict[str, Any] | None
+    ) -> ConfigFlowResult:
         fingerprint = self._certificate_review
-        # Only reachable from ``_async_step_connection``, which sets both.
+        # Only reachable after ``_async_validate``, which sets both.
         assert fingerprint is not None
         assert self._pending_input is not None
         if user_input is not None:
             self._trusted_fingerprint = fingerprint
+            if self._connection_step == "user":
+                return await self.async_step_user(self._pending_input)
             entry = (
                 self._get_reauth_entry()
                 if self._connection_step == "reauth_confirm"
@@ -439,7 +500,11 @@ class OpusGreenNetConfigFlow(ConfigFlow, domain=DOMAIN):
             )
         pairs = [fingerprint[i : i + 2].upper() for i in range(0, len(fingerprint), 2)]
         return self.async_show_form(
-            step_id="certificate",
+            step_id=step_id,
             data_schema=vol.Schema({}),
-            description_placeholders={"fingerprint": ":".join(pairs)},
+            description_placeholders={
+                "fingerprint": ":".join(pairs),
+                "eag_id": self._certificate_gateway,
+                "host": self._pending_input[CONF_HOST].strip(),
+            },
         )
