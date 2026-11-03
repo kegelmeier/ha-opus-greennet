@@ -49,7 +49,7 @@ Works with both OPUS gateways, the black **OPUS greenNet gateway** and the newer
 | Dimmers | D2-01-02 … -05, -09; A5-38-08 | Light |
 | Gateway switching | A5-38-09 | Light |
 | Blinds and shutters | D2-05-00, -01, -02 | Cover with position and tilt; blockage, reference run, last run time |
-| Heating areas | D1-4B-05, -06, -07 (Valve, CosiTherm, Electro) | Climate, feed temperature, power, humidity, window open, errors, battery |
+| Heating areas | D1-4B-03, -05, -06, -07 (Physical 3.0, Valve, CosiTherm, Electro) | Climate, feed temperature, power, humidity, window open, errors, battery |
 | Temperature and humidity sensors | A5-04-01, -02, -03 | Temperature, humidity |
 | Presence detectors (SMS) | A5-07-01, A5-07-03 | Motion, illuminance (A5-07-03), supply voltage, sensor error; A5-07-03 also shows alive cycle, PIR off time and ReCom readiness cycle as read-only diagnostic values |
 | OPUS motion detector | F6-02-01 + A5-04-01 | Motion, temperature, humidity |

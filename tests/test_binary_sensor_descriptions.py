@@ -22,6 +22,10 @@ METADATA = {
     "actuator_low_battery": ("actuator_battery", "battery", "diagnostic"),
     "actuator_deactivated": ("actuator_deactivated", "problem", "diagnostic"),
     "circuit_in_use": ("circuit_in_use", "problem", "diagnostic"),
+    "communication_error": ("rcu_communication_error", "problem", "diagnostic"),
+    "heat_circuits_error": ("heat_circuits_error", "problem", "diagnostic"),
+    "rcu_low_battery": ("rcu_battery", "battery", "diagnostic"),
+    "rcu_malfunction": ("rcu_malfunction", "problem", "diagnostic"),
 }
 COMMON = {"window_open", "actuator_not_responding", "missing_temperature"}
 
@@ -30,6 +34,15 @@ COMMON = {"window_open", "actuator_not_responding", "missing_temperature"}
     "eep,keys",
     [
         ("F6-05-01", {"liquid_detected"}),
+        (
+            "D1-4B-03",
+            {
+                "communication_error",
+                "heat_circuits_error",
+                "rcu_low_battery",
+                "rcu_malfunction",
+            },
+        ),
         ("D1-4B-05", COMMON | {"actuator_low_battery", "actuator_deactivated"}),
         ("D1-4B-06", COMMON | {"circuit_in_use"}),
         ("D1-4B-07", COMMON),

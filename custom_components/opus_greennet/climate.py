@@ -12,11 +12,12 @@ from homeassistant.components.climate.const import (
 )
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import OpusGreenNetConfigEntry
-from .const import CONF_EAG_ID, DEFAULT_CHANNEL
+from .const import CONF_EAG_ID, DEFAULT_CHANNEL, DOMAIN
 from .coordinator import (
     SIGNAL_DEVICE_DISCOVERED,
     OpusGreenNetCoordinator,
@@ -73,8 +74,8 @@ class OpusGreenNetClimate(OpusGreenNetEntity, ClimateEntity):
 
     _attr_has_entity_name = True
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
-    _attr_min_temp = 0
-    _attr_max_temp = 40
+    _attr_min_temp: float = 0
+    _attr_max_temp: float = 40
     _attr_supported_features = (
         ClimateEntityFeature.TARGET_TEMPERATURE
         | ClimateEntityFeature.TURN_ON
@@ -96,11 +97,17 @@ class OpusGreenNetClimate(OpusGreenNetEntity, ClimateEntity):
 
         # Set step based on heat area type
         self._attr_target_temperature_step = device.setpoint_step
+        self._attr_min_temp, self._attr_max_temp = device.setpoint_limits
 
         # Set HVAC modes based on EEP type
         # D1-4B-06 (CosiTherm) supports thermalMode cooling/heating
         if device.primary_eep == "D1-4B-06":
             self._attr_hvac_modes = [HVACMode.HEAT_COOL, HVACMode.OFF]
+        elif device.primary_eep == "D1-4B-03":
+            # The room control unit reports heating or cooling; the gateway
+            # profile has no command for it, so the mode is read-only.
+            self._attr_hvac_modes = [HVACMode.HEAT, HVACMode.COOL]
+            self._attr_supported_features = ClimateEntityFeature.TARGET_TEMPERATURE
         else:
             # D1-4B-05 (Valve) and D1-4B-07 (Electro) are heat-only
             self._attr_hvac_modes = [HVACMode.HEAT, HVACMode.OFF]
@@ -133,6 +140,8 @@ class OpusGreenNetClimate(OpusGreenNetEntity, ClimateEntity):
             return None
 
         mode = channel.heater_mode
+        if mode == "cooling" and self._device.primary_eep == "D1-4B-03":
+            return HVACMode.COOL
         if mode in ("heating", "on", "autoOff"):
             if self._device.primary_eep == "D1-4B-06":
                 return HVACMode.HEAT_COOL
@@ -184,6 +193,11 @@ class OpusGreenNetClimate(OpusGreenNetEntity, ClimateEntity):
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set new HVAC mode."""
+        if self._device.primary_eep == "D1-4B-03":
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="hvac_mode_read_only",
+            )
         if hvac_mode == HVACMode.OFF:
             await self._coordinator.async_set_climate_mode(
                 self._device.device_id, "off"

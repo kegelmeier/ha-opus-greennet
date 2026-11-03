@@ -127,6 +127,18 @@
       },
       "lock_bolt": {
         "name": "Lock bolt"
+      },
+      "rcu_communication_error": {
+        "name": "Room control unit communication"
+      },
+      "heat_circuits_error": {
+        "name": "Heat circuits"
+      },
+      "rcu_battery": {
+        "name": "Room control unit battery"
+      },
+      "rcu_malfunction": {
+        "name": "Room control unit malfunction"
       }
     },
     "cover": {
@@ -316,6 +328,9 @@
       },
       "device_id": {
         "name": "Device ID"
+      },
+      "valve_position": {
+        "name": "Valve position"
       }
     },
     "switch": {
@@ -494,6 +509,9 @@
     },
     "webui_2026_login_required": {
       "message": "The OPUS gateway now requires the login of the new gateway generation (WebUI 2026). Enter the user and password of its web interface to continue; all devices and entities are kept."
+    },
+    "hvac_mode_read_only": {
+      "message": "This heat area reports heating or cooling but cannot be switched from Home Assistant."
     }
   },
   "services": {

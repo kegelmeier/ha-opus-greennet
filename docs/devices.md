@@ -339,6 +339,25 @@ stored answer, read from the device list at start-up; the attribute
 seconds (*locking* / *unlocking*) and only the last one is sent, because the
 gateway queues every answer for the sleeping handle.
 
+## Heat Area 3.0 Physical (D1-4B-03)
+
+The Moellenhoff room control unit of a heating controller (gateway profile
+"Heat Area 3.0 Physical") appears as a climate entity.
+
+- **Setpoint:** 5–30 °C in steps of 0.2 °C; the unit reports its current
+  temperature and setpoint.
+- **Mode:** the unit reports heating or cooling. The gateway profile has no
+  command for it, so the mode is read-only (switching it raises an error) and
+  there is no on/off.
+- **Valve position** (sensor, %): the share of the next hour the valve will be
+  open. It is a plan of the unit and not a measured valve state, so the climate
+  entity shows no heating action from it.
+- **Diagnostics:** binary sensors for communication with the room control unit,
+  heat circuits, battery and malfunction (on = the unit reported the problem).
+- There is no humidity, window or feed temperature for this profile.
+- The profile is taken from the gateway catalog (`/profiles/D1-4B-03`). It has
+  not been tested with a real device yet.
+
 ## Water sensors (F6-05-01)
 
 The leak sensor sends only when its state changes, and the gateway lists no
