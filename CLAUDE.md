@@ -7,9 +7,9 @@ Repository: https://github.com/kegelmeier/ha-opus-greennet
 
 ## Tech Stack
 
-- Python 3.14 (Home Assistant 2026.8+)
+- Python 3.14 (Home Assistant 2026.10+; fixed CI reference 2026.10.4)
 - Home Assistant custom component architecture
-- EnOcean over IP REST API of the gateway (HTTP + event stream, aiohttp)
+- EnOcean over IP REST API of the gateway (event stream, aiohttp via Home Assistant's shared session): plain HTTP with Basic auth for older firmware, HTTPS with login and a pinned certificate fingerprint for WebUI 2026
 - HACS compatible
 
 ## Project Structure
@@ -20,10 +20,20 @@ Repository: https://github.com/kegelmeier/ha-opus-greennet
 - `api.py` — REST client (requests, error mapping, event stream splitting, request priority lock)
 - `protocol.py` — pure helpers that read gateway documents (state functions, feedback fields)
 - `coordinator.py` — connection lifecycle (event stream, health probe), device state, commands
+- `wire.py` — typed gateway data and validation helpers for the JSON boundary
 - `enocean_device.py` — device/channel data model
-- Platform files: `light.py`, `switch.py`, `cover.py`, `climate.py`, `sensor.py`, `binary_sensor.py`, `event.py`
+- `entity.py` — shared base entity, repair issues for entities
+- `config_flow.py` — user, zeroconf, reauth, reconfigure and options flow
+- `discovery.py` — gateway search in the local network
+- `diagnostics.py` — config entry and device diagnostics (redacted)
+- `write_access.py` — opt-in for writing device settings
+- `readings.py`, `binary_sensor_descriptions.py` — read-only profile readings and binary sensor descriptions
+- Platform files: `light.py`, `switch.py`, `cover.py`, `climate.py`, `lock.py`, `sensor.py`, `binary_sensor.py`, `event.py`, `number.py`, `select.py`, `button.py`, `time.py`
 - `services.yaml` — HA service definitions (rendered in Developer Tools)
-- `strings.json` + `translations/en.json` — UI strings and entity names
+- `icons.json` — icon translations
+- `brand/` — local brand images
+- `strings.json` + `translations/en.json` + `translations/de.json` — UI strings and entity names
+- `quality_scale.yaml` — quality scale self-assessment (evidence: `docs/quality/quality-scale-evidence.md`)
 
 ## Branch Strategy (MANDATORY for every change)
 
@@ -81,10 +91,10 @@ Examples:
 
 1. **Tests pass** — Run `pytest -v`. All tests must pass. Add tests for new functionality.
 2. **README.md / docs/** — Update README.md for features, supported devices, compatibility or roadmap; docs/devices.md for device behaviour and actions; docs/development.md for project structure or test count.
-3. **Translation files** — If new entity types or UI strings are added:
-   - `strings.json` — add entity names under `"entity"` block
-   - `translations/en.json` — mirror the same entries
-4. **services.yaml** — If new HA services are added, add descriptions here
+3. **Translation files** — If new entity types, errors or UI strings are added:
+   - `strings.json` — add entity names under `"entity"` block, errors under `"exceptions"`
+   - `translations/en.json` and `translations/de.json` — mirror the same entries
+4. **services.yaml** — If new HA services are added, add descriptions here (and the service strings)
 5. **No version changes** — Do NOT modify `manifest.json` version or CHANGELOG.md in the PR.
 
 ## Versioning & HACS Release (manual, after PR is merged)
@@ -114,12 +124,15 @@ Versioning is done **manually and separately** from PRs. After one or more PRs a
 - All platforms follow the dispatcher signal pattern (see `light.py` as reference)
 - Device state is held in `EnOceanChannel` dataclass fields
 - Coordinator handles ALL gateway communication; entities never call the API directly
+- Runtime data lives in `entry.runtime_data`; exceptions raised to the user carry `translation_domain` and `translation_key`
 - Use `KNOWN_STATE_KEYS` in const.py when adding new function keys
 - Multi-channel devices require the `channel` key in command functions
 
 ## Testing
 
 - Run `pytest -v` before every push — all tests must pass
+- CI additionally runs `ruff check`, `ruff format --check`, `mypy --strict`, per-module coverage (`script/check_coverage.py`: above 95 %, `config_flow.py` 100 %) and hassfest; do not lower these gates
+- If a change affects a quality scale rule, update `quality_scale.yaml` and `docs/quality/quality-scale-evidence.md`
 - Manual testing: trigger physical devices, verify HA entity states update
 - Check HA logs at debug level: `custom_components.opus_greennet: debug`
 - When adding new functionality, add corresponding tests in `tests/`
