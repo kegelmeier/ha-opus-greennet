@@ -23,7 +23,7 @@ The settings stored on actuators, as far as the gateway's parameter catalog
 
 | Device | Number entities | Select entities | Not offered |
 |--------|-----------------|-----------------|-------------|
-| Blinds (D2-05-02) | Vertical movement time, Rotation time, Maximum holding time | – | Function of rocker A and B, routing time |
+| Blinds (D2-05-02) | Vertical movement time, Rotation time, Maximum holding time | Repeater mode | Function of rocker A and B, routing time |
 | Dimmers (D2-01-03) | Ramping time, Short-press time, Long-press time | Repeater mode | – |
 | Switches (D2-01-01) | Timer duration, Timer duration (long press), Switch-off warning, Switch-off warning signal, Illumination threshold | Operation mode, LED colour, External input function, ViNET Router, Repeater mode | Function of rocker A and B |
 | 2-channel switches (D2-01-11) | as D2-01-01 | as D2-01-01, plus LED channel | as D2-01-01 |
@@ -148,10 +148,12 @@ as *off* or *on* (any time counts as on). Writing *on* sends the smallest time,
 the state a device already shows sends nothing. The repeater mode is not a
 ReCom parameter but the device resource `/devices/{id}/repeaterState` (`off`,
 `level_1`, `level_2`); it is written and read back there. *Read settings*
-reads both. The device list carries the repeater mode too, so it is shown after a restart without a radio request. Dimmers (D2-01-03) report it as well and get the same entities (the dimmer catalog has no routing); writing it on a dimmer is untested. Each has a diagnostic sensor (*ViNET Router (stored)*, *Repeater mode
+reads both. The device list carries the repeater mode too, so it is shown after a restart without a radio request. Dimmers (D2-01-03) report it as well and get the same entities (the dimmer catalog has no routing); writing it on a dimmer is untested. Blinds (D2-05-02) get the repeater mode too (no routing). Each has a diagnostic sensor (*ViNET Router (stored)*, *Repeater mode
 (stored)*) and a select in the configuration category (disabled by default).
-Writing the repeater mode was tested on one D2-01-01 switch (level 1 and back
-to off) through the gateway interface, not through these entities.
+Writing the repeater mode was tested on one D2-01-01 switch and on one D2-05-02
+blind (off, level 1 and back to off; level 2 untested) through the gateway
+interface, not through these entities. The gateway accepted the value and
+returned it on reading; the effect on the radio path was not measured.
 
 **Display.** The stored switch values (timer durations, switch-off warning,
 illumination threshold) are shown without decimals, the warning signal with
