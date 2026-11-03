@@ -370,6 +370,7 @@ async def test_an_existing_entry_with_a_public_address_still_sets_up_but_warns(
     coordinator = MagicMock()
     coordinator.async_setup = AsyncMock(side_effect=OpusConnectionError("Offline"))
     coordinator.async_unload = AsyncMock()
+    coordinator.async_restore_setting_guards = AsyncMock()
     entry = SimpleNamespace(entry_id="entry-id", data={**ENTRY_DATA, "host": host})
     coordinator_patch, session_patch = _mock_setup(coordinator)
     hass = MagicMock()

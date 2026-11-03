@@ -139,6 +139,60 @@
       },
       "rcu_malfunction": {
         "name": "Störung Raumregler"
+      },
+      "actuator_obstructed": {
+        "name": "Aktor blockiert"
+      },
+      "circuit_mismatch": {
+        "name": "Heizkreis-Abweichung"
+      },
+      "data_mismatch": {
+        "name": "Datenabweichung"
+      },
+      "digital_input_0": {
+        "name": "Digitaleingang 0"
+      },
+      "digital_input_1": {
+        "name": "Digitaleingang 1"
+      },
+      "digital_input_2": {
+        "name": "Digitaleingang 2"
+      },
+      "digital_input_3": {
+        "name": "Digitaleingang 3"
+      },
+      "energy_input": {
+        "name": "Energiegewinnung"
+      },
+      "energy_storage_charged": {
+        "name": "Energiespeicher geladen"
+      },
+      "mh_not_found": {
+        "name": "Möhlenhoff nicht gefunden"
+      },
+      "missing_data": {
+        "name": "Fehlende Daten"
+      },
+      "occupancy": {
+        "name": "Anwesenheit"
+      },
+      "occupancy_button": {
+        "name": "Anwesenheitstaster"
+      },
+      "past_leak_detection": {
+        "name": "Leck in den letzten 14 Tagen erkannt"
+      },
+      "power_failure": {
+        "name": "Stromausfall"
+      },
+      "radio_error": {
+        "name": "Funkfehler"
+      },
+      "radio_signal_weak": {
+        "name": "Schwaches Funksignal"
+      },
+      "wake_signal": {
+        "name": "Wake-Signal"
       }
     },
     "cover": {
@@ -331,6 +385,134 @@
       },
       "valve_position": {
         "name": "Ventilstellung"
+      },
+      "acceleration_status": {
+        "name": "Beschleunigungsstatus",
+        "state": {
+          "heartbeat": "Lebenszeichen",
+          "threshold1": "Schwelle 1 überschritten",
+          "threshold2": "Schwelle 2 überschritten"
+        }
+      },
+      "acceleration_x": {
+        "name": "Beschleunigung X"
+      },
+      "acceleration_y": {
+        "name": "Beschleunigung Y"
+      },
+      "acceleration_z": {
+        "name": "Beschleunigung Z"
+      },
+      "actuator_mode": {
+        "name": "Aktor-Modus",
+        "state": {
+          "managed": "Von Anwendung gesteuert",
+          "off": "Aus",
+          "on": "Ein",
+          "error": "Fehler"
+        }
+      },
+      "base_setpoint": {
+        "name": "Basis-Sollwert"
+      },
+      "channel_count": {
+        "name": "Anzahl Kanäle"
+      },
+      "current_1": {
+        "name": "Strom Kanal 1"
+      },
+      "current_2": {
+        "name": "Strom Kanal 2"
+      },
+      "current_3": {
+        "name": "Strom Kanal 3"
+      },
+      "device_type": {
+        "name": "Gerätetyp"
+      },
+      "fan_speed": {
+        "name": "Lüfterstufe",
+        "state": {
+          "auto": "Automatisch",
+          "speed0": "Stufe 0",
+          "speed1": "Stufe 1",
+          "speed2": "Stufe 2",
+          "speed3": "Stufe 3"
+        }
+      },
+      "hardware_version": {
+        "name": "Hardware-Version"
+      },
+      "heater_mode": {
+        "name": "Heizbetrieb",
+        "state": {
+          "heating": "Heizen",
+          "cooling": "Kühlen"
+        }
+      },
+      "ip_address": {
+        "name": "IP-Adresse"
+      },
+      "led_status": {
+        "name": "LED-Status",
+        "state": {
+          "disabled": "Deaktiviert",
+          "enabled": "Aktiviert"
+        }
+      },
+      "load": {
+        "name": "Auslastung"
+      },
+      "manufacturer": {
+        "name": "Hersteller"
+      },
+      "network_version": {
+        "name": "Netzwerk-Version"
+      },
+      "outdoor_temperature": {
+        "name": "Außentemperatur"
+      },
+      "power": {
+        "name": "Leistung"
+      },
+      "serial": {
+        "name": "Seriennummer"
+      },
+      "setpoint_shift": {
+        "name": "Sollwert-Verschiebung"
+      },
+      "setpoint_type": {
+        "name": "Sollwert-Art",
+        "state": {
+          "absolute": "Absolut",
+          "relative": "Relativ"
+        }
+      },
+      "software_version": {
+        "name": "Software-Version"
+      },
+      "system_error": {
+        "name": "Systemfehler",
+        "state": {
+          "general_error": "Allgemeiner Fehler",
+          "heat_circuit_error": "Heizkreisfehler",
+          "no_error": "Kein Fehler"
+        }
+      },
+      "temperature_setpoint": {
+        "name": "Sollwert"
+      },
+      "total_current": {
+        "name": "Gesamtstrom"
+      },
+      "total_power": {
+        "name": "Gesamtleistung"
+      },
+      "uptime": {
+        "name": "Laufzeit"
+      },
+      "version": {
+        "name": "Version"
       }
     },
     "switch": {
@@ -505,6 +687,18 @@
     },
     "parameter_differs": {
       "message": "{device_id} hat für {reason} einen anderen Wert gespeichert als angefordert. Home Assistant zeigt jetzt den auf dem Gerät gespeicherten Wert."
+    },
+    "setting_conflict_holding_time_shorter_than_travel_time": {
+      "message": "{device_id}: Nicht geschrieben. Die maximale Haltezeit wäre kürzer als die Fahrzeit. Ändere zuerst die andere Einstellung, oder lies die Einstellungen neu, falls ein angezeigter Wert veraltet ist."
+    },
+    "setting_conflict_travel_time_shorter_than_rotation_time": {
+      "message": "{device_id}: Nicht geschrieben. Die Fahrzeit wäre kürzer als die Rotationszeit. Ändere zuerst die andere Einstellung, oder lies die Einstellungen neu, falls ein angezeigter Wert veraltet ist."
+    },
+    "setting_conflict_cleaning_time_shorter_than_run_on_time": {
+      "message": "{device_id}: Nicht geschrieben. Die Timer-Dauer (langer Druck) wäre kürzer als die Timer-Dauer. Ändere zuerst die andere Einstellung, oder lies die Einstellungen neu, falls ein angezeigter Wert veraltet ist."
+    },
+    "setting_conflict_switch_off_warning_longer_than_run_on_time": {
+      "message": "{device_id}: Nicht geschrieben. Die Abschaltwarnung wäre länger als die Timer-Dauer. Ändere zuerst die andere Einstellung, oder lies die Einstellungen neu, falls ein angezeigter Wert veraltet ist."
     },
     "invalid_parameter_value": {
       "message": "Der Wert ist keine gültige Zahl."

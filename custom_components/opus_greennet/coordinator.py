@@ -48,6 +48,7 @@ from homeassistant.helpers.event import (
     async_track_time_change,
     async_track_time_interval,
 )
+from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from . import protocol
@@ -93,6 +94,7 @@ from .const import (
     ROUTING_ON,
     ROUTING_ON_SECONDS,
     SETTING_CACHE_GUARD_SECONDS,
+    SETTING_GUARD_SAVE_DELAY,
     UNLOCK_ALLOWED,
     UNLOCK_NOT_ALLOWED,
     VALUE_UNKNOWN,
@@ -305,6 +307,85 @@ class SettingGuard:
     at: float
 
 
+def _stored_setting_value(value: object) -> float | str | None:
+    """Return a saved setting value, or ``None`` if it is not one."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, int | float) and not isinstance(value, bool):
+        return float(value) if math.isfinite(value) else None
+    return None
+
+
+def _setting_guards_to_storage(
+    guards: Mapping[str, Mapping[str, SettingGuard]],
+    now_monotonic: float,
+    now_wall: float,
+) -> dict[str, Any]:
+    """Return the protection as saved data; times are wall-clock seconds.
+
+    A ``monotonic`` time means nothing after a restart, so each protection is
+    saved with the time of the write it belongs to. Only this bookkeeping is
+    saved, never a device value Home Assistant shows.
+    """
+    return {
+        "guards": {
+            device_id: {
+                key: {
+                    "stale": list(guard.stale),
+                    "written": guard.written,
+                    "written_at": now_wall - (now_monotonic - guard.at),
+                }
+                for key, guard in device_guards.items()
+            }
+            for device_id, device_guards in guards.items()
+        }
+    }
+
+
+def _setting_guards_from_storage(
+    saved: object, now_monotonic: float, now_wall: float
+) -> dict[str, dict[str, SettingGuard]]:
+    """Return the protections that are still running in saved data.
+
+    Anything malformed or older than ``SETTING_CACHE_GUARD_SECONDS`` is left
+    out: without protection the gateway's list is applied as before. A saved
+    time in the future (clock set back) counts as just written.
+    """
+    restored: dict[str, dict[str, SettingGuard]] = {}
+    guards = saved.get("guards") if isinstance(saved, dict) else None
+    if not isinstance(guards, dict):
+        return restored
+    for device_id, device_guards in guards.items():
+        if not isinstance(device_id, str) or not isinstance(device_guards, dict):
+            continue
+        for key, entry in device_guards.items():
+            if not isinstance(key, str) or not isinstance(entry, dict):
+                continue
+            written = _stored_setting_value(entry.get("written"))
+            written_at = entry.get("written_at")
+            stale_list = entry.get("stale")
+            if (
+                written is None
+                or isinstance(written_at, bool)
+                or not isinstance(written_at, int | float)
+                or not math.isfinite(written_at)
+                or not isinstance(stale_list, list)
+            ):
+                continue
+            stale = tuple(
+                value
+                for item in stale_list[:_SETTING_GUARD_STALE_VALUES]
+                if (value := _stored_setting_value(item)) is not None
+            )
+            age = max(0.0, now_wall - written_at)
+            if not stale or age > SETTING_CACHE_GUARD_SECONDS:
+                continue
+            restored.setdefault(device_id, {})[key] = SettingGuard(
+                stale, written, now_monotonic - age
+            )
+    return restored
+
+
 def _setting_number(value: object) -> float | None:
     """Return a reported setting as a number; ``noRotation`` is zero."""
     if isinstance(value, str) and value.strip() == "noRotation":
@@ -475,6 +556,10 @@ class OpusGreenNetCoordinator:
         # Confirmed settings per device, protected against the gateway's cached
         # copy of the configuration in a device list (see ``SettingGuard``).
         self._setting_guards: dict[str, dict[str, SettingGuard]] = {}
+        # Where that protection is saved so a restart keeps it; set by
+        # ``async_restore_setting_guards`` (Home Assistant's own setup only).
+        self._guard_store: Store[dict[str, Any]] | None = None
+        self._guard_changed = False
         # Counts the configuration writes of a device (one before and one after
         # each), so a settings read that overlapped a write is recognised and
         # dropped instead of replacing the newer value.
@@ -605,6 +690,14 @@ class OpusGreenNetCoordinator:
         if self._tasks:
             await asyncio.gather(*self._tasks, return_exceptions=True)
             self._tasks.clear()
+        if self._guard_store is not None and self._guard_changed:
+            # A reload within the save delay must not start from older data.
+            try:
+                await self._guard_store.async_save(self._setting_guards_for_storage())
+            except (HomeAssistantError, OSError) as err:
+                _LOGGER.warning(
+                    "The protection of confirmed settings could not be saved: %s", err
+                )
 
     def _apply_system_info(self, document: JsonObject) -> None:
         """Store the gateway information and verify its identity."""
@@ -1192,7 +1285,8 @@ class OpusGreenNetCoordinator:
                 del runs[run_key]
         self._telegram_metadata_at.pop(device_id, None)
         self.last_vertical_movement_times.pop(device_id, None)
-        self._setting_guards.pop(device_id, None)
+        if self._setting_guards.pop(device_id, None):
+            self._save_setting_guards()
         self._setting_writes.pop(device_id, None)
         self._settings_reading.discard(device_id)
         for origin_key in [k for k in self._position_origins if k[0] == device_id]:
@@ -2440,11 +2534,16 @@ class OpusGreenNetCoordinator:
         device.update_from_telegram({"functions": functions})
         device.settings_read_at = dt_util.utcnow()
         if guards := self._setting_guards.get(device_id):
-            for function in functions:
-                if isinstance(key := function.get("key"), str):
-                    guards.pop(key, None)
+            released = [
+                key
+                for function in functions
+                if isinstance(key := function.get("key"), str)
+                and guards.pop(key, None) is not None
+            ]
             if not guards:
                 self._setting_guards.pop(device_id, None)
+            if released:
+                self._save_setting_guards()
         self._dispatch_state(device)
 
     async def async_refresh_all_settings(
@@ -2539,6 +2638,40 @@ class OpusGreenNetCoordinator:
 
         await self.async_refresh_all_settings(eligible)
 
+    async def async_restore_setting_guards(self, store: Store[dict[str, Any]]) -> None:
+        """Take the protection saved before the last restart, and keep it saved.
+
+        Called before the first device list: that list is the one that would
+        bring back the gateway's older cached value after a restart. A saved
+        protection ends like any other (see ``SettingGuard``), after
+        ``SETTING_CACHE_GUARD_SECONDS`` at the latest, counted from the write.
+        """
+        self._guard_store = store
+        try:
+            saved = await store.async_load()
+        except (HomeAssistantError, OSError, ValueError) as err:
+            _LOGGER.warning(
+                "The saved protection of confirmed settings could not be read "
+                "(%s); device lists are applied without it",
+                err,
+            )
+            return
+        self._setting_guards = _setting_guards_from_storage(saved, monotonic(), time())
+
+    def _setting_guards_for_storage(self) -> dict[str, Any]:
+        """Return the protection as it is when it is saved."""
+        return _setting_guards_to_storage(self._setting_guards, monotonic(), time())
+
+    @callback
+    def _save_setting_guards(self) -> None:
+        """Save the protection a few seconds from now (changes are coalesced)."""
+        if self._guard_store is None:
+            return
+        self._guard_changed = True
+        self._guard_store.async_delay_save(
+            self._setting_guards_for_storage, SETTING_GUARD_SAVE_DELAY
+        )
+
     def _guard_confirmed_setting(
         self,
         device_id: str,
@@ -2564,13 +2697,16 @@ class OpusGreenNetCoordinator:
             ):
                 stale.append(value)
         if not stale:
-            guards.pop(key, None)
+            released = guards.pop(key, None) is not None
             if not guards:
                 self._setting_guards.pop(device_id, None)
+            if released:
+                self._save_setting_guards()
             return
         guards[key] = SettingGuard(
             tuple(stale[:_SETTING_GUARD_STALE_VALUES]), written, monotonic()
         )
+        self._save_setting_guards()
 
     def _without_stale_settings(
         self, device_id: str, functions: list[WireFunction]
@@ -2586,6 +2722,7 @@ class OpusGreenNetCoordinator:
             return functions
         now = monotonic()
         kept: list[WireFunction] = []
+        released = False
         for function in functions:
             key = function.get("key")
             if not isinstance(key, str):
@@ -2608,9 +2745,12 @@ class OpusGreenNetCoordinator:
                 )
                 continue
             del guards[key]
+            released = True
             kept.append(function)
         if not guards:
             self._setting_guards.pop(device_id, None)
+        if released:
+            self._save_setting_guards()
         return kept
 
     async def async_set_device_parameter(
@@ -2678,6 +2818,16 @@ class OpusGreenNetCoordinator:
         if device is None:
             raise request_error("device_not_found", device_id)
         async with self._setting_locks.setdefault(device_id, asyncio.Lock()):
+            if isinstance(value, (int, float)) and (
+                conflicts := device.setting_conflicts(key, value=value)
+            ):
+                # The OPUS config tool warns about these combinations; a write
+                # that creates or worsens one is refused before it is sent.
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key=f"setting_conflict_{conflicts[0]}",
+                    translation_placeholders={"device_id": device_id},
+                )
             document = await self._async_write_and_read_back(device_id, key, value)
             stored = read(document, key)
             if stored is None:

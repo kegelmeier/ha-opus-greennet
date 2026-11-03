@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import Any
 
 import probatio as vol
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
@@ -29,6 +30,7 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service import async_register_admin_service
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
 
 from .api import (
@@ -48,6 +50,8 @@ from .const import (
     REPOSITIONING_DIRECT,
     REPOSITIONING_FIRST_DOWN,
     REPOSITIONING_FIRST_UP,
+    SETTING_GUARD_STORE_KEY,
+    SETTING_GUARD_STORE_VERSION,
     WEBUI_2026_PORT,
 )
 from .coordinator import GatewayMismatchError, OpusGreenNetCoordinator
@@ -301,6 +305,9 @@ async def async_setup_entry(
     )
 
     try:
+        await coordinator.async_restore_setting_guards(
+            _setting_guard_store(hass, eag_id)
+        )
         await coordinator.async_setup()
     except OpusAuthError as err:
         await coordinator.async_unload()
@@ -370,6 +377,13 @@ async def async_setup_entry(
     return True
 
 
+def _setting_guard_store(hass: HomeAssistant, eag_id: str) -> Store[dict[str, Any]]:
+    """Return where the protection of confirmed settings of a gateway is saved."""
+    return Store(
+        hass, SETTING_GUARD_STORE_VERSION, f"{SETTING_GUARD_STORE_KEY}.{eag_id}"
+    )
+
+
 async def async_unload_entry(
     hass: HomeAssistant, entry: OpusGreenNetConfigEntry
 ) -> bool:
@@ -384,8 +398,10 @@ async def async_unload_entry(
 async def async_remove_entry(
     hass: HomeAssistant, entry: OpusGreenNetConfigEntry
 ) -> None:
-    """Remove repair issues that only concerned the removed config entry."""
+    """Remove repair issues and the saved bookkeeping of the removed entry."""
     async_delete_config_entry_issues(hass, entry.entry_id)
+    if eag_id := entry.data.get(CONF_EAG_ID):
+        await _setting_guard_store(hass, eag_id).async_remove()
 
 
 async def async_remove_config_entry_device(

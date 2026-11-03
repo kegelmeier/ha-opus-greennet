@@ -22,6 +22,7 @@ from .const import (
     ERROR_CODE_EEPS,
     ERROR_CODE_NONE,
     GATEWAY_DIMMER_EEPS,
+    HEAT_AREA_3_EEPS,
     ILLUMINATION_EEPS,
     ILLUMINATION_MAX_LUX,
     KEY_ACTUATOR_DEACTIVATED,
@@ -75,11 +76,13 @@ from .const import (
     ROCKER_EEP_PREFIXES,
     ROUTING_OFF,
     ROUTING_ON,
+    SETTING_CONSTRAINTS,
     STATE_ON,
     UNLOCK_ALLOWED,
     UNLOCK_NOT_ALLOWED,
     VALUE_OVER_RANGE,
 )
+from .readings import READINGS, ReadingSpec, ReadingValue
 from .wire import (
     JsonObject,
     WireMapping,
@@ -209,7 +212,9 @@ class EnOceanChannel:
     actuator_not_responding: str | None = None
     missing_temperature: str | None = None
     circuit_in_use: str | None = None
-    # Heat Area 3.0 Physical (D1-4B-03)
+    # Validated read-only readings of profiles listed in readings.py, by gateway key.
+    readings: dict[str, ReadingValue] = field(default_factory=dict)
+    # Heat Area 3.0 (D1-4B-03/-04)
     valve_position: float | None = None
     communication_error: str | None = None
     heat_circuits_error: str | None = None
@@ -367,6 +372,42 @@ class EnOceanDevice:
         if isinstance(value, bool) or not isinstance(value, (int, float, str)):
             return None
         return value
+
+    def setting_conflicts(
+        self, key: str | None = None, *, value: float | None = None
+    ) -> list[str]:
+        """Return the settings combinations the OPUS config tool warns about.
+
+        Only numbers that are both known are compared; ``key`` limits the result
+        to the combinations that setting belongs to. With ``value`` the result is
+        what writing ``value`` to ``key`` would do: a combination that is wrong
+        afterwards is only reported when the write creates it or makes it worse,
+        so a write that keeps or reduces an existing conflict is never refused.
+        """
+        conflicts: list[str] = []
+        for name, larger, smaller in SETTING_CONSTRAINTS:
+            if key is not None and key not in (larger, smaller):
+                continue
+            current = self._setting_gap(larger, smaller)
+            if value is None:
+                if current is not None and current < 0:
+                    conflicts.append(name)
+                continue
+            high = value if larger == key else self.setting_reading(larger)
+            low = value if smaller == key else self.setting_reading(smaller)
+            if not isinstance(high, (int, float)) or not isinstance(low, (int, float)):
+                continue
+            gap = high - low
+            if gap < 0 and (current is None or gap < current):
+                conflicts.append(name)
+        return conflicts
+
+    def _setting_gap(self, larger: str, smaller: str) -> float | None:
+        """Return the stored ``larger`` minus ``smaller``, None while one is unknown."""
+        high, low = self.setting_reading(larger), self.setting_reading(smaller)
+        if isinstance(high, (int, float)) and isinstance(low, (int, float)):
+            return high - low
+        return None
 
     @property
     def primary_eep(self) -> str | None:
@@ -569,7 +610,7 @@ class EnOceanDevice:
         """Check if this device is a climate/heating device."""
         eep = self.primary_eep
         if eep:
-            return eep in ["D1-4B-03", "D1-4B-05", "D1-4B-06", "D1-4B-07"]
+            return eep in ["D1-4B-03", "D1-4B-04", "D1-4B-05", "D1-4B-06", "D1-4B-07"]
         return False
 
     @property
@@ -578,6 +619,7 @@ class EnOceanDevice:
         eep = self.primary_eep
         eep_type_map = {
             "D1-4B-03": "physical",
+            "D1-4B-04": "virtual_3",
             "D1-4B-05": "valve",
             "D1-4B-06": "cositherm",
             "D1-4B-07": "electro",
@@ -589,16 +631,21 @@ class EnOceanDevice:
         """Return the temperature setpoint step size for this device."""
         if self.primary_eep == "D1-4B-05":
             return 0.5
-        if self.primary_eep == "D1-4B-03":
+        if self.is_heat_area_3:
             return 0.2
         return 0.1  # D1-4B-06 and D1-4B-07 both use 0.1
 
     @property
     def setpoint_limits(self) -> tuple[float, float]:
         """Return the (minimum, maximum) setpoint of the gateway profile."""
-        if self.primary_eep == "D1-4B-03":
+        if self.is_heat_area_3:
             return (5.0, 30.0)
         return (0.0, 40.0)
+
+    @property
+    def is_heat_area_3(self) -> bool:
+        """Return whether this is a Moellenhoff Heat Area 3.0 (physical or virtual)."""
+        return self.primary_eep in HEAT_AREA_3_EEPS
 
     @property
     def channel_count(self) -> int:
@@ -781,6 +828,38 @@ class EnOceanDevice:
         number = cls._parse_float(value, minimum=minimum, maximum=maximum)
         return current if number is None else number
 
+    def _reading_spec(self, key: object) -> ReadingSpec | None:
+        """Return the read-only reading the primary profile defines for a key."""
+        eep = self.primary_eep
+        if eep is None or eep not in READINGS:
+            return None
+        return next((spec for spec in READINGS[eep] if spec.key == key), None)
+
+    @classmethod
+    def _reading_value(
+        cls, spec: ReadingSpec, value: object, current: ReadingValue
+    ) -> ReadingValue:
+        """Return the new reading: None for a listed "no reading", else validated.
+
+        A malformed or unlisted value keeps the known one (a missing or broken
+        field is no instruction to clear it).
+        """
+        if isinstance(value, str) and value in spec.unavailable:
+            return None
+        if spec.kind == "number":
+            number = cls._parse_float(value, minimum=spec.minimum, maximum=spec.maximum)
+            return current if number is None else number
+        if not isinstance(value, str):
+            return current
+        if spec.kind == "enum":
+            return value if value in spec.options else current
+        if spec.kind == "bool":
+            if value in spec.true_values:
+                return True
+            return False if value in spec.false_values else current
+        text = value.strip()
+        return text if text and len(text) <= 255 else current
+
     @classmethod
     def routing_reading(cls, value: object) -> str | None:
         """Return a reported routing time as ``off`` or ``on``, None if unusable."""
@@ -898,6 +977,12 @@ class EnOceanDevice:
             # estimate of a command that awaits its acknowledgement.
             if key not in DEVICE_SETTING_KEYS and key not in BLIND_TIME_KEYS:
                 channel.state_revision += 1
+
+            if (spec := self._reading_spec(key)) is not None:
+                channel.readings[spec.key] = self._reading_value(
+                    spec, value, channel.readings.get(spec.key)
+                )
+                continue
 
             if key in BUTTON_KEYS:
                 if value in ("pressed", "released"):
