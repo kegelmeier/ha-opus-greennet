@@ -516,6 +516,12 @@
       },
       "daily_settings_run": {
         "name": "Last daily settings read"
+      },
+      "gateway_receive_counter": {
+        "name": "Received telegrams"
+      },
+      "gateway_average_dbm": {
+        "name": "Average signal strength"
       }
     },
     "switch": {

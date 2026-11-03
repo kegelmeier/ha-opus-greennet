@@ -516,6 +516,12 @@
       },
       "daily_settings_run": {
         "name": "Letztes tägliches Einlesen"
+      },
+      "gateway_receive_counter": {
+        "name": "Empfangene Telegramme"
+      },
+      "gateway_average_dbm": {
+        "name": "Mittlere Signalstärke"
       }
     },
     "switch": {
