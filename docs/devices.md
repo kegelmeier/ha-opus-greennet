@@ -158,10 +158,28 @@ made by another controller shows up with the next refresh and a value can be
 up to a day old. A new value is written with the ReCom configuration request
 and adopted only after it was read back from the dimmer; if the dimmer does not
 confirm it, the previous value stays and nothing is repeated automatically.
-Writing these three times was **not tested on hardware** (only the vertical
-movement time and the maximum holding time of blinds were), so try a single
-dimmer first. The ranges are those of the parameter catalog read from one
+Writing these times is **not confirmed on hardware**. On one dimmer
+(D2-01-03, software 0.1.0.3) a write of *Ramping time* with 0.5 s and with 1.0 s
+was not stored: the dimmer kept 0, and the integration reported that the device
+stored a different value and kept the previous one. Writing the value the dimmer
+already had (0) was accepted. *Short-press time* and *Long-press time* were not
+tested. Only the vertical movement time and the maximum holding time of blinds
+were confirmed, so try a single dimmer first. The ranges are those of the parameter catalog read from one
 D2-01-03; other dimmer types get no such entities.
+
+**Dimmer times: what is not verified.** Which setting of the OPUS configuration
+tool each of the three numbers corresponds to has **not been verified**. The
+gateway calls them "Rampenzeit Ein/Aus", "Zeit ShortPress" and "Zeit
+LongPress". In the texts of the configuration tool (3.0.5.54), *Ramping time*
+is probably the tool's "Rampenzeit für Schalten" (the fade of switching on and
+off); this is an assumption. The dimmer dialog of the tool has no setting that
+matches the short-press and long-press time, and what they do on the dimmer is
+not known. The three ramp times that dim commands can select (`rampingTime1` to
+`rampingTime3`; the tool calls them "Rampenzeit manuell", "Rampenzeit 2" and
+"Rampenzeit 3") are not offered by the gateway as settings, so the integration
+cannot read or change them. A `transition` uses the first of them, so its
+duration is probably not the *Ramping time* entity. Set these ramp times in the
+configuration tool.
 
 **Switch settings.** D2-01-01 and D2-01-11 switches get five number entities
 for the settings stored on the switch: *Timer duration* (60 to 7200 s) and

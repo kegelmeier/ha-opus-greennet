@@ -252,7 +252,7 @@ written by the integration on hardware so far**: try a single device first.
 | Blind: vertical movement time | Number | ✅ 24 blinds in one installation (effect confirmed by run durations) |
 | Blind: maximum holding time | Number | ✅ one blind |
 | Blind: rotation time | Number | not tested |
-| Dimmer D2-01-03: ramping, short-press and long-press time | Number | not tested |
+| Dimmer D2-01-03: ramping, short-press and long-press time | Number | not confirmed: *Ramping time* 0.5 s and 1.0 s were not stored by one dimmer (short and long press not tested); correspondence to the settings of the configuration tool not verified |
 | Switch D2-01-01/-11: timers, switch-off warning and signal, illumination threshold | Number | ✅ one switch, through the gateway API (not through these entities) |
 | Switch: LED colour | Select | ✅ one D2-01-01 (text value) |
 | Switch: operation mode | Select | ✅ one switch, through the gateway API (not through this entity) |
