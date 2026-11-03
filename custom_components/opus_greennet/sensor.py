@@ -38,6 +38,7 @@ from .const import (
 )
 from .coordinator import (
     SIGNAL_AVAILABILITY_UPDATE,
+    SIGNAL_DAILY_SETTINGS_RUN,
     SIGNAL_DEVICE_DISCOVERED,
     SIGNAL_DEVICE_REMOVED,
     SIGNAL_DEVICE_STATE_UPDATE,
@@ -116,6 +117,7 @@ async def async_setup_entry(
     async_add_entities(
         [
             OpusGreenNetGatewayUptimeSensor(coordinator, eag_id),
+            OpusGreenNetDailySettingsRunSensor(coordinator, eag_id),
             *(
                 OpusGreenNetGatewayInfoSensor(coordinator, eag_id, key)
                 for key in GATEWAY_INFO_READINGS
@@ -1188,6 +1190,68 @@ GATEWAY_INFO_DISABLED_BY_DEFAULT: Final = frozenset(
         "gateway_ipv6_address",
     }
 )
+
+
+class OpusGreenNetDailySettingsRunSensor(RestoreSensor):
+    """When the last daily read of the stored settings ended (gateway device).
+
+    The attributes tell how many devices were read, how many reads failed and
+    whether the run stopped early. The last result is restored after a restart
+    of Home Assistant, until the next run replaces it.
+    """
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_translation_key = "daily_settings_run"
+
+    def __init__(self, coordinator: OpusGreenNetCoordinator, eag_id: str) -> None:
+        """Initialize the sensor for the gateway ``eag_id``."""
+        self._coordinator = coordinator
+        self._eag_id = eag_id
+        self._attr_unique_id = f"{eag_id}_daily_settings_run"
+        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, eag_id)})
+        self._restored_value: datetime | None = None
+        self._restored_attributes: dict[str, object] | None = None
+
+    @property
+    def native_value(self) -> datetime | None:
+        """Return when the last run ended."""
+        run = self._coordinator.daily_settings_last_run
+        return run.finished_at if run is not None else self._restored_value
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object] | None:
+        """Return the result of the last run."""
+        run = self._coordinator.daily_settings_last_run
+        if run is None:
+            return self._restored_attributes
+        return {"read": run.read, "failed": run.failed, "stopped": run.stopped}
+
+    async def async_added_to_hass(self) -> None:
+        """Restore the last result and follow every new run."""
+        await super().async_added_to_hass()
+        sensor_data = await self.async_get_last_sensor_data()
+        if sensor_data is not None and isinstance(sensor_data.native_value, datetime):
+            self._restored_value = sensor_data.native_value
+            if (last_state := await self.async_get_last_state()) is not None:
+                self._restored_attributes = {
+                    key: last_state.attributes[key]
+                    for key in ("read", "failed", "stopped")
+                    if key in last_state.attributes
+                } or None
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                f"{SIGNAL_DAILY_SETTINGS_RUN}_{self._eag_id}",
+                self._handle_update,
+            )
+        )
+
+    @callback
+    def _handle_update(self) -> None:
+        self.async_write_ha_state()
 
 
 class OpusGreenNetGatewayInfoSensor(SensorEntity):

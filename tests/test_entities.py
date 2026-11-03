@@ -536,6 +536,7 @@ async def test_sensor_setup_deduplicates_discovery_entities() -> None:
     gateway_entities = async_add_entities.call_args_list[0].args[0]
     assert [entity.unique_id for entity in gateway_entities] == [
         f"{EAG_ID}_gateway_uptime",
+        f"{EAG_ID}_daily_settings_run",
         f"{EAG_ID}_gateway_eurid",
         f"{EAG_ID}_gateway_firmware_version",
         f"{EAG_ID}_gateway_app_version",

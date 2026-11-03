@@ -105,7 +105,13 @@ first; nothing is written and a failed read is not repeated. The run ends
 after three failed reads in a row. Presence detectors are left out because
 their battery powered radio answers only in a short wake window; use the
 button for them. If Home Assistant is not running at the chosen time, that
-day's read is skipped. Nothing is written to the devices either way.
+day's read is skipped. Nothing is written to the devices either way. The
+diagnostic sensor *Last daily settings read* on the gateway device shows when
+the last run ended; its attributes `read`, `failed` and `stopped` tell how many
+devices were read, how many reads failed and whether the run ended early (`failures`: three
+reads in a row failed, `unavailable`: the gateway was not reachable). The last
+result is restored after a restart, and the diagnostics download has a
+`daily_settings_read` block with the schedule and the last result.
 
 **Contradicting settings are refused.** The OPUS config tool warns about
 settings that contradict each other. The integration goes one step further: it

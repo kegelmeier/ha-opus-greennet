@@ -137,6 +137,7 @@ SIGNAL_DEVICE_STATE_UPDATE = f"{DOMAIN}_device_state_update"
 SIGNAL_AVAILABILITY_UPDATE = f"{DOMAIN}_availability_update"
 SIGNAL_GATEWAY_UPTIME_UPDATE = f"{DOMAIN}_gateway_uptime_update"
 SIGNAL_GATEWAY_INFO_UPDATE = f"{DOMAIN}_gateway_info_update"
+SIGNAL_DAILY_SETTINGS_RUN = f"{DOMAIN}_daily_settings_run"
 
 GATEWAY_HEALTH_INTERVAL = timedelta(seconds=60)
 # A gateway of the earlier generation that fails this many health probes in a
@@ -410,6 +411,18 @@ class GatewayMismatchError(OpusApiError):
     """The configured address answers with a different gateway identity."""
 
 
+@dataclass(frozen=True, slots=True)
+class DailySettingsRun:
+    """How the last daily read of the stored settings ended."""
+
+    finished_at: datetime
+    read: int
+    failed: int
+    # "failures": three reads failed in a row; "unavailable": the gateway was
+    # not reachable; None: every eligible device was tried.
+    stopped: str | None
+
+
 @dataclass
 class CoverMovement:
     """One channel's replaceable travel estimate and cancellation handle."""
@@ -567,6 +580,7 @@ class OpusGreenNetCoordinator:
         # Devices whose settings are being read on request right now.
         self._settings_reading: set[str] = set()
         self._daily_settings_running = False
+        self.daily_settings_last_run: DailySettingsRun | None = None
         self.daily_settings_enabled = True
         self.daily_settings_time = DAILY_SETTINGS_DEFAULT_TIME
         self._daily_settings_cancel: CALLBACK_TYPE | None = None
@@ -2560,10 +2574,14 @@ class OpusGreenNetCoordinator:
         if self._daily_settings_running:
             return 0
         self._daily_settings_running = True
-        read = failures = 0
+        read = failures = failed = 0
+        stopped: str | None = None
         try:
             for device_id in sorted(self.devices):
-                if self._unloaded or not self.available:
+                if self._unloaded:
+                    break
+                if not self.available:
+                    stopped = "unavailable"
                     break
                 device = self.devices.get(device_id)
                 if device is None or not eligible(device):
@@ -2574,10 +2592,12 @@ class OpusGreenNetCoordinator:
                     )
                 except HomeAssistantError as err:
                     failures += 1
+                    failed += 1
                     _LOGGER.debug(
                         "Daily settings read of device %s failed: %s", device_id, err
                     )
                     if failures >= DAILY_SETTINGS_MAX_FAILURES:
+                        stopped = "failures"
                         _LOGGER.warning(
                             "Daily settings read of EAG %s stopped after %d failures "
                             "in a row",
@@ -2590,8 +2610,18 @@ class OpusGreenNetCoordinator:
                     read += 1
         finally:
             self._daily_settings_running = False
+        if not self._unloaded:
+            self.daily_settings_last_run = DailySettingsRun(
+                dt_util.utcnow().replace(microsecond=0), read, failed, stopped
+            )
+            async_dispatcher_send(
+                self.hass, f"{SIGNAL_DAILY_SETTINGS_RUN}_{self.eag_id}"
+            )
         _LOGGER.debug(
-            "Daily settings read of EAG %s: %d devices read", self.eag_id, read
+            "Daily settings read of EAG %s: %d devices read, %d failed",
+            self.eag_id,
+            read,
+            failed,
         )
         return read
 

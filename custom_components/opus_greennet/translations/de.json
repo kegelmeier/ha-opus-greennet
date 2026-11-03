@@ -513,6 +513,9 @@
       },
       "version": {
         "name": "Version"
+      },
+      "daily_settings_run": {
+        "name": "Letztes tägliches Einlesen"
       }
     },
     "switch": {
