@@ -77,6 +77,13 @@ loads; a host name is checked when you enter it.
   `opus_greennet.get_device_configuration` action. A timeout of the write or an
   unreachable gateway keeps its own message; a read-back that fails in any other
   way is reported as not confirmed.
+- A `504` for radio configuration requests (read or write) can point to a radio
+  reach problem. In one installation two blinds answered none of them at the
+  gateway's original position, with the repeaters off and ViNET being switched
+  on, although the blinds drove normally; they answered after the gateway was
+  moved to another room and again after it was moved back. Position, active
+  ViNET and the gateway restart could not be told apart, so this is an
+  observation, not a diagnosis.
 
 ## Diagnostics
 

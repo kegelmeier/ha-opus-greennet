@@ -261,6 +261,9 @@ written by the integration on hardware so far**: try a single device first.
 | Switch: LED colour | Select | ✅ one D2-01-01 (text value) |
 | Switch: operation mode | Select | ✅ one switch, through the gateway API (not through this entity) |
 | Switch: LED channel, external input function | Select | not tested |
+| Repeater mode (blinds) | Select | ✅ 24 blinds of a second installation: *off* on four blinds that had a repeater (two at level 2, two at level 1), level 2 on one blind and back to *off*, read back each time; the repeater indicator of the MyOPUS app disappeared. Whether the radio behaviour changes at level 2 was not verified |
+| ViNET Router (switches) | Select | ✅ *on* on 28 of 28 switches of a second installation (the gateway reported *on*); whether routing takes place was not verified |
+| ViNET routing (blinds) | Action `set_device_configuration` | ✅ 0.3 s accepted and read back by 22 of 24 blinds of a second installation; two did not answer radio configuration requests at first |
 | Link tables (wall switch links) | Action, sensor, diagnostics | read only, read on hardware |
 
 
