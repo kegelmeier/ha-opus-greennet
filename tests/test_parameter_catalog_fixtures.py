@@ -194,7 +194,6 @@ DEFERRED = {
     "d2_05_02": {
         "functionRockerA": "same options as the switches; needs a text write test",
         "functionRockerB": "same options as the switches; needs a text write test",
-        "routingTime": "a number or the word off; no entity yet",
         "lastVerticalMovementTime": "read only; shown in the diagnostics",
     },
     "d2_01_01": _SWITCH_DEFERRED,
