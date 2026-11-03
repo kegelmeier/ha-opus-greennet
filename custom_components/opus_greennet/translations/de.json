@@ -522,6 +522,27 @@
       },
       "gateway_average_dbm": {
         "name": "Mittlere Signalstärke"
+      },
+      "channel_temperature": {
+        "name": "Kanal {channel} Temperatur"
+      },
+      "channel_temperature_setpoint": {
+        "name": "Kanal {channel} Sollwert"
+      },
+      "channel_circuit_state": {
+        "name": "Kanal {channel} Heizkreis",
+        "state": {
+          "off": "Aus",
+          "on": "Ein"
+        }
+      },
+      "channel_operation_mode": {
+        "name": "Kanal {channel} Modus",
+        "state": {
+          "emergency": "Notbetrieb",
+          "off": "Aus",
+          "on": "Ein"
+        }
       }
     },
     "switch": {
