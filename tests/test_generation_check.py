@@ -128,6 +128,7 @@ async def _coordinator_check(hass, data, detect):
     coordinator = MagicMock()
     coordinator.async_setup = AsyncMock(side_effect=OpusConnectionError("down"))
     coordinator.async_unload = AsyncMock()
+    coordinator.async_restore_setting_guards = AsyncMock()
     constructor = MagicMock(return_value=coordinator)
 
     with (

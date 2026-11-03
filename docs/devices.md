@@ -23,7 +23,7 @@ The settings stored on actuators, as far as the gateway's parameter catalog
 
 | Device | Number entities | Select entities | Not offered |
 |--------|-----------------|-----------------|-------------|
-| Blinds (D2-05-02) | Vertical movement time, Rotation time, Maximum holding time | – | Function of rocker A and B, routing time |
+| Blinds (D2-05-02) | Vertical movement time, Rotation time, Maximum holding time | Repeater mode | Function of rocker A and B, routing time |
 | Dimmers (D2-01-03) | Ramping time, Short-press time, Long-press time | Repeater mode | – |
 | Switches (D2-01-01) | Timer duration, Timer duration (long press), Switch-off warning, Switch-off warning signal, Illumination threshold | Operation mode, LED colour, External input function, ViNET Router, Repeater mode | Function of rocker A and B |
 | 2-channel switches (D2-01-11) | as D2-01-01 | as D2-01-01, plus LED channel | as D2-01-01 |
@@ -43,6 +43,12 @@ How a setting is written, for every device type:
   (usually at night). For up to 26 hours after a confirmed write, a device list
   with an older value is ignored for that setting; a change made in the OPUS
   app in that time shows up once the gateway lists it.
+- That protection survives a restart of Home Assistant (for example after an
+  update). Home Assistant saves only its own bookkeeping for it, not a value it
+  shows, in a small file per gateway under `.storage`; the file is removed with
+  the integration entry. After a restart the setting is therefore shown as
+  unknown, rather than with the old value, until the gateway lists another
+  value (usually at night) or *Read settings* has read it from the device.
 
 Which of these settings were written on real hardware, and which only read, is
 listed in the [README](../README.md#what-was-verified-on-hardware).
@@ -58,6 +64,21 @@ list, from the last write the device confirmed, or from the *Read settings*
 button below. A value of a select that the gateway's catalog does not list
 shows as *unknown*.
 
+**Settings read.** Every device with settings also has the diagnostic timestamp
+sensor *Settings read* (enabled by default). It shows when the values above were
+last read from the device: the time of the gateway's cached configuration
+(`configuration.lastUpdateTime` of the device list), or the time of your last
+*Read settings* press, whichever is later. The gateway reads the configuration
+itself only now and then (nightly in the E0 catalog), and a device that does
+not answer keeps its old values; on 2026-10-31 (firmware 1.21.30, one installation) 34 of 42
+devices with a configuration time had been read at about 04:08 that night, five
+battery detectors later that morning, and three actuators that did not answer
+still showed the day before. An old time, for
+example after Home Assistant was restored from a backup, is a reason to press
+*Read settings*. The sensor is unknown while the gateway lists no time. It only
+shows the time: nothing is requested for it, the integration never reads
+settings by itself, and it does not mark a value as wrong.
+
 **Read settings button.** Every device that has one of these settings also gets
 a diagnostic button *Read settings* (enabled by default). Pressing it reads
 the settings stored on the device once over the radio, which takes a few
@@ -70,6 +91,52 @@ the same device started or ended meanwhile is dropped, because the write is
 newer. The button is offered for blinds, D2-01-03 dimmers, D2-01-01/-11
 switches and A5-07-03 presence detectors, the devices that have settings; reading is verified on hardware as the
 read-back after a write, not yet as a button press.
+
+**Names in the OPUS config tool.** The OPUS config tool (JD Config Tool, which
+talks to the devices directly by radio through a USB stick) names the settings
+differently. The texts below are from the tool's own text file (German
+interface, with the English text where the tool has one). The values were
+compared on 2026-10-31 for 23 switches and 10 blinds of one installation
+(project read by the config tool on 2026-10-30, gateway firmware 1.21.30): the
+units and scaling match.
+
+| Home Assistant (gateway key) | OPUS config tool (German / English text) | Notes |
+|------------------------------|------------------------------------------|-------|
+| Timer duration (`timer`) | Nachlaufzeit / Switch-on time | seconds |
+| Timer duration, long press (`timerLong`) | **Nachlaufzeit Reinigungsmodus** / Switch-on time cleaning mode | seconds; the same setting under another name |
+| Switch-off warning (`switchOffWarning`) | Zeitpunkt der Abschaltwarnung (Zeitdauer vor Abschaltung) / Time of switch-off warning (time before switch-off) | seconds |
+| Switch-off warning signal (`switchOffWarningSignal`) | Dauer der Abschaltwarnung (kurzes Abschalten) / Duration of switch-off warning (short switch off) | milliseconds in the tool, seconds here |
+| Illumination threshold (`illuminationThreshold`) | Helligkeitsschwelle: Bewegungsmelder schaltet unter dem Level EIN / Brightness level: movement sensor switches ON below this brightness level | lux; a linked motion detector switches the light on **below** this level |
+| Operation mode (`operationMode`) | Betriebsart / Mode | stored as a number in the tool (0 = toggle, 3 = timer) |
+| LED colour (`ledColor`) | LED | stored as a number in the tool (0 = off, 1 = green, 2 = red); the label was not checked |
+| Vertical movement time (`verticalMovementTime`) | Fahrzeit für vollen Weg [ms] / Drive time for full way [ms] | the tool shows milliseconds |
+| Rotation time (`rotationTime`) | Rotationszeit 100% [ms] / Rotation time 100% [ms] | the tool shows milliseconds |
+| Maximum holding time (`maxHoldingTime`) | Haltezeit [s] (Maximale Haltezeit in the run-time dialog) / Switch-on time [s] | seconds |
+| ViNET Router (`routingTime`) | ViNET | on or off in the tool; *on* is stored as 300 ms |
+| Repeater mode | Repeater | off, level 1, level 2 |
+
+The tool warns about combinations that make little sense: a cleaning mode time
+shorter than the run-on time, a switch-off warning time longer than the run-on
+time, a blind's drive time shorter than its rotation time, and a maximum
+holding time shorter than the drive time. It also notes that a run-on time under
+30 s needs actuator firmware 2.0.7.0 or newer. The integration does not check
+these combinations.
+
+**Settings only the config tool has.** The gateway's REST API does not offer the
+following settings, so the integration can neither show nor change them; use the
+config tool. This list comes from a config tool project, not from the gateway.
+- Dimmers (D2-01-03): the dimming table (four brightness steps), the dim mode,
+  the lower and upper dim limit, three ramp times and a switching ramp, and
+  ViNET. The gateway lists *Ramping time*, *Short-press time* and *Long-press
+  time* for a dimmer, and how they relate to the config tool's ramp times is not
+  established, so a value changed there may not be the ramp the dimmer uses.
+- Switches (D2-01-01/-11): the status delay (minimum and maximum), the ViNET
+  filter and delay, an "SMS lock time" (milliseconds, meaning not established)
+  and which light sensor is linked.
+- Presence detectors (A5-07-03): about 45 parameters, among them the PIR
+  repetitions and sensitivity, the temperature, humidity and light reporting and
+  the wind values. The integration shows three of them.
+- Window contacts: the alive cycle and the debounce times.
 
 Every actuator whose device list contains a link table also has the diagnostic
 sensor *Wall switch links* (see [Sensor values](#sensor-values)). The
@@ -112,10 +179,28 @@ made by another controller shows up with the next refresh and a value can be
 up to a day old. A new value is written with the ReCom configuration request
 and adopted only after it was read back from the dimmer; if the dimmer does not
 confirm it, the previous value stays and nothing is repeated automatically.
-Writing these three times was **not tested on hardware** (only the vertical
-movement time and the maximum holding time of blinds were), so try a single
-dimmer first. The ranges are those of the parameter catalog read from one
+Writing these times is **not confirmed on hardware**. On one dimmer
+(D2-01-03, software 0.1.0.3) a write of *Ramping time* with 0.5 s and with 1.0 s
+was not stored: the dimmer kept 0, and the integration reported that the device
+stored a different value and kept the previous one. Writing the value the dimmer
+already had (0) was accepted. *Short-press time* and *Long-press time* were not
+tested. Only the vertical movement time and the maximum holding time of blinds
+were confirmed, so try a single dimmer first. The ranges are those of the parameter catalog read from one
 D2-01-03; other dimmer types get no such entities.
+
+**Dimmer times: what is not verified.** Which setting of the OPUS configuration
+tool each of the three numbers corresponds to has **not been verified**. The
+gateway calls them "Rampenzeit Ein/Aus", "Zeit ShortPress" and "Zeit
+LongPress". In the texts of the configuration tool (3.0.5.54), *Ramping time*
+is probably the tool's "Rampenzeit für Schalten" (the fade of switching on and
+off); this is an assumption. The dimmer dialog of the tool has no setting that
+matches the short-press and long-press time, and what they do on the dimmer is
+not known. The three ramp times that dim commands can select (`rampingTime1` to
+`rampingTime3`; the tool calls them "Rampenzeit manuell", "Rampenzeit 2" and
+"Rampenzeit 3") are not offered by the gateway as settings, so the integration
+cannot read or change them. A `transition` uses the first of them, so its
+duration is probably not the *Ramping time* entity. Set these ramp times in the
+configuration tool.
 
 **Switch settings.** D2-01-01 and D2-01-11 switches get five number entities
 for the settings stored on the switch: *Timer duration* (60 to 7200 s) and
@@ -158,10 +243,13 @@ ReCom parameter but the device resource `/devices/{id}/repeaterState` (`off`,
 `level_1`, `level_2`); it is written and read back there. *Read settings*
 reads both. The device list carries the repeater mode too, so it is shown after a restart without a radio request. Switches have a diagnostic sensor (*ViNET Router (stored)*, *Repeater mode
 (stored)*) and a select in the configuration category (disabled by default)
-for each. Dimmers (D2-01-03) report the repeater mode as well and get the
-*Repeater mode* sensor and select only; writing it on a dimmer is untested.
-Writing the repeater mode was tested on one D2-01-01 switch (level 1 and back
-to off) through the gateway interface, not through these entities.
+for each. Dimmers (D2-01-03) and blinds (D2-05-02) report the repeater mode as
+well and get the *Repeater mode* sensor and select only (no *ViNET Router*
+entities); writing it on a dimmer is untested.
+Writing the repeater mode was tested on one D2-01-01 switch and on one D2-05-02
+blind (off, level 1 and back to off; level 2 untested) through the gateway
+interface, not through these entities. The gateway accepted the value and
+returned it on reading; the effect on the radio path was not measured.
 
 **ViNET on dimmers is not available through the REST API.** The OPUS config
 tool (v2, reported by the user) can set and read ViNET on a D2-01-03 dimmer, and
@@ -333,6 +421,55 @@ stored answer, read from the device list at start-up; the attribute
 `bolt_locked` repeats the reported lock bolt. Quick changes settle for 10
 seconds (*locking* / *unlocking*) and only the last one is sent, because the
 gateway queues every answer for the sleeping handle.
+
+## Heat Area 3.0 Physical (D1-4B-03)
+
+The Moellenhoff room control unit of a heating controller (gateway profile
+"Heat Area 3.0 Physical") appears as a climate entity.
+
+- **Setpoint:** 5–30 °C in steps of 0.2 °C; the unit reports its current
+  temperature and setpoint.
+- **Mode:** the unit reports heating or cooling. The gateway profile has no
+  command for it, so the mode is read-only (switching it raises an error) and
+  there is no on/off.
+- **Valve position** (sensor, %): the share of the next hour the valve will be
+  open. It is a plan of the unit and not a measured valve state, so the climate
+  entity shows no heating action from it.
+- **Diagnostics:** binary sensors for communication with the room control unit,
+  heat circuits, battery and malfunction (on = the unit reported the problem).
+- There is no humidity, window or feed temperature for this profile.
+- The profile is taken from the gateway catalog (`/profiles/D1-4B-03`). It has
+  not been tested with a real device yet.
+
+## Read-only profiles from the gateway catalog
+
+These profiles are taken from the gateway catalog (`GET /profiles/<EEP>`) and
+the OPUS config tool product catalog. They only show what the device reports:
+no commands are sent, and none of them was tested with a real device yet. A
+value the profile lists as "not available" or "error" shows as unknown; a
+malformed or out-of-range value keeps the last known one.
+
+| EEP | Device | Entities |
+|---|---|---|
+| A5-08-01 | Light, temperature and occupancy sensor (discontinued) | Illuminance, temperature, motion, occupancy button, supply voltage |
+| A5-20-06 | Valve actuator (Micropelt, Eurotronic Stella) | Temperature, setpoint, feed temperature, valve position, window, obstruction, energy and radio diagnostics |
+| A5-30-03 | WaterSensor con (4 digital inputs) | Digital inputs, wake signal, temperature |
+| D2-11-01 | OPUS room operating panel | Temperature, humidity, base setpoint, fan speed, occupancy |
+| D2-14-41 | IoT multisensor | Temperature, humidity, illuminance, contact, acceleration (diagnostic, disabled) |
+| D2-14-54 | OPUS 55 SENS | Temperature, humidity, water leak, leak in the last 14 days |
+| D2-32-00, D2-32-02 | A.C. current clamp (1 and 3 channels) | Current per channel, power failure |
+| D2-34-10 | CosiTherm heating actuator | Heater mode, system error, channel count. Per-channel values are not mapped yet |
+| D2-35-00 | Infrared heating actuator (Oekoswiss) | Mode, setpoint, outdoor temperature, window, load, power. The two meanings of `temperature` and the contradicting `presence` text are not mapped |
+| D1-4B-00, D1-4B-02 | Moellenhoff actuator (older, 3.0) | Heater mode, versions, IP address, errors (diagnostic, disabled by default) |
+| D1-4B-01 | Moellenhoff heat area (older) | Temperature, setpoint |
+| D1-4B-04 | Moellenhoff heat area 3.0 (virtual) | Climate as D1-4B-03, plus data mismatch and missing data |
+| D1-4B-10 | WirelessMBus virtual device | Device type, manufacturer, serial number, version (diagnostic, disabled); the raw payload is not mapped |
+| D1-4B-15 | Pressac power clamp | Total current, total power |
+| D1-4B-50 | REG central control unit | LED status, uptime (diagnostic, disabled); LED, firmware reset and update commands are not mapped |
+
+D2-05-04 (REG-RJ), D2-70-00 (REG-CPU) and D2-74-20 (REG-FBH) appear in the
+config tool product catalog, but the gateway has no profile for them, so there
+is nothing to map.
 
 ## Water sensors (F6-05-01)
 

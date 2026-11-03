@@ -343,6 +343,34 @@ def test_the_repeater_mode_is_offered_for_dimmers_too() -> None:
     assert protocol.supports_repeater_state(dimmer)
 
 
+def test_the_repeater_mode_is_offered_for_blinds_too() -> None:
+    from custom_components.opus_greennet.select import DEVICE_SELECTS
+
+    (REPEATER,) = (s for s in DEVICE_SELECTS if s.parameter == "repeaterState")
+    blind = EnOceanDevice("BLIND", "Blind", [{"eep": "D2-05-02"}])
+    assert REPEATER.values_for(blind) == ("off", "level_1", "level_2")
+    assert protocol.supports_repeater_state(blind)
+
+
+async def test_blind_repeater_mode_is_written_and_read_back(
+    radio, connected_coordinator
+) -> None:
+    coord = connected_coordinator
+    device = coord.devices["DEV1"] = EnOceanDevice(
+        "DEV1", "Blind", [{"eep": "D2-05-02"}]
+    )
+    device.get_or_create_channel().repeater = "off"
+    radio.response = {"header": {"httpStatus": 200}, "repeaterState": "level_1"}
+
+    await coord.async_set_device_option("DEV1", "repeaterState", "level_1")
+
+    assert radio.sent == [
+        ("PUT", REPEATER_PATH, {"repeaterState": "level_1"}),
+        ("GET", REPEATER_PATH, None),
+    ]
+    assert device.channels[0].repeater == "level_1"
+
+
 def test_no_routing_select_is_offered_for_dimmers() -> None:
     # The gateway lists no routing time for a D2-01-03 (read on 2026-10-31,
     # firmware 1.21.30), although the OPUS config tool can set ViNET there.

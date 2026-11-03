@@ -8,6 +8,7 @@ from homeassistant.const import EntityCategory
 
 from .const import DEFAULT_CHANNEL, ERROR_CODE_NONE
 from .enocean_device import EnOceanChannel, EnOceanDevice
+from .readings import READINGS, ReadingSpec
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -21,6 +22,43 @@ class OpusBinarySensorDescription:
     device_class: BinarySensorDeviceClass | None = None
     entity_category: EntityCategory | None = None
     enabled_by_default: bool = True
+
+
+def reading_flag(device: EnOceanDevice, key: str) -> bool | None:
+    """Return a two-state reading of a ``readings.py`` profile."""
+    channel = device.channels.get(DEFAULT_CHANNEL)
+    value = channel.readings.get(key) if channel is not None else None
+    return value if isinstance(value, bool) else None
+
+
+def reading_description(eep: str, spec: ReadingSpec) -> OpusBinarySensorDescription:
+    """Describe a two-state reading of a ``readings.py`` profile."""
+
+    def applies_to(device: EnOceanDevice) -> bool:
+        return device.primary_eep == eep
+
+    def value_fn(device: EnOceanDevice) -> bool | None:
+        return reading_flag(device, spec.key)
+
+    return OpusBinarySensorDescription(
+        key=spec.suffix,
+        translation_key=spec.suffix,
+        applies_to=applies_to,
+        value_fn=value_fn,
+        device_class=(
+            BinarySensorDeviceClass(spec.device_class) if spec.device_class else None
+        ),
+        entity_category=EntityCategory.DIAGNOSTIC if spec.diagnostic else None,
+        enabled_by_default=spec.enabled,
+    )
+
+
+def virtual_heat_area(device: EnOceanDevice) -> bool:
+    """Return whether this is a HeatArea that reports window and timeout states.
+
+    Heat Area 3.0 (D1-4B-03 and -04) has its own error reports instead.
+    """
+    return device.is_climate and not device.is_heat_area_3
 
 
 def channel_boolean(
@@ -71,14 +109,14 @@ BINARY_SENSOR_DESCRIPTIONS = (
     OpusBinarySensorDescription(
         key="window_open",
         translation_key="window",
-        applies_to=lambda device: device.is_climate,
+        applies_to=lambda device: virtual_heat_area(device),
         value_fn=lambda device: channel_boolean(device, lambda c: c.window_open),
         device_class=BinarySensorDeviceClass.WINDOW,
     ),
     OpusBinarySensorDescription(
         key="actuator_not_responding",
         translation_key="actuator_not_responding",
-        applies_to=lambda device: device.is_climate,
+        applies_to=lambda device: virtual_heat_area(device),
         value_fn=lambda device: diagnostic_value(
             device, lambda c: c.actuator_not_responding
         ),
@@ -88,7 +126,7 @@ BINARY_SENSOR_DESCRIPTIONS = (
     OpusBinarySensorDescription(
         key="missing_temperature",
         translation_key="missing_temperature",
-        applies_to=lambda device: device.is_climate,
+        applies_to=lambda device: virtual_heat_area(device),
         value_fn=lambda device: diagnostic_value(
             device, lambda c: c.missing_temperature
         ),
@@ -123,6 +161,43 @@ BINARY_SENSOR_DESCRIPTIONS = (
         device_class=BinarySensorDeviceClass.PROBLEM,
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # Heat Area 3.0 Physical (D1-4B-03): reports from the room control unit.
+    OpusBinarySensorDescription(
+        key="communication_error",
+        translation_key="rcu_communication_error",
+        applies_to=lambda device: device.primary_eep == "D1-4B-03",
+        value_fn=lambda device: diagnostic_value(
+            device, lambda c: c.communication_error
+        ),
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    OpusBinarySensorDescription(
+        key="heat_circuits_error",
+        translation_key="heat_circuits_error",
+        applies_to=lambda device: device.is_heat_area_3,
+        value_fn=lambda device: diagnostic_value(
+            device, lambda c: c.heat_circuits_error
+        ),
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    OpusBinarySensorDescription(
+        key="rcu_low_battery",
+        translation_key="rcu_battery",
+        applies_to=lambda device: device.primary_eep == "D1-4B-03",
+        value_fn=lambda device: diagnostic_value(device, lambda c: c.rcu_low_battery),
+        device_class=BinarySensorDeviceClass.BATTERY,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    OpusBinarySensorDescription(
+        key="rcu_malfunction",
+        translation_key="rcu_malfunction",
+        applies_to=lambda device: device.primary_eep == "D1-4B-03",
+        value_fn=lambda device: diagnostic_value(device, lambda c: c.rcu_malfunction),
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
     OpusBinarySensorDescription(
         key="contact",
         translation_key="contact",
@@ -150,5 +225,12 @@ BINARY_SENSOR_DESCRIPTIONS = (
         value_fn=error_code_problem,
         device_class=BinarySensorDeviceClass.PROBLEM,
         entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # Two-state readings of the profiles in readings.py.
+    *(
+        reading_description(eep, spec)
+        for eep, specs in READINGS.items()
+        for spec in specs
+        if spec.kind == "bool"
     ),
 )

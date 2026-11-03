@@ -36,6 +36,7 @@ from custom_components.opus_greennet.api import (
     OpusResponseError,
     OpusTimeoutError,
 )
+from custom_components.opus_greennet.const import SETTING_GUARD_STORE_KEY
 from custom_components.opus_greennet.coordinator import OpusGreenNetCoordinator
 from custom_components.opus_greennet.enocean_device import EnOceanDevice
 from tests.fake_gateway import FakeGateway, device_object
@@ -376,11 +377,31 @@ async def test_failed_setup_cleans_up_without_masking_programming_errors(
     coordinator = MagicMock()
     coordinator.async_setup = AsyncMock(side_effect=failure)
     coordinator.async_unload = AsyncMock()
+    coordinator.async_restore_setting_guards = AsyncMock()
     entry = SimpleNamespace(entry_id="entry-id", data=ENTRY_DATA)
     coordinator_patch, session_patch = _mock_setup(coordinator)
     with coordinator_patch, session_patch, pytest.raises(expected):
         await async_setup_entry(MagicMock(), entry)
     coordinator.async_unload.assert_awaited_once()
+
+
+async def test_the_saved_protection_is_restored_before_the_setup() -> None:
+    """The first device list must meet the protection, not an empty one."""
+    coordinator = MagicMock()
+    coordinator.async_setup = AsyncMock(side_effect=OpusConnectionError("down"))
+    coordinator.async_unload = AsyncMock()
+    coordinator.async_restore_setting_guards = AsyncMock()
+    order = MagicMock()
+    order.attach_mock(coordinator.async_restore_setting_guards, "restore")
+    order.attach_mock(coordinator.async_setup, "setup")
+    entry = SimpleNamespace(entry_id="entry-id", data=ENTRY_DATA)
+    coordinator_patch, session_patch = _mock_setup(coordinator)
+    with coordinator_patch, session_patch, pytest.raises(ConfigEntryNotReady):
+        await async_setup_entry(MagicMock(), entry)
+
+    assert [call[0] for call in order.mock_calls] == ["restore", "setup"]
+    store = coordinator.async_restore_setting_guards.await_args.args[0]
+    assert store.key == f"{SETTING_GUARD_STORE_KEY}.{EAG_ID}"
 
 
 async def test_failed_platform_unload_keeps_coordinator_running() -> None:
@@ -412,6 +433,7 @@ async def test_failed_setup_logs_the_underlying_cause(
     coordinator = MagicMock()
     coordinator.async_setup = AsyncMock(side_effect=failure)
     coordinator.async_unload = AsyncMock()
+    coordinator.async_restore_setting_guards = AsyncMock()
     entry = SimpleNamespace(entry_id="entry-id", data=ENTRY_DATA)
     coordinator_patch, session_patch = _mock_setup(coordinator)
     with (
