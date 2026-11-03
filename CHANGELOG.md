@@ -55,6 +55,7 @@ Support for gateways with **WebUI 2026**, settings you can **read on request**, 
 - **Stored switch values** (timer durations, switch-off warning, illumination threshold) are shown without decimals, the switch-off warning signal with one decimal. The unit stays seconds; minutes can be chosen in the entity settings.
 - **The fixed Home Assistant reference** for CI moves from 2026.10.3 to 2026.10.4. Between the two only the header size limit of the shared client session changed; the integration is unchanged.
 - **Documentation:** the troubleshooting page explains the two write errors; the radio journal, WebUI 2026 and the new entities are documented.
+- **Contributor guidelines (`CLAUDE.md`)** describe the current project: Home Assistant 2026.10, both gateway transports, all modules and platforms, German translations, the CI gates and the quality scale files. Documentation only, nothing changes for users.
 
 ### Fixed
 - **The protection of a confirmed setting survives a restart of Home Assistant.** After a restart (for example after an update) the first device list could bring back the value from before a confirmed write. The bookkeeping of the protection (not a device value) is now kept in a small store per gateway and dropped after 26 hours or with the config entry. After a restart the setting shows as unknown until the gateway lists another value or *Read settings* has read it.
