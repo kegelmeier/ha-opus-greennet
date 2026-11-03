@@ -43,6 +43,12 @@ How a setting is written, for every device type:
   (usually at night). For up to 26 hours after a confirmed write, a device list
   with an older value is ignored for that setting; a change made in the OPUS
   app in that time shows up once the gateway lists it.
+- That protection survives a restart of Home Assistant (for example after an
+  update). Home Assistant saves only its own bookkeeping for it, not a value it
+  shows, in a small file per gateway under `.storage`; the file is removed with
+  the integration entry. After a restart the setting is therefore shown as
+  unknown, rather than with the old value, until the gateway lists another
+  value (usually at night) or *Read settings* has read it from the device.
 
 Which of these settings were written on real hardware, and which only read, is
 listed in the [README](../README.md#what-was-verified-on-hardware).
@@ -57,6 +63,21 @@ showing the stored value alongside it. The values come from the last device
 list, from the last write the device confirmed, or from the *Read settings*
 button below. A value of a select that the gateway's catalog does not list
 shows as *unknown*.
+
+**Settings read.** Every device with settings also has the diagnostic timestamp
+sensor *Settings read* (enabled by default). It shows when the values above were
+last read from the device: the time of the gateway's cached configuration
+(`configuration.lastUpdateTime` of the device list), or the time of your last
+*Read settings* press, whichever is later. The gateway reads the configuration
+itself only now and then (nightly in the E0 catalog), and a device that does
+not answer keeps its old values; on 2026-10-31 (firmware 1.21.30, one installation) 34 of 42
+devices with a configuration time had been read at about 04:08 that night, five
+battery detectors later that morning, and three actuators that did not answer
+still showed the day before. An old time, for
+example after Home Assistant was restored from a backup, is a reason to press
+*Read settings*. The sensor is unknown while the gateway lists no time. It only
+shows the time: nothing is requested for it, the integration never reads
+settings by itself, and it does not mark a value as wrong.
 
 **Read settings button.** Every device that has one of these settings also gets
 a diagnostic button *Read settings* (enabled by default). Pressing it reads

@@ -286,6 +286,11 @@ SETTING_CONSTRAINTS: Final = (
     ("cleaning_time_shorter_than_run_on_time", KEY_TIMER_LONG, KEY_TIMER),
     ("switch_off_warning_longer_than_run_on_time", KEY_TIMER, KEY_SWITCH_OFF_WARNING),
 )
+# The protection survives a restart of Home Assistant: its bookkeeping (not a
+# device value) is saved under ``<KEY>.<eag_id>`` a few seconds after each change.
+SETTING_GUARD_STORE_KEY: Final = "opus_greennet.setting_guards"
+SETTING_GUARD_STORE_VERSION: Final = 1
+SETTING_GUARD_SAVE_DELAY: Final = 5.0
 COVER_MOVEMENT_GRACE_SECONDS: Final = 5.0
 # A run into an end stop is reported about 1.4 s later than a partial run
 # (measured on one installation of D2-05-02 blinds), so its estimate waits longer.
