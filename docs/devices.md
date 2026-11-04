@@ -239,7 +239,8 @@ D2-01-03; other dimmer types get no such entities.
 **Two parameter sets for D2-01-03, chosen by product ID.** The 1 channel dimmer
 from 2017 (product ID `004000000003`, article 563.035) has *Ramping time*,
 *Short-press time* and *Long-press time*. The universal dimmer 563.076 (product
-ID `00400000001E`, as shown in the OPUS config tool) has *Ramping time 1* to *3*,
+IDs `00400000001E` and, in the earlier version, `00400000001B`, as listed in the
+product catalog of the OPUS config tool) has *Ramping time 1* to *3*,
 *Switching ramp time*, *Lower limit*, *Upper limit* and *Dimming principle*
 instead. Both use the EEP D2-01-03, so the integration decides by the product ID
 the gateway reports: the universal dimmer gets only the second set, every other
