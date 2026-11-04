@@ -232,7 +232,8 @@ configuration, number and select entities for settings are created only for the 
 the device reports in it (the product ID decides only where the keys are not enough,
 as for the two dimmers above). A device listed without any configuration keeps the
 sets chosen by its EEP. Writing a setting the device does not report is refused
-with the message *setting not reported* before anything is sent over the radio; the
+with the message *setting not reported* before anything is sent over the radio, also in
+a configuration passed to the *set device configuration* action; the
 routing and repeater mode are not affected. Entities that already exist for a key the
 device does not report are not removed and stay unavailable.
 

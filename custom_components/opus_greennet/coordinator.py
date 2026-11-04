@@ -2460,6 +2460,9 @@ class OpusGreenNetCoordinator:
                 translation_key="invalid_configuration",
                 translation_placeholders={"device_id": device_id, "reason": problem},
             )
+        if (device := self.get_device(device_id)) is not None:
+            for key in sorted(protocol.configuration_keys(config) or ()):
+                self._require_reported_setting(device, key)
         path = OpusGatewayClient.device_path(device_id, "configuration")
         configuration = as_object(config.get("configuration")) or {}
         self._note_setting_write(device_id)
