@@ -624,6 +624,9 @@
       },
       "illumination_threshold": {
         "name": "Helligkeitsschwelle"
+      },
+      "temperature_setpoint_command": {
+        "name": "Zieltemperatur"
       }
     },
     "select": {
@@ -674,6 +677,21 @@
         "state": {
           "off": "Aus",
           "on": "Ein"
+        }
+      },
+      "actuator_mode_command": {
+        "name": "Modus",
+        "state": {
+          "managed": "Gesteuert",
+          "off": "Aus",
+          "on": "Ein"
+        }
+      },
+      "led_status_command": {
+        "name": "LEDs",
+        "state": {
+          "enabled": "Eingeschaltet",
+          "disabled": "Ausgeschaltet"
         }
       }
     },
