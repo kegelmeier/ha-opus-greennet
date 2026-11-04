@@ -106,7 +106,7 @@ def test_numeric_ranges_and_defaults_are_consistent(name: str) -> None:
         for item in ranges:
             assert 0 <= item["min"] <= item["max"], key
             assert item["step"] > 0, key
-            assert item["unit"] or key in UNITLESS, key
+            assert item.get("unit") or key in UNITLESS, key
         default = entry["defaultValue"]
         listed = [item["value"] for item in entry["values"] if "value" in item]
         if (name, key) in UNLISTED_VALUES:
