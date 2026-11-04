@@ -505,7 +505,7 @@ The Moellenhoff room control unit of a heating controller (gateway profile
 ## Read-only profiles from the gateway catalog
 
 These profiles are taken from the gateway catalog (`GET /profiles/<EEP>`) and
-the OPUS config tool product catalog (device names and article numbers from there). They only show what the device reports:
+the OPUS config tool product catalog (device names and article numbers from there). They only show what the device reports, except for the commands of D2-35-00 and the LEDs of D1-4B-50. The other profiles need a device to test commands; D2-34-10 would also need the gateway to feed the room temperature, which is a control loop and not a single command:
 no commands are sent, and none of them was tested with a real device yet. A
 value the profile lists as "not available" or "error" shows as unknown; a
 malformed or out-of-range value keeps the last known one.
@@ -520,13 +520,13 @@ malformed or out-of-range value keeps the last known one.
 | D2-14-54 | OPUS 55 SENS temperature and humidity sensor (563.043.xx battery powered, 563.044.xx with power supply; 8 variants) | Temperature, humidity, water leak, leak in the last 14 days |
 | D2-32-00, D2-32-02 | A.C. current clamp, 1 A to 60 A, 1 channel (CTV3.868) and 3 channels (CTV3.868.3CH.060A) | Current per channel, power failure |
 | D2-34-10 | CosiTherm actuator, 2 or 6 heating circuits (78123, 78124) | Heater mode, system error, channel count; per heating circuit (channel 1 to 30, learned from the telegrams): temperature, setpoint, circuit state (on/off) and mode (on/off/emergency) |
-| D2-35-00 | Oekoswiss heating actuator for infrared heating panels (388xxxxxx) | Mode, setpoint, outdoor temperature, window, load, power. The two meanings of `temperature` and the contradicting `presence` text are not mapped |
+| D2-35-00 | Oekoswiss heating actuator for infrared heating panels (388xxxxxx) | Mode, setpoint, outdoor temperature, window, load, power. A mode select (managed, off, on) and a setpoint number (5–40 °C, 0.5 °C steps) send commands; they show what the device reports, not what was sent (not tested with a real device). The two meanings of `temperature` and the contradicting `presence` text are not mapped |
 | D1-4B-00, D1-4B-02 | Moellenhoff actuator (older, 3.0) | Heater mode, versions, IP address, errors (diagnostic, disabled by default) |
 | D1-4B-01 | Moellenhoff heat area (older) | Temperature, setpoint |
 | D1-4B-04 | Moellenhoff heat area 3.0 (virtual) | Climate as D1-4B-03, plus data mismatch and missing data |
 | D1-4B-10 | WirelessMBus virtual device | Device type, manufacturer, serial number, version (diagnostic, disabled); the raw payload is not mapped |
 | D1-4B-15 | Pressac power clamp | Total current, total power |
-| D1-4B-50 | REG central control unit | LED status, uptime (diagnostic, disabled); LED, firmware reset and update commands are not mapped |
+| D1-4B-50 | REG central control unit | LED status, uptime (diagnostic, disabled). A select (disabled by default) switches the LEDs on and off; the firmware reset and update commands are deliberately not offered |
 
 The heating circuits of a CosiTherm actuator (D2-34-10) get their entities with
 the first telegram that names the channel, and only up to the channel count the

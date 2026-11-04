@@ -37,6 +37,7 @@ from .const import (
 from .coordinator import SIGNAL_DEVICE_DISCOVERED, OpusGreenNetCoordinator
 from .enocean_device import EnOceanDevice
 from .entity import OpusGreenNetEntity
+from .readings import COMMANDS, CommandSpec
 
 # Writes are serialized by the coordinator's radio queue.
 PARALLEL_UPDATES = 0
@@ -244,15 +245,22 @@ async def async_setup_entry(
 
     @callback
     def async_add_numbers(device: EnOceanDevice) -> None:
-        async_add_entities(
-            [
-                OpusGreenNetTimeNumber(
-                    coordinator, eag_id, gateway_device_id, device, device_time
-                )
-                for device_time in DEVICE_TIMES
-                if device_time.applies_to(device)
-            ]
+        entities: list[NumberEntity] = [
+            OpusGreenNetTimeNumber(
+                coordinator, eag_id, gateway_device_id, device, device_time
+            )
+            for device_time in DEVICE_TIMES
+            if device_time.applies_to(device)
+        ]
+        entities.extend(
+            OpusGreenNetCommandNumber(
+                coordinator, eag_id, gateway_device_id, device, command
+            )
+            for eep in device.eep_names
+            for command in COMMANDS.get(eep, ())
+            if command.kind == "number"
         )
+        async_add_entities(entities)
 
     entry.async_on_unload(
         async_dispatcher_connect(
@@ -327,4 +335,58 @@ class OpusGreenNetTimeNumber(OpusGreenNetEntity, NumberEntity):
             value,
             step=self._device_time.step,
             minimum=self._device_time.minimum,
+        )
+
+
+class OpusGreenNetCommandNumber(OpusGreenNetEntity, NumberEntity):
+    """A numeric command of a profile, for example the setpoint of an actuator.
+
+    The value shown is what the device last reported. A command only changes it
+    when the device reports the new value: the gateway accepting the command
+    does not mean the device carried it out.
+    """
+
+    _attr_has_entity_name = True
+    _attr_mode = NumberMode.BOX
+
+    def __init__(
+        self,
+        coordinator: OpusGreenNetCoordinator,
+        eag_id: str,
+        gateway_device_id: str,
+        device: EnOceanDevice,
+        command: CommandSpec,
+    ) -> None:
+        """Initialize the number."""
+        super().__init__(
+            coordinator, eag_id, gateway_device_id, device, DEFAULT_CHANNEL
+        )
+        self._command = command
+        self._attr_translation_key = command.suffix
+        self._attr_device_class = (
+            NumberDeviceClass(command.device_class) if command.device_class else None
+        )
+        self._attr_native_unit_of_measurement = command.unit
+        self._attr_native_min_value = command.minimum or 0
+        self._attr_native_max_value = command.maximum or 0
+        self._attr_native_step = command.step or 1
+        # The translation key is part of the unique ID: never rename it.
+        self._attr_unique_id = f"{eag_id}_{device.device_id}_{command.suffix}"
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the reported value, or None while it is unknown."""
+        channel = self._device.channels.get(self._channel_id)
+        if channel is None:
+            return None
+        value = channel.readings.get(self._command.key)
+        if isinstance(value, bool) or not isinstance(value, int | float):
+            return None
+        return float(value)
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Send the command; the shown value follows the device report."""
+        await self._coordinator.async_send_command(
+            self._device.device_id,
+            [{"key": self._command.key, "value": f"{value:g}"}],
         )
