@@ -2,9 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [1.2.0b2] - 2026-11-04
 
-Support for gateways with **WebUI 2026**, settings you can **read on request**, **routing and repeater mode** as entities, and much more detail for diagnosing the radio network: a radio journal, gateway versions and address, a signal quality rating. Built on @fubu2k's work, rebased onto v1.1.0. The version number and release header are left to the maintainer.
+Third beta of 1.2. Same as 1.2.0b1 **without the daily read of the stored settings**: the integration no longer reads device settings over the radio on its own. Use the *Read settings* button when you want to read them. If you installed 1.2.0b1, its entities *Daily settings read*, *Daily settings read time* and *Last daily settings read* are removed at the first start. Everything else from 1.2.0b1 stays: the **Möhlenhoff room control unit (D1-4B-03)** as a thermostat and more read-only device profiles, gateway counters, ViNET Router for blinds, refusal of contradicting settings, and the **opt-in for writing device settings** on new installations. Built on @fubu2k's work (#112, #145). v1.1.1 stays the stable release.
+
+> **WebUI 2026 support is experimental.** No gateway with WebUI 2026 has been tested yet: the login and the token handling follow the documented pattern but are unverified. When the access token expires, the gateway can show as unavailable for up to a minute or one command can fail; this is tracked for a later version. Gateways of the earlier generation (HTTP, port 8080) are not affected. The new device profiles were built from the gateway's profile catalog and have not been tested with real devices.
 
 ### Requirement
 - **Home Assistant 2026.10.1 or newer**, as before. CI now uses 2026.10.4 as the fixed reference.
