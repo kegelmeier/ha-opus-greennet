@@ -194,3 +194,52 @@ async def test_a_reported_setting_is_still_written(
     )
 
     assert radio.sent
+
+
+def _configuration(*keys: str) -> dict:
+    return {"configuration": {"parameters": [{"key": key, "value": 1} for key in keys]}}
+
+
+async def test_a_direct_configuration_with_an_unreported_key_is_not_sent(
+    radio, connected_coordinator
+) -> None:
+    connected_coordinator.devices["DEV1"] = _switch(frozenset({"timer"}))
+    connected_coordinator._write_access_allowed = lambda: True
+
+    with pytest.raises(ServiceValidationError) as err:
+        await connected_coordinator.async_set_device_configuration(
+            "DEV1", _configuration("timer", "upperLimit")
+        )
+
+    assert err.value.translation_key == "setting_not_reported"
+    assert err.value.translation_placeholders == {
+        "device_id": "DEV1",
+        "key": "upperLimit",
+    }
+    assert radio.sent == []
+
+
+async def test_a_direct_configuration_with_reported_keys_is_sent(
+    radio, connected_coordinator
+) -> None:
+    connected_coordinator.devices["DEV1"] = _switch(frozenset({"timer", "ledColor"}))
+    connected_coordinator._write_access_allowed = lambda: True
+
+    await connected_coordinator.async_set_device_configuration(
+        "DEV1", _configuration("timer", "ledColor")
+    )
+
+    assert len(radio.sent) == 1
+
+
+async def test_a_direct_configuration_without_a_known_list_is_sent(
+    radio, connected_coordinator
+) -> None:
+    connected_coordinator.devices["DEV1"] = _switch(None)
+    connected_coordinator._write_access_allowed = lambda: True
+
+    await connected_coordinator.async_set_device_configuration(
+        "DEV1", _configuration("anything")
+    )
+
+    assert len(radio.sent) == 1
