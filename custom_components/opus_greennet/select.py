@@ -64,6 +64,11 @@ class DeviceSelect:
         """Return the values of the device, or None if it has no such setting."""
         if self.universal_dimmer_only and not device.is_universal_dimmer:
             return None
+        # The repeater mode is a device resource, not a configuration setting.
+        if self.parameter != KEY_REPEATER_STATE and not device.reports_setting(
+            self.parameter
+        ):
+            return None
         for eep in device.eep_names:
             if eep in self.values:
                 return self.values[eep]

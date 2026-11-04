@@ -246,8 +246,16 @@ instead. Both use the EEP D2-01-03, so the integration decides by the product ID
 the gateway reports: the universal dimmer gets only the second set, every other
 dimmer only the first. The universal dimmer's parameters were read from a tester's
 gateway (firmware 1.21.34); whether a 563.076 on another gateway firmware reports
-the same keys is not verified, and an entity whose value the gateway does not
-report stays `unknown` and unavailable.
+the same keys is not verified.
+
+**Settings follow what the device reports.** When the gateway lists a device with a
+configuration, number and select entities for settings are created only for the keys
+the device reports in it (the product ID decides only where the keys are not enough,
+as for the two dimmers above). A device listed without any configuration keeps the
+sets chosen by its EEP. Writing a setting the device does not report is refused
+with the message *setting not reported* before anything is sent over the radio; the
+routing and repeater mode are not affected. Entities that already exist for a key the
+device does not report are not removed and stay unavailable.
 
 - *Ramping time 1* to *3* and *Switching ramp time*: numbers in seconds, 0 to
   6553 s in steps of 0.1 s. According to the manual of the 563.076 the factory

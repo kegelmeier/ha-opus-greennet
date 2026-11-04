@@ -290,6 +290,9 @@ class EnOceanDevice:
     # When the settings shown for the device were last read from it: the time of
     # the gateway's cached configuration, or of the last "Read settings".
     settings_read_at: datetime | None = None
+    # The setting keys the gateway lists for the device (its configuration);
+    # None until a configuration was seen, which restricts nothing.
+    reported_settings: frozenset[str] | None = None
     last_update_source: str = ""
     last_update_received_monotonic: float | None = field(
         default=None, repr=False, compare=False
@@ -355,9 +358,21 @@ class EnOceanDevice:
             or listed.settings_read_at > self.settings_read_at
         ):
             self.settings_read_at = listed.settings_read_at
+        # A list without a configuration says nothing about the settings.
+        if listed.reported_settings is not None:
+            self.reported_settings = listed.reported_settings
         # A list without a table says nothing; it never clears a known one.
         if listed.link_tables is not None:
             self.link_tables = listed.link_tables
+
+    def reports_setting(self, key: str) -> bool:
+        """Return whether the device has this setting.
+
+        True while the gateway's configuration of the device was not seen: the
+        EEP then decides, as it always did. Once seen, only a listed key counts,
+        so a device never gets an entity (or a write) for a setting it lacks.
+        """
+        return self.reported_settings is None or key in self.reported_settings
 
     def setting_reading(self, key: str) -> float | str | None:
         """Return the stored value of a device setting, None while unknown.
