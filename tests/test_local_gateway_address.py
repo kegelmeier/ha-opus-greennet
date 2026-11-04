@@ -158,6 +158,24 @@ async def test_an_address_that_is_no_address_counts_as_unresolved(
         assert await async_resolve_host(hass, "gateway.home") == []
 
 
+async def test_a_connector_without_its_own_resolver_uses_the_loop(
+    hass: HomeAssistant,
+) -> None:
+    """Without ``async_resolve_host`` on the connector, the event loop resolves."""
+    loop = asyncio.get_running_loop()
+    session = SimpleNamespace(connector=SimpleNamespace())
+    with (
+        patch(f"{DISCOVERY}.async_get_clientsession", return_value=session),
+        patch.object(
+            loop, "getaddrinfo", AsyncMock(return_value=_lookup("10.0.0.5"))
+        ) as lookup,
+    ):
+        assert await async_resolve_host(hass, " gateway.home ") == [
+            ipaddress.ip_address("10.0.0.5")
+        ]
+    lookup.assert_awaited_once()
+
+
 async def test_a_slow_lookup_is_given_up(hass: HomeAssistant) -> None:
     async def never(*args: object, **kwargs: object) -> list[tuple[object, ...]]:
         await asyncio.sleep(60)

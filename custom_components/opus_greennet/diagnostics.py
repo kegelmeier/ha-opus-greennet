@@ -8,7 +8,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import asdict
 from time import monotonic
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
@@ -68,8 +68,8 @@ def _redact_diagnostics(
                 decoded = parse_json(value)
             except ValueError:
                 return None
-            if isinstance(decoded, dict | list):
-                return decoded
+            # Text that starts with a brace or bracket decodes to a container.
+            return cast("JsonObject | JsonList", decoded)
         return None
 
     def collect(value: object) -> None:
@@ -325,9 +325,8 @@ async def async_get_config_entry_diagnostics(
     )
     # Added after the redaction: a value is masked, an unresolved one stays
     # empty (None), so the download shows that it could not be resolved.
-    gateway = result["gateway"]
-    if isinstance(gateway, dict):
-        gateway["connection"] = {
-            key: REDACTED if value else None for key, value in resolved.items()
-        }
+    gateway = cast("dict[str, object]", result["gateway"])
+    gateway["connection"] = {
+        key: REDACTED if value else None for key, value in resolved.items()
+    }
     return result
