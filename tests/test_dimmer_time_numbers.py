@@ -35,7 +35,7 @@ STEPS = {
 CONFIG_PATH = "/devices/DEV1/configuration"
 FIXTURE = Path(__file__).parent / "fixtures" / "configuration_d2_01_03.json"
 
-RAMPING, SHORT_PRESS, LONG_PRESS = DIMMER_TIMES
+RAMPING, SHORT_PRESS, LONG_PRESS = DIMMER_TIMES[:3]
 
 
 def _dimmer(eep: str = "D2-01-03") -> EnOceanDevice:
@@ -156,7 +156,7 @@ def test_value_follows_the_channel_fields() -> None:
     device = _dimmer()
     ramping, short, long = (
         OpusGreenNetTimeNumber(MagicMock(), EAG_ID, "gateway", device, time)
-        for time in DIMMER_TIMES
+        for time in DIMMER_TIMES[:3]
     )
     assert ramping.native_value is None
     channel = device.get_or_create_channel()

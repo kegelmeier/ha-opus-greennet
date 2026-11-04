@@ -180,6 +180,42 @@ def test_a_planned_switch_write_is_checked_too() -> None:
     assert device.setting_conflicts("timer", value=600) == []
 
 
+def _dimmer(*, lower: float | None, upper: float | None) -> EnOceanDevice:
+    device = EnOceanDevice("DEV1", "Dimmer", [{"eep": "D2-01-03"}])
+    channel = device.get_or_create_channel()
+    channel.lower_limit = lower
+    channel.upper_limit = upper
+    return device
+
+
+def test_dimming_limits_are_checked() -> None:
+    device = _dimmer(lower=25, upper=80)
+    assert device.setting_conflicts() == []
+    assert device.setting_conflicts("upperLimit", value=25) == []  # equal is fine
+    assert device.setting_conflicts("upperLimit", value=20) == [
+        "upper_limit_below_lower_limit"
+    ]
+    assert device.setting_conflicts("lowerLimit", value=70) == []
+    assert device.setting_conflicts("lowerLimit", value=81) == [
+        "upper_limit_below_lower_limit"
+    ]
+
+
+def test_dimming_limits_with_an_unknown_value_are_never_compared() -> None:
+    device = _dimmer(lower=None, upper=80)
+    assert device.setting_conflicts("upperLimit", value=15) == []
+    assert _dimmer(lower=25, upper=None).setting_conflicts("lowerLimit", value=80) == []
+
+
+def test_a_write_that_keeps_or_reduces_a_limit_conflict_is_allowed() -> None:
+    device = _dimmer(lower=60, upper=40)  # already wrong
+    assert device.setting_conflicts() == ["upper_limit_below_lower_limit"]
+    assert device.setting_conflicts("upperLimit", value=50) == []
+    assert device.setting_conflicts("upperLimit", value=30) == [
+        "upper_limit_below_lower_limit"
+    ]
+
+
 # ── coordinator ────────────────────────────────────────────────────────────
 
 

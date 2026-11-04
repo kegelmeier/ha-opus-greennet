@@ -78,6 +78,7 @@ from .const import (
     ROUTING_ON,
     SETTING_CONSTRAINTS,
     STATE_ON,
+    UNIVERSAL_DIMMER_PRODUCT_IDS,
     UNLOCK_ALLOWED,
     UNLOCK_NOT_ALLOWED,
     VALUE_OVER_RANGE,
@@ -153,6 +154,14 @@ class EnOceanChannel:
     ramping_time: float | None = None
     short_press_time: float | None = None
     long_press_time: float | None = None
+    # D2-01-03 dimmers of gateway firmware 1.21.34: ramp times in seconds and
+    # the dimming limits in percent.
+    ramping_time_1: float | None = None
+    ramping_time_2: float | None = None
+    ramping_time_3: float | None = None
+    ramping_time_switch: float | None = None
+    lower_limit: float | None = None
+    upper_limit: float | None = None
     timer: float | None = None
     timer_long: float | None = None
     switch_off_warning: float | None = None
@@ -168,6 +177,9 @@ class EnOceanChannel:
     led_color: str | None = None
     led_channel: str | None = None
     function_external_input: str | None = None
+    # D2-01-03 dimming principle: phaseControlLower (trailing edge, "Phasen-
+    # abschnitt") or phaseControlUpper (leading edge, "Phasenanschnitt").
+    dimmer_mode: str | None = None
     routing: str | None = None  # off or on (any routing time)
     repeater: str | None = None  # off, level_1 or level_2
     movement: str | None = None  # Estimated opening/closing, never physical feedback
@@ -462,6 +474,11 @@ class EnOceanDevice:
         if self.profile is not None:
             return key in self.profile.to_keys
         return self.primary_eep in fallback_eeps
+
+    @property
+    def is_universal_dimmer(self) -> bool:
+        """Return whether the product ID is that of the universal dimmer 563.076."""
+        return self.product_id.upper() in UNIVERSAL_DIMMER_PRODUCT_IDS
 
     @property
     def has_local_control(self) -> bool:

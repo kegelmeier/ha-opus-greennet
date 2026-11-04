@@ -97,6 +97,8 @@ SETTING_DISPLAY_PRECISION: Final[dict[str, int]] = {
     "pir_off_time": 0,
     "recom_ready_time": 0,
     "alive_cycle": 0,
+    "lower_limit": 0,
+    "upper_limit": 0,
 }
 MEASUREMENT_DISPLAY_PRECISION: Final[dict[str, int]] = {
     "battery_level": 0,
@@ -892,7 +894,11 @@ class OpusGreenNetSettingSensor(OpusGreenNetBaseSensor):
         super().__init__(coordinator, eag_id, gateway_device_id, device, key, key)
         self._device_time = device_time
         self._attr_native_unit_of_measurement = device_time.unit
-        self._attr_device_class = SensorDeviceClass(device_time.device_class.value)
+        self._attr_device_class = (
+            None
+            if device_time.device_class is None
+            else SensorDeviceClass(device_time.device_class.value)
+        )
         self._attr_suggested_display_precision = SETTING_DISPLAY_PRECISION.get(
             device_time.translation_key
         )

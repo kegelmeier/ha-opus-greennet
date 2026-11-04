@@ -16,6 +16,7 @@ from . import OpusGreenNetConfigEntry
 from .const import (
     CONF_EAG_ID,
     DEFAULT_CHANNEL,
+    KEY_DIMMER_MODE,
     KEY_FUNCTION_EXTERNAL_INPUT,
     KEY_LED_CHANNEL,
     KEY_LED_COLOR,
@@ -42,6 +43,8 @@ OPERATION_MODES = ("bottomOn", "timer", "toggle", "topOn")
 LED_COLORS = ("all", "green", "off", "red")
 LED_CHANNELS = ("channel1", "channel2")
 REPEATER_STATES = ("off", "level_1", "level_2")
+# Dimming principle of D2-01-03 dimmers (catalog of firmware 1.21.34).
+DIMMER_MODES = ("phaseControlLower", "phaseControlUpper")
 ROUTING_STATES = (ROUTING_OFF, ROUTING_ON)
 
 
@@ -54,9 +57,13 @@ class DeviceSelect:
     attribute: str
     # Gateway values the catalog lists for each EEP.
     values: Mapping[str, tuple[str, ...]]
+    # Only the universal dimmer 563.076 has the setting (decided by product ID).
+    universal_dimmer_only: bool = False
 
     def values_for(self, device: EnOceanDevice) -> tuple[str, ...] | None:
         """Return the values of the device, or None if it has no such setting."""
+        if self.universal_dimmer_only and not device.is_universal_dimmer:
+            return None
         for eep in device.eep_names:
             if eep in self.values:
                 return self.values[eep]
@@ -76,6 +83,13 @@ CATALOG_SELECTS: tuple[DeviceSelect, ...] = (
     ),
     DeviceSelect(
         "led_channel", KEY_LED_CHANNEL, "led_channel", {"D2-01-11": LED_CHANNELS}
+    ),
+    DeviceSelect(
+        "dimmer_mode",
+        KEY_DIMMER_MODE,
+        "dimmer_mode",
+        {"D2-01-03": DIMMER_MODES},
+        universal_dimmer_only=True,
     ),
     DeviceSelect(
         "function_external_input",
