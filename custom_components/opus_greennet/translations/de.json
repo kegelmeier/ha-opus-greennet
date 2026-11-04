@@ -825,6 +825,9 @@
     },
     "setting_conflict_upper_limit_below_lower_limit": {
       "message": "{device_id}: Nicht geschrieben. Das obere Dimmlimit wäre kleiner als das untere Dimmlimit. Ändere zuerst die andere Einstellung, oder lies die Einstellungen neu, falls ein angezeigter Wert veraltet ist."
+    },
+    "setting_not_reported": {
+      "message": "Das Gerät {device_id} hat die Einstellung {key} nicht und wird nicht beschrieben."
     }
   },
   "services": {

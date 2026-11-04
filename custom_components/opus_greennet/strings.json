@@ -825,6 +825,9 @@
     },
     "setting_conflict_upper_limit_below_lower_limit": {
       "message": "{device_id}: Not written. The upper dimming limit would be lower than the lower dimming limit. Change the other setting first, or press Read settings if a shown value is outdated."
+    },
+    "setting_not_reported": {
+      "message": "Device {device_id} does not have the setting {key}; nothing was written."
     }
   },
   "services": {

@@ -1151,6 +1151,7 @@ class OpusGreenNetCoordinator:
             dbm=EnOceanDevice._parse_integer(data.get("dbm")),
             link_tables=protocol.link_tables(data),
             settings_read_at=protocol.configuration_read_time(data),
+            reported_settings=protocol.configuration_keys(data),
         )
         was_known = existing is not None and bool(existing.eeps)
         if existing is None:
@@ -2524,6 +2525,8 @@ class OpusGreenNetCoordinator:
             return
         if self.devices.get(device_id) is not device:
             return
+        if (keys := protocol.configuration_keys(document)) is not None:
+            device.reported_settings = keys
         functions = protocol.configuration_state_functions(document)
         if repeater is not None and (
             function := protocol.repeater_state_function(repeater)
@@ -2699,6 +2702,8 @@ class OpusGreenNetCoordinator:
             device = self.get_device(device_id)
             if device is None:
                 raise request_error("device_not_found", device_id)
+            if key == KEY_ROUTING_TIME:
+                self._require_reported_setting(device, key)
             async with self._setting_locks.setdefault(device_id, asyncio.Lock()):
                 if key == KEY_REPEATER_STATE:
                     await self._async_set_repeater_state(device, option)
@@ -2713,6 +2718,21 @@ class OpusGreenNetCoordinator:
             same=lambda stored: stored == option,
         )
 
+    @staticmethod
+    def _require_reported_setting(device: EnOceanDevice, key: str) -> None:
+        """Refuse to write a setting the device does not list.
+
+        The gateway lists the settings of a device in its configuration; a key
+        missing there is one this device (or its generation) does not have, and
+        writing it would only produce an error from the gateway or the radio.
+        """
+        if not device.reports_setting(key):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="setting_not_reported",
+                translation_placeholders={"device_id": device.device_id, "key": key},
+            )
+
     async def _async_write_setting(
         self,
         device_id: str,
@@ -2726,6 +2746,7 @@ class OpusGreenNetCoordinator:
         device = self.get_device(device_id)
         if device is None:
             raise request_error("device_not_found", device_id)
+        self._require_reported_setting(device, key)
         async with self._setting_locks.setdefault(device_id, asyncio.Lock()):
             if isinstance(value, (int, float)) and (
                 conflicts := device.setting_conflicts(key, value=value)

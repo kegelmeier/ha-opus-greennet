@@ -47,6 +47,10 @@ RUNTIME_FIELDS = {
     # Read time of the settings: a list moves it forward only, never back past
     # a "Read settings" made since (see apply_listed_metadata).
     "settings_read_at",
+    # The setting keys of the device's configuration: a list that carries a
+    # configuration replaces them, one without leaves them (see
+    # apply_listed_metadata).
+    "reported_settings",
 }
 
 

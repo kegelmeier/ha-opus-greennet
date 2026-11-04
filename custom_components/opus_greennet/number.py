@@ -107,8 +107,10 @@ class DeviceTime:
             and device.is_universal_dimmer is not self.universal_dimmer
         ):
             return False
-        return device.entity_type == self.entity_type and not self.eeps.isdisjoint(
-            device.eep_names
+        return (
+            device.entity_type == self.entity_type
+            and not self.eeps.isdisjoint(device.eep_names)
+            and device.reports_setting(self.parameter)
         )
 
 
