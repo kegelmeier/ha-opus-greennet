@@ -622,6 +622,9 @@
       },
       "illumination_threshold": {
         "name": "Illumination threshold"
+      },
+      "temperature_setpoint_command": {
+        "name": "Target temperature"
       }
     },
     "select": {
@@ -672,6 +675,21 @@
         "state": {
           "off": "Off",
           "on": "On"
+        }
+      },
+      "actuator_mode_command": {
+        "name": "Mode",
+        "state": {
+          "managed": "Managed",
+          "off": "Off",
+          "on": "On"
+        }
+      },
+      "led_status_command": {
+        "name": "LEDs",
+        "state": {
+          "enabled": "Enabled",
+          "disabled": "Disabled"
         }
       }
     }

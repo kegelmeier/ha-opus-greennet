@@ -1,9 +1,10 @@
-"""Read-only readings of device profiles without a dedicated platform model.
+"""Readings and the few commands of device profiles without a platform model.
 
 Each entry mirrors a profile of the gateway catalog (``GET /profiles/<EEP>``).
-Only values the profile reports are listed; commands are not part of this table.
-Keys the profile documents with several meanings (for example ``temperature``
-of D2-35-00) are left out on purpose.
+``READINGS`` lists only values the profile reports. ``COMMANDS`` at the end
+lists the commands that are offered as entities; everything else stays
+read-only. Keys the profile documents with several meanings (for example
+``temperature`` of D2-35-00) are left out on purpose.
 """
 
 from __future__ import annotations
@@ -591,6 +592,66 @@ READINGS: Final[dict[str, tuple[ReadingSpec, ...]]] = {
             measurement=False,
             diagnostic=True,
             enabled=False,
+        ),
+    ),
+}
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class CommandSpec:
+    """One command the profile accepts, shown as a select or a number.
+
+    The state shown is the reading with the same key; a command never sets it.
+    The device report does, so a command the device did not carry out stays
+    visible as the old value.
+    """
+
+    key: str
+    suffix: str
+    kind: Literal["select", "number"]
+    # (reported value, value of the command) pairs of a select.
+    options: tuple[tuple[str, str], ...] = ()
+    minimum: float | None = None
+    maximum: float | None = None
+    step: float | None = None
+    unit: str | None = None
+    device_class: str | None = None
+    # Configuration entities are disabled for new installations.
+    config: bool = False
+
+
+# Commands taken from the gateway catalog. Not offered on purpose: the firmware
+# reset and update of D1-4B-50, and everything of the other profiles, which
+# need a device to test (see docs/devices.md).
+COMMANDS: Final[dict[str, tuple[CommandSpec, ...]]] = {
+    # Infrared heating actuator: mode and setpoint of the "to" group
+    # "Actuator Settings". "error" is only ever reported.
+    "D2-35-00": (
+        CommandSpec(
+            key="mode",
+            suffix="actuator_mode_command",
+            kind="select",
+            options=(("managed", "managed"), ("off", "off"), ("on", "on")),
+        ),
+        CommandSpec(
+            key="temperatureSetpoint",
+            suffix="temperature_setpoint_command",
+            kind="number",
+            minimum=5,
+            maximum=40,
+            step=0.5,
+            unit=CELSIUS,
+            device_class="temperature",
+        ),
+    ),
+    # REG central control unit: the LEDs only.
+    "D1-4B-50": (
+        CommandSpec(
+            key="ledStatus",
+            suffix="led_status_command",
+            kind="select",
+            options=(("enabled", "enable"), ("disabled", "disable")),
+            config=True,
         ),
     ),
 }

@@ -31,6 +31,7 @@ from .const import (
 from .coordinator import SIGNAL_DEVICE_DISCOVERED, OpusGreenNetCoordinator
 from .enocean_device import EnOceanDevice
 from .entity import OpusGreenNetEntity
+from .readings import COMMANDS, CommandSpec
 
 # Writes are serialized by the coordinator's radio queue.
 PARALLEL_UPDATES = 0
@@ -123,15 +124,22 @@ async def async_setup_entry(
 
     @callback
     def async_add_selects(device: EnOceanDevice) -> None:
-        async_add_entities(
-            [
-                OpusGreenNetDeviceSelect(
-                    coordinator, eag_id, gateway_device_id, device, select, values
-                )
-                for select in DEVICE_SELECTS
-                if (values := select.values_for(device)) is not None
-            ]
+        entities: list[SelectEntity] = [
+            OpusGreenNetDeviceSelect(
+                coordinator, eag_id, gateway_device_id, device, select, values
+            )
+            for select in DEVICE_SELECTS
+            if (values := select.values_for(device)) is not None
+        ]
+        entities.extend(
+            OpusGreenNetCommandSelect(
+                coordinator, eag_id, gateway_device_id, device, command
+            )
+            for eep in device.eep_names
+            for command in COMMANDS.get(eep, ())
+            if command.kind == "select"
         )
+        async_add_entities(entities)
 
     entry.async_on_unload(
         async_dispatcher_connect(
@@ -205,4 +213,57 @@ class OpusGreenNetDeviceSelect(OpusGreenNetEntity, SelectEntity):
         """Write the option to the switch and read it back."""
         await self._coordinator.async_set_device_option(
             self._device.device_id, self._select.parameter, self._values[option]
+        )
+
+
+class OpusGreenNetCommandSelect(OpusGreenNetEntity, SelectEntity):
+    """A command of a profile with a fixed set of values.
+
+    The option shown is what the device last reported. A command only changes
+    it when the device reports the new value: the gateway accepting the command
+    does not mean the device carried it out.
+    """
+
+    _attr_has_entity_name = True
+
+    def __init__(
+        self,
+        coordinator: OpusGreenNetCoordinator,
+        eag_id: str,
+        gateway_device_id: str,
+        device: EnOceanDevice,
+        command: CommandSpec,
+    ) -> None:
+        """Initialize the select."""
+        super().__init__(
+            coordinator, eag_id, gateway_device_id, device, DEFAULT_CHANNEL
+        )
+        self._command = command
+        self._reported = {option_slug(shown): shown for shown, _ in command.options}
+        self._wire = {option_slug(shown): wire for shown, wire in command.options}
+        self._attr_translation_key = command.suffix
+        self._attr_options = list(self._wire)
+        if command.config:
+            self._attr_entity_category = EntityCategory.CONFIG
+            self._attr_entity_registry_enabled_default = False
+        # The translation key is part of the unique ID: never rename it.
+        self._attr_unique_id = f"{eag_id}_{device.device_id}_{command.suffix}"
+
+    @property
+    def current_option(self) -> str | None:
+        """Return the reported option, or None while it is unknown or unlisted."""
+        channel = self._device.channels.get(self._channel_id)
+        if channel is None:
+            return None
+        value = channel.readings.get(self._command.key)
+        if not isinstance(value, str):
+            return None
+        slug = option_slug(value)
+        return slug if self._reported.get(slug) == value else None
+
+    async def async_select_option(self, option: str) -> None:
+        """Send the command; the shown option follows the device report."""
+        await self._coordinator.async_send_command(
+            self._device.device_id,
+            [{"key": self._command.key, "value": self._wire[option]}],
         )
