@@ -211,9 +211,6 @@
           "disabled": "mdi:led-off"
         }
       },
-      "daily_settings_run": {
-        "default": "mdi:calendar-check-outline"
-      },
       "gateway_receive_counter": {
         "default": "mdi:counter"
       },
@@ -240,16 +237,6 @@
       },
       "read_settings": {
         "default": "mdi:refresh"
-      }
-    },
-    "switch": {
-      "daily_settings_read": {
-        "default": "mdi:calendar-sync-outline"
-      }
-    },
-    "time": {
-      "daily_settings_read_time": {
-        "default": "mdi:clock-outline"
       }
     }
   },

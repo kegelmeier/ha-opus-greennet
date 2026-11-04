@@ -532,9 +532,6 @@
       "version": {
         "name": "Version"
       },
-      "daily_settings_run": {
-        "name": "Last daily settings read"
-      },
       "gateway_receive_counter": {
         "name": "Received telegrams"
       },
@@ -569,9 +566,6 @@
       },
       "blockage": {
         "name": "Blockage"
-      },
-      "daily_settings_read": {
-        "name": "Daily settings read"
       }
     },
     "lock": {
@@ -679,11 +673,6 @@
           "off": "Off",
           "on": "On"
         }
-      }
-    },
-    "time": {
-      "daily_settings_read_time": {
-        "name": "Daily settings read time"
       }
     }
   },
