@@ -215,6 +215,35 @@ tested. Only the vertical movement time and the maximum holding time of blinds
 were confirmed, so try a single dimmer first. The ranges are those of the parameter catalog read from one
 D2-01-03; other dimmer types get no such entities.
 
+**Two parameter sets for D2-01-03, chosen by product ID.** The 1 channel dimmer
+from 2017 (product ID `004000000003`, article 563.035) has *Ramping time*,
+*Short-press time* and *Long-press time*. The universal dimmer 563.076 (product
+ID `00400000001E`, as shown in the OPUS config tool) has *Ramping time 1* to *3*,
+*Switching ramp time*, *Lower limit*, *Upper limit* and *Dimming principle*
+instead. Both use the EEP D2-01-03, so the integration decides by the product ID
+the gateway reports: the universal dimmer gets only the second set, every other
+dimmer only the first. The universal dimmer's parameters were read from a tester's
+gateway (firmware 1.21.34); whether a 563.076 on another gateway firmware reports
+the same keys is not verified, and an entity whose value the gateway does not
+report stays `unknown` and unavailable.
+
+- *Ramping time 1* to *3* and *Switching ramp time*: numbers in seconds, 0 to
+  6553 s in steps of 0.1 s. According to the manual of the 563.076 the factory
+  values are 4 s (dimming) and 0.5 s (switching). That *Ramping time 1* is the
+  manual dimming time is taken from these defaults and the config tool; the
+  use of ramps 2 and 3 is not verified.
+- *Lower limit* and *Upper limit*: numbers in percent, 15 to 80 (defaults
+  25 and 80 in the catalog). The dimmer scales the range; the upper limit may
+  not be set below the lower limit (refused before anything is sent).
+- *Dimming principle* (select): `phase control lower` (trailing edge, suited for
+  LEDs) or `phase control upper` (leading edge). The manual describes switching
+  the principle at the device itself; **writing it through the gateway is not
+  verified on hardware.** Change it only with a matching load connected. The
+  catalog default (`phaseControlUpper`) differs from the manual's factory default
+  (trailing edge), so defaults are not used as stored values.
+- Not offered yet: ViNET routing time of dimmers (unit and value for "on" not
+  verified), LED colour and the function of rocker A and B.
+
 **Dimmer times: what is not verified.** Which setting of the OPUS configuration
 tool each of the three numbers corresponds to has **not been verified**. The
 gateway calls them "Rampenzeit Ein/Aus", "Zeit ShortPress" and "Zeit

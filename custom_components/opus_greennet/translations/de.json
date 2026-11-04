@@ -558,6 +558,31 @@
           "off": "Aus",
           "on": "Ein"
         }
+      },
+      "ramping_time_1_setting": {
+        "name": "Rampenzeit 1 (manuell) (gespeichert)"
+      },
+      "ramping_time_2_setting": {
+        "name": "Rampenzeit 2 (gespeichert)"
+      },
+      "ramping_time_3_setting": {
+        "name": "Rampenzeit 3 (gespeichert)"
+      },
+      "ramping_time_switch_setting": {
+        "name": "Rampenzeit für Schalten (gespeichert)"
+      },
+      "lower_limit_setting": {
+        "name": "Unteres Dimmlimit (gespeichert)"
+      },
+      "upper_limit_setting": {
+        "name": "Oberes Dimmlimit (gespeichert)"
+      },
+      "dimmer_mode_setting": {
+        "name": "Dimmprinzip (gespeichert)",
+        "state": {
+          "phase_control_lower": "Phasenabschnitt",
+          "phase_control_upper": "Phasenanschnitt"
+        }
       }
     },
     "switch": {
@@ -625,6 +650,24 @@
       },
       "temperature_setpoint_command": {
         "name": "Zieltemperatur"
+      },
+      "ramping_time_1": {
+        "name": "Rampenzeit 1 (manuell)"
+      },
+      "ramping_time_2": {
+        "name": "Rampenzeit 2"
+      },
+      "ramping_time_3": {
+        "name": "Rampenzeit 3"
+      },
+      "ramping_time_switch": {
+        "name": "Rampenzeit für Schalten"
+      },
+      "lower_limit": {
+        "name": "Unteres Dimmlimit"
+      },
+      "upper_limit": {
+        "name": "Oberes Dimmlimit"
       }
     },
     "select": {
@@ -690,6 +733,13 @@
         "state": {
           "enabled": "Eingeschaltet",
           "disabled": "Ausgeschaltet"
+        }
+      },
+      "dimmer_mode": {
+        "name": "Dimmprinzip",
+        "state": {
+          "phase_control_lower": "Phasenabschnitt",
+          "phase_control_upper": "Phasenanschnitt"
         }
       }
     }
@@ -772,6 +822,9 @@
     },
     "write_access_disabled": {
       "message": "{device_id}: Nicht geschrieben. Der Schreibzugriff auf Geräteeinstellungen ist nicht aktiviert. Aktiviere ihn unter Einstellungen → Geräte & Dienste → Opus GreenNet → Konfigurieren."
+    },
+    "setting_conflict_upper_limit_below_lower_limit": {
+      "message": "{device_id}: Nicht geschrieben. Das obere Dimmlimit wäre kleiner als das untere Dimmlimit. Ändere zuerst die andere Einstellung, oder lies die Einstellungen neu, falls ein angezeigter Wert veraltet ist."
     }
   },
   "services": {

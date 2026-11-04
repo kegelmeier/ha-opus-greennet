@@ -223,6 +223,16 @@ KEY_MAX_HOLDING_TIME: Final = "maxHoldingTime"
 KEY_RAMPING_TIME: Final = "rampingTime"
 KEY_SHORT_PRESS: Final = "shortPress"
 KEY_LONG_PRESS: Final = "longPress"
+# D2-01-03 dimmers with the parameter set of gateway firmware 1.21.34 (read from
+# two dimmers): ramp times in seconds (0 to 6553 s in 0.1 s steps), the lower and
+# upper dimming limit in percent (15 to 80) and the dimming principle.
+KEY_RAMPING_TIME_1: Final = "rampingTimeRocker1"
+KEY_RAMPING_TIME_2: Final = "rampingTimeRocker2"
+KEY_RAMPING_TIME_3: Final = "rampingTimeRocker3"
+KEY_RAMPING_TIME_SWITCH: Final = "rampingTimeSwitch"
+KEY_LOWER_LIMIT: Final = "lowerLimit"
+KEY_UPPER_LIMIT: Final = "upperLimit"
+KEY_DIMMER_MODE: Final = "dimmerMode"
 KEY_TIMER: Final = "timer"
 KEY_TIMER_LONG: Final = "timerLong"
 KEY_SWITCH_OFF_WARNING: Final = "switchOffWarning"
@@ -241,6 +251,12 @@ DEVICE_SETTINGS: Final = {
     KEY_RAMPING_TIME: ("ramping_time", 0, 25.5),
     KEY_SHORT_PRESS: ("short_press_time", 0, 2.55),
     KEY_LONG_PRESS: ("long_press_time", 0, 2.55),
+    KEY_RAMPING_TIME_1: ("ramping_time_1", 0, 6553),
+    KEY_RAMPING_TIME_2: ("ramping_time_2", 0, 6553),
+    KEY_RAMPING_TIME_3: ("ramping_time_3", 0, 6553),
+    KEY_RAMPING_TIME_SWITCH: ("ramping_time_switch", 0, 6553),
+    KEY_LOWER_LIMIT: ("lower_limit", 15, 80),
+    KEY_UPPER_LIMIT: ("upper_limit", 15, 80),
     KEY_TIMER: ("timer", 60, 7200),
     KEY_TIMER_LONG: ("timer_long", 60, 18000),
     KEY_SWITCH_OFF_WARNING: ("switch_off_warning", 0, 45),
@@ -282,6 +298,12 @@ REPEATER_EEPS: Final = (*SWITCH_EEPS, "D2-01-03", "D2-05-02")
 ROUTING_EEPS: Final = (*SWITCH_EEPS, "D2-05-02")
 ROUTING_OFF: Final = "off"
 ROUTING_ON: Final = "on"
+# Product ID the gateway reports for the OPUS BRiDGE universal dimmer 563.076
+# (dimming principle, limits, four ramp times). The other D2-01-03 dimmers, for
+# example the 1 channel dimmer from 2017 (product ID 004000000003), have the
+# ramping, short-press and long-press time. Compared without regard to case.
+UNIVERSAL_DIMMER_PRODUCT_IDS: Final = frozenset({"00400000001E"})
+
 DEVICE_OPTIONS: Final = {
     KEY_OPERATION_MODE: "operation_mode",
     KEY_LED_COLOR: "led_color",
@@ -289,6 +311,7 @@ DEVICE_OPTIONS: Final = {
     KEY_FUNCTION_EXTERNAL_INPUT: "function_external_input",
     KEY_ROUTING_TIME: "routing",
     KEY_REPEATER_STATE: "repeater",
+    KEY_DIMMER_MODE: "dimmer_mode",
 }
 DEVICE_SETTING_KEYS: Final = frozenset(DEVICE_SETTINGS) | frozenset(DEVICE_OPTIONS)
 # How long a confirmed setting is protected against the gateway's cached copy of
@@ -313,6 +336,7 @@ SETTING_CONSTRAINTS: Final = (
     ),
     ("cleaning_time_shorter_than_run_on_time", KEY_TIMER_LONG, KEY_TIMER),
     ("switch_off_warning_longer_than_run_on_time", KEY_TIMER, KEY_SWITCH_OFF_WARNING),
+    ("upper_limit_below_lower_limit", KEY_UPPER_LIMIT, KEY_LOWER_LIMIT),
 )
 # The protection survives a restart of Home Assistant: its bookkeeping (not a
 # device value) is saved under ``<KEY>.<eag_id>`` a few seconds after each change.

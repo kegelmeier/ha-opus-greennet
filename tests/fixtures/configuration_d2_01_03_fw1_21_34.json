@@ -1,0 +1,76 @@
+{
+  "header": {
+    "httpStatus": 200,
+    "content": "configuration"
+  },
+  "configuration": {
+    "deviceId": "DEV1",
+    "friendlyId": "Test",
+    "parameters": [
+      {
+        "key": "functionRockerA",
+        "description": "Funktion Wippe A",
+        "value": "inactive",
+        "meaning": "Inaktiv"
+      },
+      {
+        "key": "functionRockerB",
+        "description": "Funktion Wippe B",
+        "value": "channel1",
+        "meaning": "Kanal 1"
+      },
+      {
+        "key": "rampingTimeRocker1",
+        "description": "Rampenzeit Rampe 1 [100ms Schritte] ... 0-65535 ... 0 - 6553 s",
+        "value": 4.0,
+        "unit": "s"
+      },
+      {
+        "key": "rampingTimeRocker2",
+        "description": "Rampenzeit Rampe 2 [100ms Schritte] ... 0-65535 ... 0 - 6553 s",
+        "value": 3.0,
+        "unit": "s"
+      },
+      {
+        "key": "rampingTimeRocker3",
+        "description": "Rampenzeit Rampe 3 [100ms Schritte] ... 0-65535 ... 0 - 6553 s",
+        "value": 20.0,
+        "unit": "s"
+      },
+      {
+        "key": "ledColor",
+        "description": "Farbe LED",
+        "value": "off",
+        "meaning": "LED Aus"
+      },
+      {
+        "key": "routingTime",
+        "description": "ViNET Routing Time (300 - 2550ms in 10ms Schritten ... 0 = OFF, 30 = 300ms)",
+        "value": "off",
+        "meaning": "no routing"
+      },
+      {
+        "key": "rampingTimeSwitch",
+        "description": "Rampenzeit für Schalten [100ms Schritte] ... 0-65535 ... 0 - 6553 s",
+        "value": 0.5,
+        "unit": "s"
+      },
+      {
+        "key": "dimmerMode",
+        "description": "Dimmer Mode",
+        "value": "phaseControlLower",
+        "meaning": "Phasenabschnitt"
+      },
+      {
+        "key": "lowerLimit",
+        "description": "Limit unten (15-80) ... default: 25",
+        "value": 25.0
+      },
+      {
+        "key": "upperLimit",
+        "description": "Limit oben (15-80) ... default: 80",
+        "value": 80.0
+      }
+    ]
+  }
+}

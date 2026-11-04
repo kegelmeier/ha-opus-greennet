@@ -9,7 +9,7 @@ from homeassistant.components.number import (
     NumberEntity,
     NumberMode,
 )
-from homeassistant.const import LIGHT_LUX, EntityCategory, UnitOfTime
+from homeassistant.const import LIGHT_LUX, PERCENTAGE, EntityCategory, UnitOfTime
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -22,9 +22,14 @@ from .const import (
     KEY_ALIVE_CYCLE,
     KEY_ILLUMINATION_THRESHOLD,
     KEY_LONG_PRESS,
+    KEY_LOWER_LIMIT,
     KEY_MAX_HOLDING_TIME,
     KEY_PIR_OFF_TIME,
     KEY_RAMPING_TIME,
+    KEY_RAMPING_TIME_1,
+    KEY_RAMPING_TIME_2,
+    KEY_RAMPING_TIME_3,
+    KEY_RAMPING_TIME_SWITCH,
     KEY_RECOM_READY_TIME,
     KEY_ROTATION_TIME,
     KEY_SHORT_PRESS,
@@ -32,6 +37,7 @@ from .const import (
     KEY_SWITCH_OFF_WARNING_SIGNAL,
     KEY_TIMER,
     KEY_TIMER_LONG,
+    KEY_UPPER_LIMIT,
     KEY_VERTICAL_MOVEMENT_TIME,
 )
 from .coordinator import SIGNAL_DEVICE_DISCOVERED, OpusGreenNetCoordinator
@@ -49,6 +55,9 @@ MAX_HOLDING_SECONDS = 65535
 HOLDING_STEP_SECONDS = 1
 MAX_RAMPING_SECONDS = 25.5
 RAMPING_STEP_SECONDS = 0.1
+MAX_RAMP_SECONDS = 6553
+MIN_DIMMING_LIMIT_PERCENT = 15
+MAX_DIMMING_LIMIT_PERCENT = 80
 MAX_PRESS_SECONDS = 2.55
 PRESS_STEP_SECONDS = 0.01
 MIN_TIMER_SECONDS = 60
@@ -82,14 +91,22 @@ class DeviceTime:
     minimum: float = 0
     # Seconds unless the parameter is a threshold in lux.
     unit: str = UnitOfTime.SECONDS
-    device_class: NumberDeviceClass = NumberDeviceClass.DURATION
+    device_class: NumberDeviceClass | None = NumberDeviceClass.DURATION
     # Platform type of the devices that have the parameter.
     entity_type: str = "cover"
     # EEPs whose catalog lists the parameter.
     eeps: frozenset[str] = frozenset()
+    # True: only the universal dimmer 563.076; False: only the other dimmers of
+    # the EEP; None: no restriction. Decided by the product ID of the device.
+    universal_dimmer: bool | None = None
 
     def applies_to(self, device: EnOceanDevice) -> bool:
         """Return whether the device is known to have this parameter."""
+        if (
+            self.universal_dimmer is not None
+            and device.is_universal_dimmer is not self.universal_dimmer
+        ):
+            return False
         return device.entity_type == self.entity_type and not self.eeps.isdisjoint(
             device.eep_names
         )
@@ -124,6 +141,7 @@ DIMMER_TIMES: tuple[DeviceTime, ...] = (
         step=RAMPING_STEP_SECONDS,
         entity_type="light",
         eeps=DIMMER_TIME_EEPS,
+        universal_dimmer=False,
     ),
     DeviceTime(
         "short_press_time",
@@ -133,6 +151,7 @@ DIMMER_TIMES: tuple[DeviceTime, ...] = (
         step=PRESS_STEP_SECONDS,
         entity_type="light",
         eeps=DIMMER_TIME_EEPS,
+        universal_dimmer=False,
     ),
     DeviceTime(
         "long_press_time",
@@ -142,6 +161,49 @@ DIMMER_TIMES: tuple[DeviceTime, ...] = (
         step=PRESS_STEP_SECONDS,
         entity_type="light",
         eeps=DIMMER_TIME_EEPS,
+        universal_dimmer=False,
+    ),
+    # Parameter set of the universal dimmer 563.076. Both sets belong to the
+    # EEP D2-01-03, so the product ID of the device decides which one a dimmer
+    # gets: the three numbers above for every other dimmer, these for the 563.076.
+    *(
+        DeviceTime(
+            key,
+            parameter,
+            attribute,
+            maximum=MAX_RAMP_SECONDS,
+            step=RAMPING_STEP_SECONDS,
+            entity_type="light",
+            eeps=DIMMER_TIME_EEPS,
+            universal_dimmer=True,
+        )
+        for key, parameter, attribute in (
+            ("ramping_time_1", KEY_RAMPING_TIME_1, "ramping_time_1"),
+            ("ramping_time_2", KEY_RAMPING_TIME_2, "ramping_time_2"),
+            ("ramping_time_3", KEY_RAMPING_TIME_3, "ramping_time_3"),
+            ("ramping_time_switch", KEY_RAMPING_TIME_SWITCH, "ramping_time_switch"),
+        )
+    ),
+    # Dimming limits in percent of the dimmer; the device scales its brightness
+    # between them (operating instructions of the 563.076).
+    *(
+        DeviceTime(
+            key,
+            parameter,
+            attribute,
+            minimum=MIN_DIMMING_LIMIT_PERCENT,
+            maximum=MAX_DIMMING_LIMIT_PERCENT,
+            step=1,
+            unit=PERCENTAGE,
+            device_class=None,
+            entity_type="light",
+            eeps=DIMMER_TIME_EEPS,
+            universal_dimmer=True,
+        )
+        for key, parameter, attribute in (
+            ("lower_limit", KEY_LOWER_LIMIT, "lower_limit"),
+            ("upper_limit", KEY_UPPER_LIMIT, "upper_limit"),
+        )
     ),
 )
 

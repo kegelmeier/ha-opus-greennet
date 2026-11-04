@@ -1,0 +1,195 @@
+{
+  "header": {
+    "httpStatus": 200,
+    "content": "parameters"
+  },
+  "parameters": [
+    {
+      "key": "dimmerMode",
+      "description": "Dimmer Mode",
+      "values": [
+        {
+          "value": "phaseControlLower",
+          "meaning": "Phasenabschnitt"
+        },
+        {
+          "value": "phaseControlUpper",
+          "meaning": "Phasenanschnitt"
+        }
+      ],
+      "defaultValue": "phaseControlUpper"
+    },
+    {
+      "key": "functionRockerA",
+      "description": "Funktion Wippe A",
+      "values": [
+        {
+          "value": "channel1",
+          "meaning": "Kanal 1"
+        },
+        {
+          "value": "inactive",
+          "meaning": "Inaktiv"
+        },
+        {
+          "value": "inactive",
+          "meaning": "Inaktiv"
+        },
+        {
+          "value": "inactive",
+          "meaning": "Inaktiv"
+        }
+      ],
+      "defaultValue": "inactive"
+    },
+    {
+      "key": "functionRockerB",
+      "description": "Funktion Wippe B",
+      "values": [
+        {
+          "value": "channel1",
+          "meaning": "Kanal 1"
+        },
+        {
+          "value": "inactive",
+          "meaning": "Inaktiv"
+        },
+        {
+          "value": "inactive",
+          "meaning": "Inaktiv"
+        },
+        {
+          "value": "inactive",
+          "meaning": "Inaktiv"
+        }
+      ],
+      "defaultValue": "channel1"
+    },
+    {
+      "key": "ledColor",
+      "description": "Farbe LED",
+      "values": [
+        {
+          "value": "green",
+          "meaning": "Grün"
+        },
+        {
+          "value": "off",
+          "meaning": "LED Aus"
+        },
+        {
+          "value": "red",
+          "meaning": "Rot"
+        }
+      ],
+      "defaultValue": "off"
+    },
+    {
+      "key": "lowerLimit",
+      "description": "Limit unten (15-80) ... default: 25",
+      "values": [
+        {
+          "range": {
+            "min": 15,
+            "max": 80,
+            "step": 1
+          }
+        }
+      ],
+      "defaultValue": 25
+    },
+    {
+      "key": "rampingTimeRocker1",
+      "description": "Rampenzeit Rampe 1 [100ms Schritte] ... 0-65535 ... 0 - 6553 s",
+      "values": [
+        {
+          "range": {
+            "min": 0,
+            "max": 6553,
+            "step": 0.1,
+            "unit": "s"
+          }
+        }
+      ],
+      "defaultValue": 40
+    },
+    {
+      "key": "rampingTimeRocker2",
+      "description": "Rampenzeit Rampe 2 [100ms Schritte] ... 0-65535 ... 0 - 6553 s",
+      "values": [
+        {
+          "range": {
+            "min": 0,
+            "max": 6553,
+            "step": 0.1,
+            "unit": "s"
+          }
+        }
+      ],
+      "defaultValue": 80
+    },
+    {
+      "key": "rampingTimeRocker3",
+      "description": "Rampenzeit Rampe 3 [100ms Schritte] ... 0-65535 ... 0 - 6553 s",
+      "values": [
+        {
+          "range": {
+            "min": 0,
+            "max": 6553,
+            "step": 0.1,
+            "unit": "s"
+          }
+        }
+      ],
+      "defaultValue": 200
+    },
+    {
+      "key": "rampingTimeSwitch",
+      "description": "Rampenzeit für Schalten [100ms Schritte] ... 0-65535 ... 0 - 6553 s",
+      "values": [
+        {
+          "range": {
+            "min": 0,
+            "max": 6553,
+            "step": 0.1,
+            "unit": "s"
+          }
+        }
+      ],
+      "defaultValue": 5
+    },
+    {
+      "key": "routingTime",
+      "description": "ViNET Routing Time (300 - 2550ms in 10ms Schritten ... 0 = OFF, 30 = 300ms)",
+      "values": [
+        {
+          "range": {
+            "min": 30,
+            "max": 255,
+            "step": 0.1,
+            "unit": "10ms"
+          }
+        },
+        {
+          "value": "off",
+          "meaning": "no routing"
+        }
+      ],
+      "defaultValue": "off"
+    },
+    {
+      "key": "upperLimit",
+      "description": "Limit oben (15-80) ... default: 80",
+      "values": [
+        {
+          "range": {
+            "min": 15,
+            "max": 80,
+            "step": 1
+          }
+        }
+      ],
+      "defaultValue": 80
+    }
+  ]
+}
