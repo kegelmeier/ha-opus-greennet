@@ -118,7 +118,9 @@ def _entity_names(product_id: str) -> tuple[set[str], bool]:
     return numbers, select.values_for(device) is not None
 
 
-@pytest.mark.parametrize("product_id", [UNIVERSAL, UNIVERSAL.lower()])
+@pytest.mark.parametrize(
+    "product_id", [UNIVERSAL, UNIVERSAL.lower(), "00400000001B", "00400000001b"]
+)
 def test_the_universal_dimmer_gets_only_the_new_set(product_id: str) -> None:
     numbers, has_mode = _entity_names(product_id)
     assert numbers == {*RAMPS, *LIMITS}

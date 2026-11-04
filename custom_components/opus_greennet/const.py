@@ -298,11 +298,13 @@ REPEATER_EEPS: Final = (*SWITCH_EEPS, "D2-01-03", "D2-05-02")
 ROUTING_EEPS: Final = (*SWITCH_EEPS, "D2-05-02")
 ROUTING_OFF: Final = "off"
 ROUTING_ON: Final = "on"
-# Product ID the gateway reports for the OPUS BRiDGE universal dimmer 563.076
-# (dimming principle, limits, four ramp times). The other D2-01-03 dimmers, for
-# example the 1 channel dimmer from 2017 (product ID 004000000003), have the
+# Product IDs the gateway reports for the OPUS BRiDGE universal dimmer 563.076
+# (dimming principle, limits, four ramp times): 00400000001B ("1 Kanal
+# Universaldimmer", parameter set 2020a) and 00400000001E ("... +", 2020b), both
+# from the product catalog of the OPUS config tool 3.0.5.54. The other D2-01-03
+# dimmers, for example the 1 channel dimmer from 2017 (004000000003), have the
 # ramping, short-press and long-press time. Compared without regard to case.
-UNIVERSAL_DIMMER_PRODUCT_IDS: Final = frozenset({"00400000001E"})
+UNIVERSAL_DIMMER_PRODUCT_IDS: Final = frozenset({"00400000001B", "00400000001E"})
 
 DEVICE_OPTIONS: Final = {
     KEY_OPERATION_MODE: "operation_mode",
