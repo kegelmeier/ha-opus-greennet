@@ -739,12 +739,8 @@ async def test_deferred_blockage_command_keeps_the_reported_mode() -> None:
 
 
 async def _device_switches(device: EnOceanDevice) -> list:
-    """The switches of a device; the gateway's own switch is not one of them."""
-    return [
-        entity
-        for entity in await _platform_entities(async_setup_switches, device)
-        if entity.unique_id != f"{EAG_ID}_daily_settings_read"
-    ]
+    """The switches of a device."""
+    return list(await _platform_entities(async_setup_switches, device))
 
 
 async def test_switch_platform_adds_blockage_only_for_locking_blinds() -> None:

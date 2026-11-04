@@ -30,7 +30,6 @@ custom_components/opus_greennet/
 ├── button.py             # Reference-run buttons for D2-05 blinds
 ├── number.py             # Time and threshold settings (blinds, dimmers, switches)
 ├── select.py             # Selectable settings of D2-01 switches
-├── time.py               # Time of the daily settings read (gateway device)
 ├── services.yaml         # Action definitions
 ├── strings.json          # Translation source
 └── translations/         # en, de
@@ -61,7 +60,7 @@ pytest -v --cov --cov-report=json:coverage.json
 python script/check_coverage.py coverage.json
 ```
 
-The suite has 3,175 tests. They run against real Home Assistant core and an
+The suite has 3,151 tests. They run against real Home Assistant core and an
 in-process gateway that serves the REST API and its event stream over real HTTP
 (`tests/fake_gateway.py`).
 

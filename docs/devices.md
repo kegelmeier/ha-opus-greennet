@@ -25,7 +25,7 @@ The settings stored on actuators, as far as the gateway's parameter catalog
 enabling one of these entities is not enough, and a change is refused (nothing is
 sent) until you enable write access under *Settings → Devices & services → Opus
 GreenNet Bridge → Configure*, after a warning and a confirmation. Reading the
-settings (*Read settings*, the daily read, *Settings read*) always works. The same
+settings (*Read settings*, *Settings read*) always works. The same
 applies to the repeater mode, ViNET and the action
 `opus_greennet.set_device_configuration`. Entries set up before the option existed
 keep writing. While write access is off and one of these entities is enabled, a
@@ -101,27 +101,6 @@ the same device started or ended meanwhile is dropped, because the write is
 newer. The button is offered for blinds, D2-01-03 dimmers, D2-01-01/-11
 switches and A5-07-03 presence detectors, the devices that have settings; reading is verified on hardware as the
 read-back after a write, not yet as a button press.
-
-**Daily read.** Every day at 05:00 local time (default) the integration reads
-the stored settings of all these devices once, like the button, one after the
-other. The gateway device has two configuration entities for it: the switch
-*Daily settings read* (on by default) and the time *Daily settings read time*
-(local time, to the minute). Both are restored after a restart of Home
-Assistant; a change takes effect at once. This
-keeps what Home Assistant shows in line with the devices, for example after a
-Home Assistant backup was restored or a setting was changed with the OPUS app.
-The read uses the lowest radio priority, so commands and status queries go
-first; nothing is written and a failed read is not repeated. The run ends
-after three failed reads in a row. Presence detectors are left out because
-their battery powered radio answers only in a short wake window; use the
-button for them. If Home Assistant is not running at the chosen time, that
-day's read is skipped. Nothing is written to the devices either way. The
-diagnostic sensor *Last daily settings read* on the gateway device shows when
-the last run ended; its attributes `read`, `failed` and `stopped` tell how many
-devices were read, how many reads failed and whether the run ended early (`failures`: three
-reads in a row failed, `unavailable`: the gateway was not reachable). The last
-result is restored after a restart, and the diagnostics download has a
-`daily_settings_read` block with the schedule and the last result.
 
 **Contradicting settings are refused.** The OPUS config tool warns about
 settings that contradict each other. The integration goes one step further: it

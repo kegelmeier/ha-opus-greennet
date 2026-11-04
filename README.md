@@ -139,7 +139,7 @@ Settings that change an actuator (the number and select entities, the repeater
 mode, ViNET and the action `opus_greennet.set_device_configuration`) are written
 directly to the device by radio, and a wrong value can make it malfunction. A
 **new entry therefore starts with write access off**. Reading settings (the
-*Read settings* button and the daily read) is not affected. To switch it on, open
+*Read settings* button) is not affected. To switch it on, open
 **Settings → Devices & services → Opus GreenNet Bridge → Configure**, read the
 warning and tick the confirmation. If you enable an entity that changes a setting
 while write access is off, a notice appears under **Settings → System → Repairs**,
@@ -256,9 +256,7 @@ needs the actuator to answer. Every device with settings also shows the stored
 values as read-only diagnostic sensors (enabled by default, named *… (stored)*)
 and has a *Read settings* diagnostic button that reads them from the device
 once, for example after a write whose outcome was unclear. The integration
-also reads the stored settings of all devices (except battery powered presence
-detectors) once a day, by default at 05:00 local time; the gateway device has a
-switch and a time entity to turn this off or move it. A diagnostic
+never reads them on its own. A diagnostic
 *Settings read* sensor shows when the stored values were last read. The entities that
 change a setting stay disabled until you enable them.
 

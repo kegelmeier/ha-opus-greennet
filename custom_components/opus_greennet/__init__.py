@@ -28,6 +28,7 @@ from homeassistant.exceptions import (
 )
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service import async_register_admin_service
 from homeassistant.helpers.storage import Store
@@ -86,7 +87,6 @@ PLATFORMS: list[Platform] = [
     Platform.LOCK,
     Platform.NUMBER,
     Platform.SELECT,
-    Platform.TIME,
 ]
 
 SERVICE_GET_DEVICE_CONFIG = "get_device_configuration"
@@ -370,6 +370,7 @@ async def async_setup_entry(
             coordinator=coordinator,
             gateway_device_id=gateway_device.id,
         )
+        _remove_daily_read_entities(hass, eag_id)
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
         async_setup_write_access_notice(hass, entry)
     except BaseException:
@@ -378,6 +379,24 @@ async def async_setup_entry(
 
     _LOGGER.info("Opus GreenNet Bridge setup complete: %s", eag_id)
     return True
+
+
+# Entities of the daily settings read of v1.2.0b1, which was removed again.
+_REMOVED_DAILY_READ_ENTITIES: tuple[tuple[str, str], ...] = (
+    ("switch", "daily_settings_read"),
+    ("time", "daily_settings_read_time"),
+    ("sensor", "daily_settings_run"),
+)
+
+
+def _remove_daily_read_entities(hass: HomeAssistant, eag_id: str) -> None:
+    """Remove the entities of the daily settings read left by v1.2.0b1."""
+    registry = er.async_get(hass)
+    for platform, suffix in _REMOVED_DAILY_READ_ENTITIES:
+        if entity_id := registry.async_get_entity_id(
+            platform, DOMAIN, f"{eag_id}_{suffix}"
+        ):
+            registry.async_remove(entity_id)
 
 
 def _setting_guard_store(hass: HomeAssistant, eag_id: str) -> Store[dict[str, Any]]:

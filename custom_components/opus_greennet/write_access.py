@@ -6,7 +6,7 @@ off; it is switched on in the options dialog after a warning and a confirmation.
 An entry that was set up before the option existed has none and keeps writing,
 so nothing changes for existing installations.
 
-Reading settings (*Read settings*, the daily read) is never affected. A notice
+Reading settings (*Read settings*) is never affected. A notice
 in Repairs points out an enabled entity that changes a setting while write
 access is off. Nothing here is sent to the gateway or a device.
 """
