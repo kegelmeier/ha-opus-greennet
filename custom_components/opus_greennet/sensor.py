@@ -684,9 +684,7 @@ class OpusGreenNetSignalStrengthSensor(OpusGreenNetBaseSensor):
     @property
     def native_value(self) -> int | None:
         """Return the signal strength value."""
-        if self._device.dbm is not None:
-            return self._device.dbm
-        return None
+        return self._device.dbm
 
 
 class OpusGreenNetSignalQualitySensor(OpusGreenNetBaseSensor):
@@ -1062,7 +1060,7 @@ class OpusGreenNetHandleSensor(OpusGreenNetBaseSensor):
         if suffix == "handle_state":
             self._attr_device_class = SensorDeviceClass.ENUM
             self._attr_options = ["open", "closed", "tilted"]
-        elif suffix == "unlock_request":
+        else:  # "unlock_request", the only other suffix
             self._attr_device_class = SensorDeviceClass.ENUM
             self._attr_options = ["requested", "not_requested"]
             self._attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -1078,9 +1076,7 @@ class OpusGreenNetHandleSensor(OpusGreenNetBaseSensor):
             if channel.unlock_request is None:
                 return None
             return "requested" if channel.unlock_request else "not_requested"
-        if self._suffix == "handle_state":
-            return channel.handle_state
-        return None
+        return channel.handle_state
 
 
 class OpusGreenNetCoverRunSensor(OpusGreenNetEntity, RestoreSensor):

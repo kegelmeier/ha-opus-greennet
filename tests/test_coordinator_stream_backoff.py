@@ -358,3 +358,49 @@ async def test_replaced_reader_closes_its_stream(coord) -> None:
     ):
         await coord._async_run_stream(generation)  # noqa: SLF001
     assert closed == [True]
+
+
+# ── A reader replaced while its own request is failing ──────────────────────
+
+
+def _failing_after_replacement(coord: OpusGreenNetCoordinator, error: Exception):
+    """A stream that replaces its own reader and then fails."""
+
+    async def stream() -> AsyncIterator[dict[str, object]]:
+        coord._restart_stream()  # noqa: SLF001
+        raise error
+        yield  # pragma: no cover  (makes this an async generator)
+
+    return stream
+
+
+async def test_auth_failure_of_a_reader_replaced_meanwhile_is_ignored(coord) -> None:
+    _start_without_running(coord)
+    coord._start_stream()  # noqa: SLF001
+    generation = coord._stream_generation  # noqa: SLF001
+    coord.client.async_stream = _failing_after_replacement(
+        coord, OpusAuthError("status 401")
+    )
+    on_auth_failed = MagicMock()
+    coord._on_auth_failed = on_auth_failed  # noqa: SLF001
+
+    await coord._async_run_stream(generation)  # noqa: SLF001
+
+    on_auth_failed.assert_not_called()
+    assert coord._gateway_available  # noqa: SLF001
+
+
+async def test_failure_of_a_reader_replaced_meanwhile_leaves_the_loop(coord) -> None:
+    _start_without_running(coord)
+    coord._start_stream()  # noqa: SLF001
+    generation = coord._stream_generation  # noqa: SLF001
+    coord.client.async_stream = _failing_after_replacement(
+        coord, OpusConnectionError("reset")
+    )
+    sleep = AsyncMock()
+
+    with patch(f"{MODULE}.asyncio.sleep", sleep):
+        await coord._async_run_stream(generation)  # noqa: SLF001
+
+    sleep.assert_not_called()
+    assert coord._gateway_available  # noqa: SLF001
