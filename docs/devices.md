@@ -505,8 +505,8 @@ The Moellenhoff room control unit of a heating controller (gateway profile
 ## Read-only profiles from the gateway catalog
 
 These profiles are taken from the gateway catalog (`GET /profiles/<EEP>`) and
-the OPUS config tool product catalog (device names and article numbers from there). They only show what the device reports, except for the commands of D2-35-00 and the LEDs of D1-4B-50. The other profiles need a device to test commands; D2-34-10 would also need the gateway to feed the room temperature, which is a control loop and not a single command:
-no commands are sent, and none of them was tested with a real device yet. A
+the OPUS config tool product catalog (device names and article numbers from there). They only show what the device reports, except for the commands of D2-35-00 and the LEDs of D1-4B-50. The other profiles need a device to test commands; D2-34-10 would also need the gateway to feed the room temperature, which is a control loop and not a single command.
+None of these profiles was tested with a real device yet. A
 value the profile lists as "not available" or "error" shows as unknown; a
 malformed or out-of-range value keeps the last known one.
 
