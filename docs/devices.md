@@ -464,8 +464,11 @@ gateway queues every answer for the sleeping handle.
 
 ## Heat Area 3.0 Physical (D1-4B-03)
 
-The Moellenhoff room control unit of a heating controller (gateway profile
-"Heat Area 3.0 Physical") appears as a climate entity.
+The heating zone for Moellenhoff systems (gateway profile "Heat Area 3.0
+Physical", product "Heizzone für Möhlenhoff" in the OPUS config tool) appears
+as a climate entity. It is an object of the gateway that reports the data of
+the room control unit behind it; the device data may name another manufacturer
+than Moellenhoff.
 
 - **Setpoint:** 5–30 °C in steps of 0.2 °C; the unit reports its current
   temperature and setpoint.
@@ -477,6 +480,8 @@ The Moellenhoff room control unit of a heating controller (gateway profile
   entity shows no heating action from it.
 - **Diagnostics:** binary sensors for communication with the room control unit,
   heat circuits, battery and malfunction (on = the unit reported the problem).
+  The battery warning is disabled by default, because the field is also
+  reported by units without a battery; enable it if your unit has one.
 - There is no humidity, window or feed temperature for this profile.
 - The profile is taken from the gateway catalog (`/profiles/D1-4B-03`). It has
   not been tested with a real device yet.

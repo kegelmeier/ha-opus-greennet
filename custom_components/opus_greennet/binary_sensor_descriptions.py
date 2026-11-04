@@ -142,6 +142,9 @@ BINARY_SENSOR_DESCRIPTIONS = (
         ),
         device_class=BinarySensorDeviceClass.BATTERY,
         entity_category=EntityCategory.DIAGNOSTIC,
+        # The battery field is also reported by units without a battery, so the
+        # warning is opt-in; existing installations keep their entities.
+        enabled_by_default=False,
     ),
     OpusBinarySensorDescription(
         key="actuator_deactivated",
@@ -189,6 +192,9 @@ BINARY_SENSOR_DESCRIPTIONS = (
         value_fn=lambda device: diagnostic_value(device, lambda c: c.rcu_low_battery),
         device_class=BinarySensorDeviceClass.BATTERY,
         entity_category=EntityCategory.DIAGNOSTIC,
+        # The battery field is also reported by units without a battery, so the
+        # warning is opt-in; existing installations keep their entities.
+        enabled_by_default=False,
     ),
     OpusBinarySensorDescription(
         key="rcu_malfunction",
