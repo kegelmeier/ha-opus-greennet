@@ -68,7 +68,9 @@ async def test_description_inventory_matches_stable(hass, make_device, eep, keys
             entity.device_class,
             entity.entity_category,
         ) == METADATA[key]
-        assert entity.entity_registry_enabled_default is True
+        assert entity.entity_registry_enabled_default is (
+            key not in {"actuator_low_battery", "rcu_low_battery"}
+        )
         assert entity.should_poll is False
         # The water sensor shows "dry" until it reports water.
         assert entity.is_on is (False if key == "liquid_detected" else None)
@@ -110,3 +112,12 @@ def test_description_states_match_stable(make_device, key, value):
         else value != "reset"
     )
     assert entity.is_on is expected
+
+
+def test_battery_warnings_are_disabled_by_default():
+    """The battery fields are reported by units without a battery as well."""
+    by_key = {d.key: d for d in BINARY_SENSOR_DESCRIPTIONS}
+    assert by_key["actuator_low_battery"].enabled_by_default is False
+    assert by_key["rcu_low_battery"].enabled_by_default is False
+    # Other diagnostics keep their default.
+    assert by_key["rcu_malfunction"].enabled_by_default is True
