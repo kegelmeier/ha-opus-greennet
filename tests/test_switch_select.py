@@ -31,13 +31,20 @@ EAG_ID = "AABB0011"
 CONFIG_PATH = "/devices/DEV1/configuration"
 FIXTURES = Path(__file__).parent / "fixtures"
 
-OPERATION_MODE, LED_COLOR, LED_CHANNEL, EXTERNAL_INPUT, ROUTING, REPEATER = (
-    DEVICE_SELECTS
-)
+(
+    OPERATION_MODE,
+    LED_COLOR,
+    LED_CHANNEL,
+    _DIMMER_MODE,
+    EXTERNAL_INPUT,
+    ROUTING,
+    REPEATER,
+) = DEVICE_SELECTS
 KEYS = (
     "operationMode",
     "ledColor",
     "ledChannel",
+    "dimmerMode",
     "functionExternalInput",
     "routingTime",
     "repeaterState",
