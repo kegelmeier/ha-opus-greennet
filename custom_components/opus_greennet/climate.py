@@ -73,7 +73,7 @@ class OpusGreenNetClimate(OpusGreenNetEntity, ClimateEntity):
     """Representation of an Opus GreenNet HeatArea climate device."""
 
     _attr_has_entity_name = True
-    _attr_temperature_unit = UnitOfTemperature.CELSIUS
+    _attr_native_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_min_temp: float = 0
     _attr_max_temp: float = 40
     _attr_supported_features = (
@@ -113,13 +113,13 @@ class OpusGreenNetClimate(OpusGreenNetEntity, ClimateEntity):
             self._attr_hvac_modes = [HVACMode.HEAT, HVACMode.OFF]
 
     @property
-    def current_temperature(self) -> float | None:
+    def native_current_temperature(self) -> float | None:
         """Return the current temperature."""
         channel = self._device.channels.get(DEFAULT_CHANNEL)
         return channel.temperature if channel else None
 
     @property
-    def target_temperature(self) -> float | None:
+    def native_target_temperature(self) -> float | None:
         """Return the target temperature setpoint."""
         channel = self._device.channels.get(DEFAULT_CHANNEL)
         return channel.temperature_setpoint if channel else None

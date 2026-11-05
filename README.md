@@ -87,7 +87,7 @@ Details per device type: [docs/devices.md](docs/devices.md).
 
 | | Requirement |
 |---|---|
-| Home Assistant | 2026.10.1 or newer |
+| Home Assistant | 2026.11.0 or newer |
 | Gateway | Both OPUS gateways: the black OPUS greenNet gateway (reports itself as `OPUS-GW`) and the OPUS IQ-DOT (`OPUS-IQ-DOT`). Before WebUI 2026: REST API on port 8080 (tested with firmware 1.21.30 to 1.21.34). With WebUI 2026: the same REST API over HTTPS on port 443 with a user login (see [Gateways with WebUI 2026](#gateways-with-webui-2026); not yet tested on such a gateway) |
 | Network | Home Assistant and the gateway in the same local network. Discovery uses mDNS; without it (for example Docker without host networking) enter the address once |
 | Devices | Paired with the gateway in the OPUS app |
@@ -121,8 +121,9 @@ To try a beta, open the integration in HACS, choose **⋮ → Redownload**, turn
 
 > [!IMPORTANT]
 > A manual copy does not check the Home Assistant version. On a version older
-> than 2026.10.1 setup fails with `ImportError: cannot import name
-> 'ATTR_BRIGHTNESS'`.
+> than 2026.11.0 the climate entities of the heating devices do not work
+> correctly, because they use the native temperature properties that
+> Home Assistant introduced in 2026.11.
 
 ## Configuration
 
@@ -349,7 +350,7 @@ Released under the [MIT License](LICENSE).
 [release-shield]: https://img.shields.io/github/v/release/kegelmeier/ha-opus-greennet?style=for-the-badge
 [license]: https://github.com/kegelmeier/ha-opus-greennet/blob/main/LICENSE
 [license-shield]: https://img.shields.io/github/license/kegelmeier/ha-opus-greennet?style=for-the-badge
-[ha-shield]: https://img.shields.io/badge/Home%20Assistant-2026.10.1%2B-41BDF5.svg?style=for-the-badge&logo=home-assistant&logoColor=white
+[ha-shield]: https://img.shields.io/badge/Home%20Assistant-2026.11.0%2B-41BDF5.svg?style=for-the-badge&logo=home-assistant&logoColor=white
 [hacs-repo]: https://my.home-assistant.io/redirect/hacs_repository/?owner=kegelmeier&repository=ha-opus-greennet&category=integration
 [hacs-repo-badge]: https://my.home-assistant.io/badges/hacs_repository.svg
 [config-flow]: https://my.home-assistant.io/redirect/config_flow_start/?domain=opus_greennet
