@@ -809,7 +809,7 @@
       "message": "The value is not a valid number."
     },
     "parameter_write_failed": {
-      "message": "The gateway could not write the new value to {device_id} ({reason}). Home Assistant kept the previous value. The device may not have received it; read the device configuration before trying again."
+      "message": "The gateway could not write the new value to {device_id} ({reason}). Whether the device received it is unknown. Home Assistant kept the previous value; read the device configuration before trying again."
     },
     "parameter_read_back_failed": {
       "message": "The gateway accepted the new value for {device_id}, but reading it back failed ({reason}). The value may be stored; Home Assistant kept the previous one. Read the device configuration before trying again."

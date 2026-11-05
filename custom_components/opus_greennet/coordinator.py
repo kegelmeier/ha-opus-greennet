@@ -2778,7 +2778,7 @@ class OpusGreenNetCoordinator:
         """Write one setting, read the configuration back and return it.
 
         A rejection by the gateway says different things for the two steps: a
-        rejected write means the device probably did not get the value
+        rejected write means the device may or may not have the value
         (``parameter_write_failed``), a rejected read-back means the write was
         accepted and the value may be stored (``parameter_read_back_failed``).
         A read-back that fails otherwise is ``parameter_not_confirmed``; a
@@ -2792,7 +2792,7 @@ class OpusGreenNetCoordinator:
                     {"configuration": {"parameters": [{"key": key, "value": value}]}},
                 )
             except HomeAssistantError as err:
-                # A rejected write: the device probably did not get the value.
+                # A rejected write: whether the device got the value is unknown.
                 if err.translation_key != "request_rejected":
                     raise
                 raise request_error(
