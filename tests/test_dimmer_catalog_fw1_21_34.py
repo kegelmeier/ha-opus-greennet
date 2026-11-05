@@ -132,3 +132,16 @@ def test_every_other_dimmer_keeps_the_old_set(product_id: str) -> None:
     numbers, has_mode = _entity_names(product_id)
     assert numbers == set(OLD_SET)
     assert not has_mode
+
+
+def test_the_rocker_selects_read_the_fixture_values() -> None:
+    device = _fed_device()
+    shown = {}
+    for parameter in ("functionRockerA", "functionRockerB"):
+        select = next(s for s in DEVICE_SELECTS if s.parameter == parameter)
+        values = select.values_for(device)
+        assert values == ("channel1", "inactive")
+        shown[parameter] = OpusGreenNetDeviceSelect(
+            MagicMock(), EAG_ID, "gateway", device, select, values
+        ).current_option
+    assert shown == {"functionRockerA": "inactive", "functionRockerB": "channel1"}

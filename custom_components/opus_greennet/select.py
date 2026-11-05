@@ -48,13 +48,19 @@ REPEATER_STATES = ("off", "level_1", "level_2")
 # Dimming principle of D2-01-03 dimmers (catalog of firmware 1.21.34).
 DIMMER_MODES = ("phaseControlLower", "phaseControlUpper")
 ROUTING_STATES = (ROUTING_OFF, ROUTING_ON)
-# Function of rocker A and B per EEP (catalogs of a D2-01-01, D2-01-11 and
-# D2-05-02). Not written on hardware yet.
+# Function of rocker A and B per EEP (catalogs of a D2-01-01, D2-01-11, D2-05-02
+# and, firmware 1.21.34, the universal dimmer D2-01-03). The catalogs of the
+# blind and the dimmer list "inactive" three times: one option here. Not
+# written on a dimmer on hardware yet.
 ROCKER_FUNCTIONS: Mapping[str, tuple[str, ...]] = {
     "D2-01-01": ("channel1", "inactive"),
+    "D2-01-03": ("channel1", "inactive"),
     "D2-01-11": ("channel1", "channel2", "channelsAll", "inactive"),
     "D2-05-02": ("channel1", "inactive"),
 }
+# The D2-01-03 entry applies to the universal dimmer only: older dimmers do not
+# list the setting, and the product ID decides before the configuration is seen.
+ROCKER_PRODUCT_GATED_EEPS = frozenset({"D2-01-03"})
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -68,6 +74,9 @@ class DeviceSelect:
     values: Mapping[str, tuple[str, ...]]
     # Only the universal dimmer 563.076 has the setting (decided by product ID).
     universal_dimmer_only: bool = False
+    # EEPs of ``values`` that only the universal dimmer has (by product ID); the
+    # other EEPs of the same setting are not affected.
+    product_gated_eeps: frozenset[str] = frozenset()
 
     def values_for(self, device: EnOceanDevice) -> tuple[str, ...] | None:
         """Return the values of the device, or None if it has no such setting."""
@@ -80,6 +89,8 @@ class DeviceSelect:
             return None
         for eep in device.eep_names:
             if eep in self.values:
+                if eep in self.product_gated_eeps and not device.is_universal_dimmer:
+                    return None
                 return self.values[eep]
         return None
 
@@ -120,12 +131,14 @@ CATALOG_SELECTS: tuple[DeviceSelect, ...] = (
         KEY_FUNCTION_ROCKER_A,
         "function_rocker_a",
         ROCKER_FUNCTIONS,
+        product_gated_eeps=ROCKER_PRODUCT_GATED_EEPS,
     ),
     DeviceSelect(
         "function_rocker_b",
         KEY_FUNCTION_ROCKER_B,
         "function_rocker_b",
         ROCKER_FUNCTIONS,
+        product_gated_eeps=ROCKER_PRODUCT_GATED_EEPS,
     ),
 )
 # Not in the catalog as such. Routing: "on" stands for any routing time the
