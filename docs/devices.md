@@ -369,8 +369,11 @@ the gateway reports that is not in the list shows as *unknown* and is never
 changed by the integration. Writing a text setting is **verified on hardware
 for the LED colour of one D2-01-01 switch** (changed, read back and restored
 with gateway firmware 1.21.30). The *Operation mode* of one switch was written
-and read back through the gateway's REST API, not through this entity; the other
-selects were **not tested on hardware**, so try a single switch first.
+and read back through the gateway's REST API, not through this entity. The
+*LED channel*, *External input function* and *ViNET Router* selects were written,
+read back by radio and restored through these entities on real switches (see the
+[README](../README.md#what-was-verified-on-hardware)); the other selects were
+**not tested on hardware**, so try a single switch first.
 The function of rocker A and B (*Function of rocker A* and *B*, disabled by
 default) says which channel a rocker switches, or *inactive*. **Rocker B was
 verified on hardware** on one D2-01-01 (with *inactive* the rocker no longer
