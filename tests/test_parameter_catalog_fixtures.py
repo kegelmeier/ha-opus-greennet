@@ -207,22 +207,16 @@ EEPS = {
 PRODUCT_IDS = {"d2_01_03_fw1_21_34": "00400000001E"}
 # Catalog parameters without an entity, each with the reason. A new parameter
 # in a catalog fails the coverage test until it gets an entity or is listed here.
-_SWITCH_DEFERRED = {
-    "functionRockerA": "raw value 0 is outside the options; needs a text write test",
-    "functionRockerB": "raw value 0 is outside the options; needs a text write test",
-}
 DEFERRED = {
     "d2_05_02": {
-        "functionRockerA": "same options as the switches; needs a text write test",
-        "functionRockerB": "same options as the switches; needs a text write test",
         "lastVerticalMovementTime": "read only; shown in the diagnostics",
     },
-    "d2_01_01": _SWITCH_DEFERRED,
-    "d2_01_11": _SWITCH_DEFERRED,
+    "d2_01_01": {},
+    "d2_01_11": {},
     "d2_01_03": {},
     "d2_01_03_fw1_21_34": {
-        "functionRockerA": "same options as the switches; needs a text write test",
-        "functionRockerB": "same options as the switches; needs a text write test",
+        "functionRockerA": "not offered for dimmers yet; the catalog of this firmware",
+        "functionRockerB": "not offered for dimmers yet; the catalog of this firmware",
         "ledColor": "the dimmer lists no 'all' option; no select for dimmers yet",
         "routingTime": "unit (10 ms) and the value for 'on' are not verified",
     },

@@ -323,6 +323,6 @@ checked **[Code][Test]**.
   sensors and stand-alone rocker switches: not present on the test
   installation; covered by tests with the documented payloads.
 - Whether the gateway ever sends `content = "device"` documents on the stream.
-- Text writes of `operationMode`, `functionExternalInput` and `ledChannel`, a
-  text write on other device types, and the answer to an invalid text value
-  (only `ledColor` on one D2-01-01 was verified).
+- Text writes of `operationMode`, `functionExternalInput`, `functionRockerA/B`
+  and `ledChannel`, a text write on other device types, and the answer to an
+  invalid text value (only `ledColor` on one D2-01-01 was verified).

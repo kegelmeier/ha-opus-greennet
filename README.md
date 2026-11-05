@@ -221,7 +221,8 @@ diagnostics** on the integration entry). More in
   TLS). Keep the gateway in a trusted network; new or changed addresses must be
   local, for both generations.
 - Devices cannot be added to or removed from the gateway yet, and some device
-  settings (the function of rocker A and B) are not offered yet (see [Roadmap](#roadmap)).
+  settings (for example the ViNET routing time of dimmers) are not offered yet
+  (see [Roadmap](#roadmap)).
 
 All limitations: [docs/how-it-works.md](docs/how-it-works.md#known-limitations).
 
@@ -230,7 +231,7 @@ All limitations: [docs/how-it-works.md](docs/how-it-works.md#known-limitations).
 | Status | Topic |
 |--------|-------|
 | ✅ Released | 1.0 with the REST API instead of MQTT |
-| 🚧 In progress | Device settings as Home Assistant entities. Available: blind times, dimmer times and switch timers as numbers, switch operation mode, LED, external input, routing (off/on; switches and blinds) and repeater mode (switches, dimmers, blinds) as selects, link tables read-only. The universal dimmer 563.076 (recognised by its product ID) gets four ramp times, dimming limits and the dimming principle instead of the three times (writing not yet verified on hardware). Setting entities are created only for keys the device reports, and writing an unreported key is refused. Still open: function of rocker A and B and gateway diagnostics (see below) |
+| 🚧 In progress | Device settings as Home Assistant entities. Available: blind times, dimmer times and switch timers as numbers, switch operation mode, LED, external input, function of rocker A and B (switches and blinds), routing (off/on; switches and blinds) and repeater mode (switches, dimmers, blinds) as selects, link tables read-only. The universal dimmer 563.076 (recognised by its product ID) gets four ramp times, dimming limits and the dimming principle instead of the three times (writing not yet verified on hardware). Setting entities are created only for keys the device reports, and writing an unreported key is refused. Still open: gateway diagnostics (see below) |
 | 🚧 Untested | HTTPS for gateways with WebUI 2026 is implemented, but was never tried on a real gateway |
 | 🔍 Investigating | Adding and removing devices from Home Assistant |
 | 🔍 Investigating | The OPUS REG multifunction actuator (CPU D2-70-00, blind D2-05-04, heating circuit D2-34-20 / D2-74-20): the gateway has no profiles for them yet, so support follows with a firmware that provides them |
@@ -250,8 +251,8 @@ is still open is offered the same way once it is safe to write:
 
 | Device | Settings |
 |--------|----------|
-| Switch actuators (D2-01-00/-01, 2-channel D2-01-11) | Function of rocker A and B (channel assignment). Available: timer durations, switch-off warning, its signal duration and illumination threshold are available as numbers; operation mode, LED colour, LED channel, external input function, routing off/on and repeater mode as selects |
-| Blinds (D2-05-02) | Function of rocker A and B (vertical movement time, rotation time and maximum holding time are available as numbers; ViNET routing off/on and repeater mode as selects) |
+| Switch actuators (D2-01-00/-01, 2-channel D2-01-11) | Available: timer durations, switch-off warning, its signal duration and illumination threshold as numbers; operation mode, LED colour, LED channel, external input function, function of rocker A and B, routing off/on and repeater mode as selects |
+| Blinds (D2-05-02) | Available: vertical movement time, rotation time and maximum holding time as numbers; function of rocker A and B, ViNET routing off/on and repeater mode as selects |
 | All actuators | Link tables (linked wall switches and their role, e.g. central on/off or up/down) can already be read with the `get_device_link_tables` action, and a diagnostic *Wall switch links* sensor and the diagnostics download show them without a radio request; writing them is not planned |
 | Gateway | Services such as HomeKit, Alexa, MQTT, InfluxDB, scheduler and heating zones. Available as diagnostic sensors: firmware, app and API version, received telegrams and average signal strength |
 
@@ -280,7 +281,7 @@ written by the integration on hardware so far**: try a single device first.
 | Switch D2-01-01/-11: timers, switch-off warning and signal, illumination threshold | Number | ✅ one switch, through the gateway API (not through these entities) |
 | Switch: LED colour | Select | ✅ one D2-01-01 (text value) |
 | Switch: operation mode | Select | ✅ one switch, through the gateway API (not through this entity) |
-| Switch: LED channel, external input function | Select | not tested |
+| Switch: LED channel, external input function, function of rocker A and B (switches and blinds) | Select | not tested |
 | Repeater mode (blinds) | Select | ✅ 24 blinds of a second installation: *off* on four blinds that had a repeater (two at level 2, two at level 1), level 2 on one blind and back to *off*, read back each time; the repeater indicator of the MyOPUS app disappeared. Whether the radio behaviour changes at level 2 was not verified |
 | ViNET Router (switches) | Select | ✅ *on* on 28 of 28 switches of a second installation (the gateway reported *on*); whether routing takes place was not verified |
 | ViNET routing (blinds) | Action `set_device_configuration` | ✅ 0.3 s accepted and read back by 22 of 24 blinds of a second installation; two did not answer radio configuration requests at first |
