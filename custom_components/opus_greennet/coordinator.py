@@ -2529,7 +2529,7 @@ class OpusGreenNetCoordinator:
         if self.devices.get(device_id) is not device:
             return
         if (keys := protocol.configuration_keys(document)) is not None:
-            device.reported_settings = keys
+            device.update_reported_settings(keys)
         functions = protocol.configuration_state_functions(document)
         if repeater is not None and (
             function := protocol.repeater_state_function(repeater)
