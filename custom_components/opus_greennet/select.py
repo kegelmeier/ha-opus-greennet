@@ -18,6 +18,8 @@ from .const import (
     DEFAULT_CHANNEL,
     KEY_DIMMER_MODE,
     KEY_FUNCTION_EXTERNAL_INPUT,
+    KEY_FUNCTION_ROCKER_A,
+    KEY_FUNCTION_ROCKER_B,
     KEY_LED_CHANNEL,
     KEY_LED_COLOR,
     KEY_OPERATION_MODE,
@@ -46,6 +48,13 @@ REPEATER_STATES = ("off", "level_1", "level_2")
 # Dimming principle of D2-01-03 dimmers (catalog of firmware 1.21.34).
 DIMMER_MODES = ("phaseControlLower", "phaseControlUpper")
 ROUTING_STATES = (ROUTING_OFF, ROUTING_ON)
+# Function of rocker A and B per EEP (catalogs of a D2-01-01, D2-01-11 and
+# D2-05-02). Not written on hardware yet.
+ROCKER_FUNCTIONS: Mapping[str, tuple[str, ...]] = {
+    "D2-01-01": ("channel1", "inactive"),
+    "D2-01-11": ("channel1", "channel2", "channelsAll", "inactive"),
+    "D2-05-02": ("channel1", "inactive"),
+}
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -104,6 +113,19 @@ CATALOG_SELECTS: tuple[DeviceSelect, ...] = (
             "D2-01-01": ("channel1", "inactive"),
             "D2-01-11": ("channel1", "channel2", "channelsAll", "inactive"),
         },
+    ),
+    # The catalog of the blinds lists "inactive" three times: one option here.
+    DeviceSelect(
+        "function_rocker_a",
+        KEY_FUNCTION_ROCKER_A,
+        "function_rocker_a",
+        ROCKER_FUNCTIONS,
+    ),
+    DeviceSelect(
+        "function_rocker_b",
+        KEY_FUNCTION_ROCKER_B,
+        "function_rocker_b",
+        ROCKER_FUNCTIONS,
     ),
 )
 # Not in the catalog as such. Routing: "on" stands for any routing time the

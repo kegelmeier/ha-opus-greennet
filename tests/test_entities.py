@@ -562,6 +562,8 @@ async def test_sensor_setup_deduplicates_discovery_entities() -> None:
         f"{EAG_ID}_DEV1_operation_mode_setting",
         f"{EAG_ID}_DEV1_led_color_setting",
         f"{EAG_ID}_DEV1_function_external_input_setting",
+        f"{EAG_ID}_DEV1_function_rocker_a_setting",
+        f"{EAG_ID}_DEV1_function_rocker_b_setting",
         f"{EAG_ID}_DEV1_routing_setting",
         f"{EAG_ID}_DEV1_repeater_setting",
     ]

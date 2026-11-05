@@ -375,6 +375,24 @@
           "inactive": "Inactive"
         }
       },
+      "function_rocker_a_setting": {
+        "name": "Rocker A function (stored)",
+        "state": {
+          "channel1": "Channel 1",
+          "channel2": "Channel 2",
+          "channels_all": "Channel 1 + 2",
+          "inactive": "Inactive"
+        }
+      },
+      "function_rocker_b_setting": {
+        "name": "Rocker B function (stored)",
+        "state": {
+          "channel1": "Channel 1",
+          "channel2": "Channel 2",
+          "channels_all": "Channel 1 + 2",
+          "inactive": "Inactive"
+        }
+      },
       "repeater_setting": {
         "name": "Repeater mode (stored)",
         "state": {
@@ -698,6 +716,24 @@
       },
       "function_external_input": {
         "name": "External input function",
+        "state": {
+          "channel1": "Channel 1",
+          "channel2": "Channel 2",
+          "channels_all": "Channel 1 + 2",
+          "inactive": "Inactive"
+        }
+      },
+      "function_rocker_a": {
+        "name": "Rocker A function",
+        "state": {
+          "channel1": "Channel 1",
+          "channel2": "Channel 2",
+          "channels_all": "Channel 1 + 2",
+          "inactive": "Inactive"
+        }
+      },
+      "function_rocker_b": {
+        "name": "Rocker B function",
         "state": {
           "channel1": "Channel 1",
           "channel2": "Channel 2",

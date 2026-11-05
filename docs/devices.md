@@ -33,9 +33,9 @@ notice appears under *Settings → System → Repairs*.
 
 | Device | Number entities | Select entities | Not offered |
 |--------|-----------------|-----------------|-------------|
-| Blinds (D2-05-02) | Vertical movement time, Rotation time, Maximum holding time | ViNET Router, Repeater mode | Function of rocker A and B |
+| Blinds (D2-05-02) | Vertical movement time, Rotation time, Maximum holding time | Function of rocker A and B, ViNET Router, Repeater mode | – |
 | Dimmers (D2-01-03) | Ramping time, Short-press time, Long-press time | Repeater mode | – |
-| Switches (D2-01-01) | Timer duration, Timer duration (long press), Switch-off warning, Switch-off warning signal, Illumination threshold | Operation mode, LED colour, External input function, ViNET Router, Repeater mode | Function of rocker A and B |
+| Switches (D2-01-01) | Timer duration, Timer duration (long press), Switch-off warning, Switch-off warning signal, Illumination threshold | Operation mode, LED colour, External input function, Function of rocker A and B, ViNET Router, Repeater mode | – |
 | 2-channel switches (D2-01-11) | as D2-01-01 | as D2-01-01, plus LED channel | as D2-01-01 |
 
 How a setting is written, for every device type:
@@ -166,10 +166,9 @@ config tool. This list comes from a config tool project, not from the gateway.
 
 
 Every actuator whose device list contains a link table also has the diagnostic
-sensor *Wall switch links* (see [Sensor values](#sensor-values)). The
-functions of rocker A and B are left out until a text
-write has been tested on hardware; a test in the repository fails when a
-catalog parameter has neither an entity nor an entry in that list of omissions.
+sensor *Wall switch links* (see [Sensor values](#sensor-values)). A test in the
+repository fails when a catalog parameter has neither an entity nor an entry in
+the list of omissions.
 
 ## Switches and dimmers (D2-01)
 
@@ -252,7 +251,7 @@ device does not report are not removed and stay unavailable.
   catalog default (`phaseControlUpper`) differs from the manual's factory default
   (trailing edge), so defaults are not used as stored values.
 - Not offered yet: ViNET routing time of dimmers (unit and value for "on" not
-  verified), LED colour and the function of rocker A and B.
+  verified), LED colour and the function of rocker A and B (the catalog of this firmware lists the inactive option three times).
 
 **Dimmer times: what is not verified.** Which setting of the OPUS configuration
 tool each of the three numbers corresponds to has **not been verified**. The
@@ -372,9 +371,14 @@ for the LED colour of one D2-01-01 switch** (changed, read back and restored
 with gateway firmware 1.21.30). The *Operation mode* of one switch was written
 and read back through the gateway's REST API, not through this entity; the other
 selects were **not tested on hardware**, so try a single switch first.
-The function of the rocker buttons A and B is not offered: a switch reports a
-value there that its own catalog does not list, and a wrong choice would change
-which button switches which channel.
+The function of rocker A and B (*Function of rocker A* and *B*, disabled by
+default) says which channel a rocker switches, or *inactive*. **Not tested on
+hardware.** A wrong choice changes which button switches which channel, and an
+inactive rocker no longer operates the actuator locally (Home Assistant still
+does). A D2-01-01 reported the number 0 for rocker A, a value its own catalog
+does not list: the stored sensor and the select then show *unknown*, and
+nothing is ever written until you choose an option. Note the stored value (or
+the configuration tool's) before changing it, and try a single device first.
 
 **Local control.** D2-01 actuators that report local control get a diagnostic
 *Local control* binary sensor, disabled by default.

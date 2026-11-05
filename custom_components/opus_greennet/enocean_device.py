@@ -177,6 +177,8 @@ class EnOceanChannel:
     led_color: str | None = None
     led_channel: str | None = None
     function_external_input: str | None = None
+    function_rocker_a: str | None = None
+    function_rocker_b: str | None = None
     # D2-01-03 dimming principle: phaseControlLower (trailing edge, "Phasen-
     # abschnitt") or phaseControlUpper (leading edge, "Phasenanschnitt").
     dimmer_mode: str | None = None
