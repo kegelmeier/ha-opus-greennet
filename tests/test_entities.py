@@ -309,8 +309,8 @@ async def test_climate_properties_and_commands() -> None:
     )
     entity = OpusGreenNetClimate(coordinator, EAG_ID, GATEWAY_DEVICE_ID, device)
 
-    assert entity.current_temperature == 21.2
-    assert entity.target_temperature == 22.0
+    assert entity.native_current_temperature == 21.2
+    assert entity.native_target_temperature == 22.0
     assert entity.current_humidity == 53
     assert entity.hvac_mode is HVACMode.HEAT_COOL
     assert entity.hvac_action is None
@@ -956,3 +956,6 @@ async def test_device_without_profile_gets_entities_once_its_eeps_arrive(
     await wait_until(
         lambda: hass.states.get(entity_id).attributes.get("current_temperature") == 21.5
     )
+    # Home Assistant 2026.11 states the unit of the temperatures; the gateway
+    # reports degrees Celsius, so the default metric system shows them unchanged.
+    assert hass.states.get(entity_id).attributes.get("temperature_unit") == "°C"

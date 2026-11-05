@@ -68,7 +68,7 @@ in-process gateway that serves the REST API and its event stream over real HTTP
 
 - CI tests the latest stable Home Assistant release from PyPI (recorded in the
   workflow summary) and a pinned reference version
-  (`requirements_test_reference.txt`, currently 2026.10.4) with hassfest built
+  (`requirements_test_reference.txt`, currently 2026.11.0) with hassfest built
   from that release; the latest hassfest image runs as an extra signal. If a new release needs a newer Python, CI fails explicitly instead
   of silently testing an older release.
 - It runs on pull requests, pushes to main, every Monday at 06:17 UTC and on
