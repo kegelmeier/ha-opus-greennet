@@ -936,6 +936,7 @@ class OpusGreenNetSettingChoiceSensor(OpusGreenNetBaseSensor):
         self._select = select
         self._slugs = {value: option_slug(value) for value in values}
         self._attr_options = list(self._slugs.values())
+        self._attr_entity_registry_enabled_default = select.stored_sensor_enabled
 
     @property
     def native_value(self) -> str | None:
