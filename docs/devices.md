@@ -398,6 +398,17 @@ does not list: the stored sensor and the select then show *unknown*, and
 nothing is ever written until you choose an option. Note the stored value (or
 the configuration tool's) before changing it, and try a single device first.
 
+**Rocker A of a 1-channel switch reports 0.** A 1-channel switch (D2-01-01)
+reports the number 0 for rocker A, which its own catalog does not list, while
+rocker B reports *channel 1*. On one installation all 16 such switches report
+this. In the OPUS config tool project of those switches only rocker B and the
+external input are linked to the output; rocker A is linked to no output. The
+2-channel switch (D2-01-11) links rocker A to output 1 and rocker B to output 2
+and reports both as text. So 0 most likely means that rocker A is not assigned,
+which is the normal state of a 1-channel switch and not a fault. This is an
+observation, not documented by the manufacturer. To assign a rocker, link it to
+an output in the config tool.
+
 **Local control.** D2-01 actuators that report local control get a diagnostic
 *Local control* binary sensor, disabled by default.
 
