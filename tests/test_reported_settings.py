@@ -129,8 +129,27 @@ def test_a_list_with_a_configuration_replaces_the_keys_and_one_without_keeps_the
     assert device.reported_settings == frozenset({"timer"})
     device.apply_listed_metadata(_switch(frozenset({"timer", "ledColor"})))
     assert device.reported_settings == frozenset({"timer", "ledColor"})
+    device.apply_listed_metadata(_switch(frozenset({"timer"})))
+    assert device.reported_settings == frozenset({"timer"})
+
+
+def test_an_empty_list_never_strips_the_known_keys() -> None:
+    """A configuration the gateway has not read yet must not remove settings."""
+    device = _switch(frozenset({"timer", "ledColor"}))
     device.apply_listed_metadata(_switch(frozenset()))
-    assert device.reported_settings == frozenset()
+    assert device.reported_settings == frozenset({"timer", "ledColor"})
+    assert {"timer"} <= _number_keys(device)
+    device.update_reported_settings(frozenset())  # the settings read takes this path
+    assert device.reported_settings == frozenset({"timer", "ledColor"})
+
+
+def test_an_empty_list_is_taken_while_nothing_is_known() -> None:
+    """A device that has no settings stays without setting entities."""
+    for known in (None, frozenset()):
+        device = _switch(known)
+        device.apply_listed_metadata(_switch(frozenset()))
+        assert device.reported_settings == frozenset()
+        assert _number_keys(device) == set()
 
 
 def test_a_device_list_object_carries_its_keys(connected_coordinator) -> None:

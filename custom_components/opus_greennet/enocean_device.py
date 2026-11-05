@@ -360,10 +360,21 @@ class EnOceanDevice:
             self.settings_read_at = listed.settings_read_at
         # A list without a configuration says nothing about the settings.
         if listed.reported_settings is not None:
-            self.reported_settings = listed.reported_settings
+            self.update_reported_settings(listed.reported_settings)
         # A list without a table says nothing; it never clears a known one.
         if listed.link_tables is not None:
             self.link_tables = listed.link_tables
+
+    def update_reported_settings(self, keys: frozenset[str]) -> None:
+        """Take the setting keys of a newer configuration of the device.
+
+        An empty list never replaces keys that are known: a missing field is no
+        instruction to delete, and a configuration the gateway has not read yet
+        must not strip the settings of a device that had them. An empty list is
+        taken as is while nothing is known, so a device without settings stays so.
+        """
+        if keys or not self.reported_settings:
+            self.reported_settings = keys
 
     def reports_setting(self, key: str) -> bool:
         """Return whether the device has this setting.
