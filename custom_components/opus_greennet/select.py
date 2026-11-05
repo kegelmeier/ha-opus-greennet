@@ -262,9 +262,10 @@ class OpusGreenNetCommandSelect(OpusGreenNetEntity, SelectEntity):
         self._wire = {option_slug(shown): wire for shown, wire in command.options}
         self._attr_translation_key = command.suffix
         self._attr_options = list(self._wire)
+        # Experimental (not tested with a real device): disabled by default.
+        self._attr_entity_registry_enabled_default = False
         if command.config:
             self._attr_entity_category = EntityCategory.CONFIG
-            self._attr_entity_registry_enabled_default = False
         # The translation key is part of the unique ID: never rename it.
         self._attr_unique_id = f"{eag_id}_{device.device_id}_{command.suffix}"
 

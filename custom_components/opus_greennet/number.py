@@ -434,6 +434,8 @@ class OpusGreenNetCommandNumber(OpusGreenNetEntity, NumberEntity):
         self._attr_native_min_value = command.minimum or 0
         self._attr_native_max_value = command.maximum or 0
         self._attr_native_step = command.step or 1
+        # Experimental (not tested with a real device): disabled by default.
+        self._attr_entity_registry_enabled_default = False
         # The translation key is part of the unique ID: never rename it.
         self._attr_unique_id = f"{eag_id}_{device.device_id}_{command.suffix}"
 

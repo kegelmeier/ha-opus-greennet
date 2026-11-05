@@ -52,7 +52,7 @@ Works with both OPUS gateways, the black **OPUS greenNet gateway** and the newer
 | Heating areas | D1-4B-03, -04, -05, -06, -07 (Moellenhoff 3.0 physical and virtual, Valve, CosiTherm, Electro) | Climate, feed temperature, power, humidity, window open, errors, battery |
 | Temperature and humidity sensors | A5-04-01, -02, -03 | Temperature, humidity |
 | More sensors (read-only) | A5-08-01, A5-30-03, D2-11-01, D2-14-41, D2-14-54, D2-32-00, D2-32-02 | Temperature, humidity, illuminance, motion, contact, leak, digital inputs, current, room panel values; see [docs/devices.md](docs/devices.md) |
-| More heating devices (mostly read-only) | A5-20-06, D2-34-10, D2-35-00 (mode and setpoint can be set), D1-4B-00, -01, -02, -10, -15, -50 (LEDs can be set) | Temperature, setpoint, valve, mode, errors, power; see [docs/devices.md](docs/devices.md) |
+| More heating devices (mostly read-only) | A5-20-06, D2-34-10, D2-35-00 (mode and setpoint, experimental), D1-4B-00, -01, -02, -10, -15, -50 (LEDs, experimental) | Temperature, setpoint, valve, mode, errors, power; see [docs/devices.md](docs/devices.md) |
 | Presence detectors (SMS) | A5-07-01, A5-07-03 | Motion, illuminance (A5-07-03), supply voltage, sensor error; A5-07-03 also shows alive cycle, PIR off time and ReCom readiness cycle as read-only diagnostic values |
 | OPUS motion detector | F6-02-01 + A5-04-01 | Motion, temperature, humidity |
 | Smoke detectors (RWM) | F6-05-02 | Smoke alarm, low battery |

@@ -616,7 +616,8 @@ class CommandSpec:
     step: float | None = None
     unit: str | None = None
     device_class: str | None = None
-    # Configuration entities are disabled for new installations.
+    # Configuration entities are shown in the configuration category. All
+    # command entities are experimental and disabled by default.
     config: bool = False
 
 

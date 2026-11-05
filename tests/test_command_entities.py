@@ -67,6 +67,13 @@ def test_no_firmware_command_is_offered() -> None:
     assert set(COMMANDS) == {"D2-35-00", "D1-4B-50"}
 
 
+def test_command_entities_are_experimental_and_disabled(make_device) -> None:
+    device = make_device("D2-35-00")
+    for entity in (_select(device, MODE), _number(device, SETPOINT)):
+        assert entity.entity_registry_enabled_default is False
+        assert entity.entity_category is None
+
+
 def test_mode_select_shows_the_reported_mode(make_device, make_telegram) -> None:
     device = make_device("D2-35-00")
     entity = _select(device, MODE)
