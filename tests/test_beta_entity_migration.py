@@ -160,5 +160,7 @@ def test_translations_have_matching_keys_and_placeholders():
                 re.findall(r"\{[^}]+\}", translated)
             )
 
-    for filename in ("en.json", "de.json"):
-        compare(source, json.loads((root / "translations" / filename).read_text()))
+    files = sorted((root / "translations").glob("*.json"))
+    assert {path.stem for path in files} >= {"en", "de", "fr", "es", "it", "nl"}
+    for path in files:
+        compare(source, json.loads(path.read_text(encoding="utf-8")))

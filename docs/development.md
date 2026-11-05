@@ -32,7 +32,7 @@ custom_components/opus_greennet/
 ├── select.py             # Selectable settings of D2-01 switches
 ├── services.yaml         # Action definitions
 ├── strings.json          # Translation source
-└── translations/         # en, de
+└── translations/         # en, de, fr, es, it, nl
 tests/
 ├── conftest.py           # Shared fixtures (real HA core, fake gateway)
 ├── fake_gateway.py       # In-process OPUS gateway serving the REST API over HTTP

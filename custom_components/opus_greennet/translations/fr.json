@@ -1,0 +1,961 @@
+{
+  "config": {
+    "flow_title": "{host}",
+    "step": {
+      "user": {
+        "title": "Opus GreenNet Bridge",
+        "description": "Connectez la passerelle OPUS de votre réseau. Home Assistant communique directement avec elle via l'API REST ; aucun broker MQTT n'est nécessaire. Une passerelle trouvée sur le réseau local est renseignée automatiquement.",
+        "data": {
+          "host": "Hôte",
+          "port": "Port",
+          "username": "Nom d'utilisateur",
+          "password": "Mot de passe"
+        },
+        "data_description": {
+          "host": "Adresse IP ou nom d'hôte de la passerelle OPUS sur votre réseau.",
+          "port": "Port de l'API REST de la passerelle : 8080 pour les passerelles antérieures à WebUI 2026. Une passerelle avec WebUI 2026 est reconnue automatiquement et utilise le port 443 (HTTPS).",
+          "username": "Utilisateur API de la passerelle (admin par défaut). Pour une passerelle avec WebUI 2026, saisissez un utilisateur de son interface web (rôle admin ou installateur).",
+          "password": "Mot de passe de l'API. Pour les passerelles antérieures à WebUI 2026, il s'agit par défaut de l'EURID de la passerelle en majuscules, tel qu'imprimé sur la passerelle. Pour une passerelle avec WebUI 2026, saisissez le mot de passe de cet utilisateur ; Home Assistant ne crée jamais d'utilisateur sur la passerelle."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Se connecter à la passerelle {eag_id}",
+        "description": "Saisissez l'adresse et les identifiants API de la passerelle {eag_id}. Les passerelles configurées avec une version antérieure de cette intégration étaient connectées via MQTT ; cette version se connecte directement à la passerelle. Elle n'a pas été trouvée sur le réseau local avec ses identifiants par défaut : saisissez donc une fois son adresse, ou le mot de passe si vous l'avez modifié. Tous les appareils et entités sont conservés.",
+        "data": {
+          "host": "Hôte",
+          "port": "Port",
+          "username": "Nom d'utilisateur",
+          "password": "Mot de passe"
+        },
+        "data_description": {
+          "host": "Adresse IP ou nom d'hôte de la passerelle OPUS sur votre réseau.",
+          "port": "Port de l'API REST de la passerelle : 8080 pour les passerelles antérieures à WebUI 2026. Une passerelle avec WebUI 2026 est reconnue automatiquement et utilise le port 443 (HTTPS).",
+          "username": "Utilisateur API de la passerelle (admin par défaut). Pour une passerelle avec WebUI 2026, saisissez un utilisateur de son interface web (rôle admin ou installateur).",
+          "password": "Mot de passe de l'API. Pour les passerelles antérieures à WebUI 2026, il s'agit par défaut de l'EURID de la passerelle en majuscules, tel qu'imprimé sur la passerelle. Pour une passerelle avec WebUI 2026, saisissez le mot de passe de cet utilisateur ; Home Assistant ne crée jamais d'utilisateur sur la passerelle."
+        }
+      },
+      "reconfigure": {
+        "title": "Modifier la connexion à la passerelle {eag_id}",
+        "description": "Mettez à jour l'adresse ou les identifiants API de la passerelle {eag_id}.",
+        "data": {
+          "host": "Hôte",
+          "port": "Port",
+          "username": "Nom d'utilisateur",
+          "password": "Mot de passe"
+        },
+        "data_description": {
+          "host": "Adresse IP ou nom d'hôte de la passerelle OPUS sur votre réseau.",
+          "port": "Port de l'API REST de la passerelle : 8080 pour les passerelles antérieures à WebUI 2026. Une passerelle avec WebUI 2026 est reconnue automatiquement et utilise le port 443 (HTTPS).",
+          "username": "Utilisateur API de la passerelle (admin par défaut). Pour une passerelle avec WebUI 2026, saisissez un utilisateur de son interface web (rôle admin ou installateur).",
+          "password": "Mot de passe de l'API. Pour les passerelles antérieures à WebUI 2026, il s'agit par défaut de l'EURID de la passerelle en majuscules, tel qu'imprimé sur la passerelle. Pour une passerelle avec WebUI 2026, saisissez le mot de passe de cet utilisateur ; Home Assistant ne crée jamais d'utilisateur sur la passerelle."
+        }
+      },
+      "certificate": {
+        "title": "Confirmer le certificat de la passerelle",
+        "description": "La passerelle {eag_id} présente un autre certificat que celui mémorisé lors de la première connexion. Cela se produit après une réinitialisation d'usine ou un remplacement de la passerelle, mais aussi lorsqu'un autre appareil répond à cette adresse. Rien ne lui a été envoyé. Empreinte (SHA-256) : {fingerprint}. Ne continuez que si vous attendiez ce changement."
+      },
+      "certificate_new": {
+        "title": "Confirmer le certificat de la passerelle",
+        "description": "La passerelle à l'adresse {host} utilise WebUI 2026 et présente un certificat auto-signé que Home Assistant ne peut pas vérifier. Il sera mémorisé et les connexions suivantes n'accepteront que ce certificat. Rien n'a encore été envoyé à la passerelle. Empreinte (SHA-256) : {fingerprint}. Ne continuez que s'il s'agit de votre passerelle ; comparez si possible l'empreinte avec celle de l'interface web de la passerelle."
+      }
+    },
+    "error": {
+      "cannot_connect": "Échec de la connexion à la passerelle. Vérifiez l'hôte et le port.",
+      "invalid_host": "Saisissez uniquement l'adresse IP ou le nom d'hôte de la passerelle, sans http://, port ni chemin.",
+      "host_not_local": "Saisissez une adresse de votre réseau local (privée, link-local, VPN ou le réseau où se trouve Home Assistant). La passerelle ne parle qu'en HTTP non chiffré, les adresses publiques ne sont donc pas prises en charge. Si un nom d'hôte échoue, saisissez l'adresse IPv4 de la passerelle.",
+      "invalid_auth": "La passerelle a refusé le nom d'utilisateur ou le mot de passe.",
+      "unsupported_gateway": "L'appareil à cette adresse n'a pas répondu comme une passerelle OPUS.",
+      "wrong_gateway": "Cette adresse appartient à une autre passerelle que {eag_id}.",
+      "unknown": "Erreur inattendue"
+    },
+    "abort": {
+      "already_configured": "Cette passerelle est déjà configurée. Ses paramètres de connexion ont été mis à jour.",
+      "reauth_successful": "La connexion à la passerelle a été mise à jour.",
+      "reconfigure_successful": "La connexion à la passerelle a été mise à jour.",
+      "not_ipv4_address": "Seules les passerelles avec une adresse IPv4 sont prises en charge.",
+      "not_local_address": "L'adresse annoncée n'est pas dans le réseau local et est ignorée."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Accès en écriture aux réglages des appareils",
+        "description": "**Attention : ces réglages sont écrits directement dans l'actionneur.**\n\nDes valeurs incorrectes peuvent :\n\n- provoquer des dysfonctionnements ou la panne de l'appareil\n- endommager l'actionneur ou les appareils raccordés\n\nN'activez l'accès en écriture que si vous comprenez les effets des modifications.",
+        "data": {
+          "allow_setting_writes": "Je comprends les risques et je souhaite activer l'accès en écriture."
+        },
+        "data_description": {
+          "allow_setting_writes": "S'applique à tous les appareils de cette passerelle. La lecture des réglages n'est pas concernée."
+        }
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "contact": {
+        "name": "Contact"
+      },
+      "actuator_battery": {
+        "name": "Batterie de l'actionneur"
+      },
+      "actuator_deactivated": {
+        "name": "Actionneur désactivé"
+      },
+      "actuator_not_responding": {
+        "name": "Actionneur ne répond pas"
+      },
+      "circuit_in_use": {
+        "name": "Circuit en cours d'utilisation"
+      },
+      "missing_temperature": {
+        "name": "Température manquante"
+      },
+      "water_leak": {
+        "name": "Fuite d'eau"
+      },
+      "window": {
+        "name": "Fenêtre"
+      },
+      "smoke_alarm": {
+        "name": "Alarme fumée"
+      },
+      "battery_low": {
+        "name": "Batterie faible"
+      },
+      "motion": {
+        "name": "Mouvement"
+      },
+      "handle_open": {
+        "name": "Poignée ouverte"
+      },
+      "handle_tilt": {
+        "name": "Poignée en oscillo-battant"
+      },
+      "handle_closed": {
+        "name": "Poignée fermée"
+      },
+      "mechanics_fault": {
+        "name": "Défaut mécanique"
+      },
+      "local_control": {
+        "name": "Commande locale"
+      },
+      "sensor_error": {
+        "name": "Erreur du capteur"
+      },
+      "lock_bolt": {
+        "name": "Pêne"
+      },
+      "rcu_communication_error": {
+        "name": "Communication du régulateur d'ambiance"
+      },
+      "heat_circuits_error": {
+        "name": "Circuits de chauffage"
+      },
+      "rcu_battery": {
+        "name": "Batterie du régulateur d'ambiance"
+      },
+      "rcu_malfunction": {
+        "name": "Défaut du régulateur d'ambiance"
+      },
+      "actuator_obstructed": {
+        "name": "Actionneur bloqué"
+      },
+      "circuit_mismatch": {
+        "name": "Écart du circuit de chauffage"
+      },
+      "data_mismatch": {
+        "name": "Écart de données"
+      },
+      "digital_input_0": {
+        "name": "Entrée numérique 0"
+      },
+      "digital_input_1": {
+        "name": "Entrée numérique 1"
+      },
+      "digital_input_2": {
+        "name": "Entrée numérique 2"
+      },
+      "digital_input_3": {
+        "name": "Entrée numérique 3"
+      },
+      "energy_input": {
+        "name": "Récupération d'énergie"
+      },
+      "energy_storage_charged": {
+        "name": "Accumulateur d'énergie chargé"
+      },
+      "mh_not_found": {
+        "name": "Möhlenhoff introuvable"
+      },
+      "missing_data": {
+        "name": "Données manquantes"
+      },
+      "occupancy": {
+        "name": "Présence"
+      },
+      "occupancy_button": {
+        "name": "Bouton de présence"
+      },
+      "past_leak_detection": {
+        "name": "Fuite détectée au cours des 14 derniers jours"
+      },
+      "power_failure": {
+        "name": "Coupure de courant"
+      },
+      "radio_error": {
+        "name": "Erreur radio"
+      },
+      "radio_signal_weak": {
+        "name": "Signal radio faible"
+      },
+      "wake_signal": {
+        "name": "Signal de réveil"
+      }
+    },
+    "cover": {
+      "channel": {
+        "name": "Canal {channel}"
+      }
+    },
+    "light": {
+      "channel": {
+        "name": "Canal {channel}"
+      }
+    },
+    "sensor": {
+      "feed_temperature": {
+        "name": "Température de départ"
+      },
+      "temperature": {
+        "name": "Température"
+      },
+      "humidity": {
+        "name": "Humidité"
+      },
+      "power_consumption": {
+        "name": "Consommation électrique"
+      },
+      "signal_strength": {
+        "name": "Force du signal"
+      },
+      "last_seen": {
+        "name": "Dernière activité"
+      },
+      "settings_read": {
+        "name": "Réglages lus"
+      },
+      "wall_switch_links": {
+        "name": "Liaisons des interrupteurs muraux"
+      },
+      "illuminance": {
+        "name": "Éclairement"
+      },
+      "supply_voltage": {
+        "name": "Tension d'alimentation"
+      },
+      "battery_level": {
+        "name": "Niveau de batterie"
+      },
+      "handle_state": {
+        "name": "Position de la poignée",
+        "state": {
+          "open": "Ouverte",
+          "closed": "Fermée",
+          "tilted": "Oscillo-battante"
+        }
+      },
+      "unlock_request": {
+        "name": "Demande de déverrouillage",
+        "state": {
+          "requested": "Demandée",
+          "not_requested": "Non demandée"
+        }
+      },
+      "last_run_time": {
+        "name": "Dernière durée de course"
+      },
+      "gateway_uptime": {
+        "name": "Durée de fonctionnement"
+      },
+      "gateway_eurid": {
+        "name": "EURID"
+      },
+      "gateway_firmware_version": {
+        "name": "Version du firmware"
+      },
+      "gateway_app_version": {
+        "name": "Version de l'application"
+      },
+      "gateway_api_version": {
+        "name": "Version de l'API"
+      },
+      "gateway_hostname": {
+        "name": "Nom d'hôte"
+      },
+      "gateway_ipv4_address": {
+        "name": "Adresse IPv4"
+      },
+      "gateway_ipv6_address": {
+        "name": "Adresse IPv6"
+      },
+      "vertical_movement_time_setting": {
+        "name": "Durée de course verticale (enregistrée)"
+      },
+      "rotation_time_setting": {
+        "name": "Durée de rotation (enregistrée)"
+      },
+      "max_holding_time_setting": {
+        "name": "Durée de maintien maximale (enregistrée)"
+      },
+      "ramping_time_setting": {
+        "name": "Durée de rampe (enregistrée)"
+      },
+      "short_press_time_setting": {
+        "name": "Durée d'appui court (enregistrée)"
+      },
+      "long_press_time_setting": {
+        "name": "Durée d'appui long (enregistrée)"
+      },
+      "timer_setting": {
+        "name": "Durée de la minuterie (enregistrée)"
+      },
+      "timer_long_setting": {
+        "name": "Durée de la minuterie (appui long) (enregistrée)"
+      },
+      "switch_off_warning_setting": {
+        "name": "Avertissement d'extinction (enregistré)"
+      },
+      "switch_off_warning_signal_setting": {
+        "name": "Durée du signal d'avertissement (enregistrée)"
+      },
+      "illumination_threshold_setting": {
+        "name": "Seuil de luminosité (enregistré)"
+      },
+      "alive_cycle_setting": {
+        "name": "Cycle Alive (enregistré)"
+      },
+      "pir_off_time_setting": {
+        "name": "Temps d'arrêt PIR (enregistré)"
+      },
+      "recom_ready_time_setting": {
+        "name": "Cycle de disponibilité ReCom (enregistré)"
+      },
+      "operation_mode_setting": {
+        "name": "Mode de fonctionnement (enregistré)",
+        "state": {
+          "bottom_on": "ON en bas",
+          "timer": "Minuterie",
+          "toggle": "Basculer",
+          "top_on": "ON en haut"
+        }
+      },
+      "led_color_setting": {
+        "name": "Couleur des LED (enregistrée)",
+        "state": {
+          "all": "Toutes les LED allumées",
+          "green": "LED verte allumée",
+          "off": "Les deux LED éteintes",
+          "red": "LED rouge allumée"
+        }
+      },
+      "led_channel_setting": {
+        "name": "Canal des LED (enregistré)",
+        "state": {
+          "channel1": "Canal 1",
+          "channel2": "Canal 2"
+        }
+      },
+      "function_external_input_setting": {
+        "name": "Fonction de l'entrée externe (enregistrée)",
+        "state": {
+          "channel1": "Canal 1",
+          "channel2": "Canal 2",
+          "channels_all": "Canaux 1 + 2",
+          "inactive": "Inactive"
+        }
+      },
+      "repeater_setting": {
+        "name": "Mode répéteur (enregistré)",
+        "state": {
+          "off": "Désactivé (par défaut)",
+          "level_1": "Niveau 1 (saut simple / 1 saut)",
+          "level_2": "Niveau 2 (saut double / 2 sauts)"
+        }
+      },
+      "routing_setting": {
+        "name": "Routeur ViNET (enregistré)",
+        "state": {
+          "off": "Désactivé",
+          "on": "Activé"
+        }
+      },
+      "signal_quality": {
+        "name": "Qualité du signal",
+        "state": {
+          "good": "Bonne",
+          "sufficient": "Suffisante",
+          "poor": "Mauvaise"
+        }
+      },
+      "device_id": {
+        "name": "ID de l'appareil"
+      },
+      "valve_position": {
+        "name": "Position de la vanne"
+      },
+      "acceleration_status": {
+        "name": "État de l'accélération",
+        "state": {
+          "heartbeat": "Signal de vie",
+          "threshold1": "Seuil 1 dépassé",
+          "threshold2": "Seuil 2 dépassé"
+        }
+      },
+      "acceleration_x": {
+        "name": "Accélération X"
+      },
+      "acceleration_y": {
+        "name": "Accélération Y"
+      },
+      "acceleration_z": {
+        "name": "Accélération Z"
+      },
+      "actuator_mode": {
+        "name": "Mode de l'actionneur",
+        "state": {
+          "managed": "Piloté par l'application",
+          "off": "Désactivé",
+          "on": "Activé",
+          "error": "Erreur"
+        }
+      },
+      "base_setpoint": {
+        "name": "Consigne de base"
+      },
+      "channel_count": {
+        "name": "Nombre de canaux"
+      },
+      "current_1": {
+        "name": "Courant canal 1"
+      },
+      "current_2": {
+        "name": "Courant canal 2"
+      },
+      "current_3": {
+        "name": "Courant canal 3"
+      },
+      "device_type": {
+        "name": "Type d'appareil"
+      },
+      "fan_speed": {
+        "name": "Vitesse du ventilateur",
+        "state": {
+          "auto": "Automatique",
+          "speed0": "Vitesse 0",
+          "speed1": "Vitesse 1",
+          "speed2": "Vitesse 2",
+          "speed3": "Vitesse 3"
+        }
+      },
+      "hardware_version": {
+        "name": "Version matérielle"
+      },
+      "heater_mode": {
+        "name": "Mode chauffage",
+        "state": {
+          "heating": "Chauffage",
+          "cooling": "Refroidissement"
+        }
+      },
+      "ip_address": {
+        "name": "Adresse IP"
+      },
+      "led_status": {
+        "name": "État des LED",
+        "state": {
+          "disabled": "Désactivé",
+          "enabled": "Activé"
+        }
+      },
+      "load": {
+        "name": "Charge"
+      },
+      "manufacturer": {
+        "name": "Fabricant"
+      },
+      "network_version": {
+        "name": "Version du réseau"
+      },
+      "outdoor_temperature": {
+        "name": "Température extérieure"
+      },
+      "power": {
+        "name": "Puissance"
+      },
+      "serial": {
+        "name": "Numéro de série"
+      },
+      "setpoint_shift": {
+        "name": "Décalage de consigne"
+      },
+      "setpoint_type": {
+        "name": "Type de consigne",
+        "state": {
+          "absolute": "Absolue",
+          "relative": "Relative"
+        }
+      },
+      "software_version": {
+        "name": "Version logicielle"
+      },
+      "system_error": {
+        "name": "Erreur système",
+        "state": {
+          "general_error": "Erreur générale",
+          "heat_circuit_error": "Erreur du circuit de chauffage",
+          "no_error": "Aucune erreur"
+        }
+      },
+      "temperature_setpoint": {
+        "name": "Consigne"
+      },
+      "total_current": {
+        "name": "Courant total"
+      },
+      "total_power": {
+        "name": "Puissance totale"
+      },
+      "uptime": {
+        "name": "Durée de fonctionnement"
+      },
+      "version": {
+        "name": "Version"
+      },
+      "gateway_receive_counter": {
+        "name": "Télégrammes reçus"
+      },
+      "gateway_average_dbm": {
+        "name": "Force moyenne du signal"
+      },
+      "channel_temperature": {
+        "name": "Température canal {channel}"
+      },
+      "channel_temperature_setpoint": {
+        "name": "Consigne canal {channel}"
+      },
+      "channel_circuit_state": {
+        "name": "Circuit de chauffage canal {channel}",
+        "state": {
+          "off": "Désactivé",
+          "on": "Activé"
+        }
+      },
+      "channel_operation_mode": {
+        "name": "Mode canal {channel}",
+        "state": {
+          "emergency": "Urgence",
+          "off": "Désactivé",
+          "on": "Activé"
+        }
+      },
+      "ramping_time_1_setting": {
+        "name": "Durée de rampe 1 (manuelle) (enregistrée)"
+      },
+      "ramping_time_2_setting": {
+        "name": "Durée de rampe 2 (enregistrée)"
+      },
+      "ramping_time_3_setting": {
+        "name": "Durée de rampe 3 (enregistrée)"
+      },
+      "ramping_time_switch_setting": {
+        "name": "Durée de rampe pour la commutation (enregistrée)"
+      },
+      "lower_limit_setting": {
+        "name": "Limite de variation inférieure (enregistrée)"
+      },
+      "upper_limit_setting": {
+        "name": "Limite de variation supérieure (enregistrée)"
+      },
+      "dimmer_mode_setting": {
+        "name": "Principe de variation (enregistré)",
+        "state": {
+          "phase_control_lower": "Coupure de phase (trailing edge)",
+          "phase_control_upper": "Contrôle de phase (leading edge)"
+        }
+      }
+    },
+    "switch": {
+      "channel": {
+        "name": "Canal {channel}"
+      },
+      "blockage": {
+        "name": "Blocage"
+      }
+    },
+    "lock": {
+      "autolock": {
+        "name": "AutoLock"
+      }
+    },
+    "button": {
+      "reference_run_up": {
+        "name": "Course de référence par le haut"
+      },
+      "reference_run_down": {
+        "name": "Course de référence par le bas"
+      },
+      "read_settings": {
+        "name": "Lire les réglages"
+      }
+    },
+    "event": {
+      "buttons": {
+        "name": "Boutons"
+      }
+    },
+    "number": {
+      "vertical_movement_time": {
+        "name": "Durée de course verticale"
+      },
+      "rotation_time": {
+        "name": "Durée de rotation"
+      },
+      "max_holding_time": {
+        "name": "Durée de maintien maximale"
+      },
+      "ramping_time": {
+        "name": "Durée de rampe"
+      },
+      "short_press_time": {
+        "name": "Durée d'appui court"
+      },
+      "long_press_time": {
+        "name": "Durée d'appui long"
+      },
+      "timer": {
+        "name": "Durée de la minuterie"
+      },
+      "timer_long": {
+        "name": "Durée de la minuterie (appui long)"
+      },
+      "switch_off_warning": {
+        "name": "Avertissement d'extinction"
+      },
+      "switch_off_warning_signal": {
+        "name": "Durée du signal d'avertissement"
+      },
+      "illumination_threshold": {
+        "name": "Seuil de luminosité"
+      },
+      "temperature_setpoint_command": {
+        "name": "Température cible"
+      },
+      "ramping_time_1": {
+        "name": "Durée de rampe 1 (manuelle)"
+      },
+      "ramping_time_2": {
+        "name": "Durée de rampe 2"
+      },
+      "ramping_time_3": {
+        "name": "Durée de rampe 3"
+      },
+      "ramping_time_switch": {
+        "name": "Durée de rampe pour la commutation"
+      },
+      "lower_limit": {
+        "name": "Limite de variation inférieure"
+      },
+      "upper_limit": {
+        "name": "Limite de variation supérieure"
+      }
+    },
+    "select": {
+      "operation_mode": {
+        "name": "Mode de fonctionnement",
+        "state": {
+          "bottom_on": "ON en bas",
+          "timer": "Minuterie",
+          "toggle": "Basculer",
+          "top_on": "ON en haut"
+        }
+      },
+      "led_color": {
+        "name": "Couleur des LED",
+        "state": {
+          "all": "Toutes les LED allumées",
+          "green": "LED verte allumée",
+          "off": "Les deux LED éteintes",
+          "red": "LED rouge allumée"
+        }
+      },
+      "led_channel": {
+        "name": "Canal des LED",
+        "state": {
+          "channel1": "Canal 1",
+          "channel2": "Canal 2"
+        }
+      },
+      "function_external_input": {
+        "name": "Fonction de l'entrée externe",
+        "state": {
+          "channel1": "Canal 1",
+          "channel2": "Canal 2",
+          "channels_all": "Canaux 1 + 2",
+          "inactive": "Inactive"
+        }
+      },
+      "repeater": {
+        "name": "Mode répéteur",
+        "state": {
+          "off": "Désactivé (par défaut)",
+          "level_1": "Niveau 1 (saut simple / 1 saut)",
+          "level_2": "Niveau 2 (saut double / 2 sauts)"
+        }
+      },
+      "routing": {
+        "name": "Routeur ViNET",
+        "state": {
+          "off": "Désactivé",
+          "on": "Activé"
+        }
+      },
+      "actuator_mode_command": {
+        "name": "Mode",
+        "state": {
+          "managed": "Piloté",
+          "off": "Désactivé",
+          "on": "Activé"
+        }
+      },
+      "led_status_command": {
+        "name": "LED",
+        "state": {
+          "enabled": "Activé",
+          "disabled": "Désactivé"
+        }
+      },
+      "dimmer_mode": {
+        "name": "Principe de variation",
+        "state": {
+          "phase_control_lower": "Coupure de phase (trailing edge)",
+          "phase_control_upper": "Contrôle de phase (leading edge)"
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "config_entry_not_found": {
+      "message": "Aucune entrée de configuration Opus GreenNet n'existe avec l'ID {config_entry_id}."
+    },
+    "config_entry_not_loaded": {
+      "message": "L'entrée de configuration Opus GreenNet {config_entry_id} n'est pas chargée."
+    },
+    "config_entry_required": {
+      "message": "Sélectionnez une passerelle, car plusieurs entrées de configuration Opus GreenNet sont chargées."
+    },
+    "device_not_found": {
+      "message": "L'appareil {device_id} n'a pas été découvert sur la passerelle sélectionnée."
+    },
+    "gateway_address_required": {
+      "message": "Cette version se connecte directement à la passerelle OPUS au lieu de passer par MQTT. Saisissez l'adresse de la passerelle pour continuer."
+    },
+    "gateway_unavailable": {
+      "message": "La passerelle OPUS est inaccessible. Vérifiez sa connexion réseau et réessayez."
+    },
+    "invalid_configuration": {
+      "message": "La configuration de {device_id} n'a pas été envoyée à la passerelle : {reason}."
+    },
+    "invalid_auth": {
+      "message": "La passerelle OPUS a refusé les identifiants configurés."
+    },
+    "no_loaded_config_entry": {
+      "message": "Aucune passerelle Opus GreenNet n'est chargée."
+    },
+    "request_cancelled": {
+      "message": "La requête a été annulée, car l'intégration est en cours de déchargement, l'appareil a été supprimé ou la passerelle est devenue inaccessible."
+    },
+    "request_rejected": {
+      "message": "La passerelle a rejeté la requête pour {device_id} : {reason}"
+    },
+    "request_timeout": {
+      "message": "La passerelle n'a pas accusé réception de la requête pour {device_id}. Son résultat est inconnu ; vérifiez l'appareil avant de réessayer."
+    },
+    "wrong_gateway": {
+      "message": "L'adresse configurée répond comme une autre passerelle OPUS."
+    },
+    "repositioning_not_supported": {
+      "message": "L'appareil {device_id} n'est pas un store avec ce canal et ce mode de positionnement."
+    },
+    "parameter_not_confirmed": {
+      "message": "{device_id} n'a pas confirmé la nouvelle valeur de {reason}. Home Assistant a conservé la valeur précédente ; lisez la configuration de l'appareil avant de réessayer."
+    },
+    "parameter_differs": {
+      "message": "{device_id} a enregistré pour {reason} une valeur différente de celle demandée. Home Assistant affiche maintenant la valeur enregistrée sur l'appareil."
+    },
+    "setting_conflict_holding_time_shorter_than_travel_time": {
+      "message": "{device_id} : non écrit. La durée de maintien maximale serait inférieure à la durée de course verticale. Modifiez d'abord l'autre réglage, ou appuyez sur Lire les réglages si une valeur affichée est obsolète."
+    },
+    "setting_conflict_travel_time_shorter_than_rotation_time": {
+      "message": "{device_id} : non écrit. La durée de course verticale serait inférieure à la durée de rotation. Modifiez d'abord l'autre réglage, ou appuyez sur Lire les réglages si une valeur affichée est obsolète."
+    },
+    "setting_conflict_cleaning_time_shorter_than_run_on_time": {
+      "message": "{device_id} : non écrit. La durée de la minuterie (appui long) serait inférieure à la durée de la minuterie. Modifiez d'abord l'autre réglage, ou appuyez sur Lire les réglages si une valeur affichée est obsolète."
+    },
+    "setting_conflict_switch_off_warning_longer_than_run_on_time": {
+      "message": "{device_id} : non écrit. L'avertissement d'extinction serait plus long que la durée de la minuterie. Modifiez d'abord l'autre réglage, ou appuyez sur Lire les réglages si une valeur affichée est obsolète."
+    },
+    "invalid_parameter_value": {
+      "message": "La valeur n'est pas un nombre valide."
+    },
+    "parameter_write_failed": {
+      "message": "La passerelle n'a pas pu écrire la nouvelle valeur sur {device_id} ({reason}). Home Assistant a conservé la valeur précédente. L'appareil ne l'a probablement pas reçue ; lisez la configuration de l'appareil avant de réessayer."
+    },
+    "parameter_read_back_failed": {
+      "message": "La passerelle a accepté la nouvelle valeur pour {device_id}, mais sa relecture a échoué ({reason}). La valeur est peut-être enregistrée ; Home Assistant a conservé la précédente. Lisez la configuration de l'appareil avant de réessayer."
+    },
+    "webui_2026_login_required": {
+      "message": "La passerelle OPUS exige désormais la connexion de la nouvelle génération de passerelles (WebUI 2026). Saisissez l'utilisateur et le mot de passe de son interface web pour continuer ; tous les appareils et entités sont conservés."
+    },
+    "hvac_mode_read_only": {
+      "message": "Cette zone de chauffage signale le chauffage ou le refroidissement, mais ne peut pas être commutée depuis Home Assistant."
+    },
+    "write_access_disabled": {
+      "message": "{device_id} : non écrit. L'accès en écriture aux réglages des appareils n'est pas activé. Activez-le sous Paramètres → Appareils et services → Opus GreenNet → Configurer."
+    },
+    "setting_conflict_upper_limit_below_lower_limit": {
+      "message": "{device_id} : non écrit. La limite de variation supérieure serait inférieure à la limite de variation inférieure. Modifiez d'abord l'autre réglage, ou appuyez sur Lire les réglages si une valeur affichée est obsolète."
+    },
+    "setting_not_reported": {
+      "message": "L'appareil {device_id} n'a pas le réglage {key} ; rien n'a été écrit."
+    }
+  },
+  "services": {
+    "get_device_configuration": {
+      "description": "Récupère la configuration enregistrée d'un appareil EnOcean via l'API ReCom.",
+      "fields": {
+        "config_entry_id": {
+          "description": "Passerelle à utiliser. À sélectionner lorsque plusieurs passerelles sont chargées.",
+          "name": "Passerelle"
+        },
+        "device_id": {
+          "description": "EURID de l'appareil EnOcean.",
+          "name": "ID de l'appareil"
+        }
+      },
+      "name": "Récupérer la configuration de l'appareil"
+    },
+    "get_device_link_tables": {
+      "description": "Lit les tables de liaison enregistrées sur un appareil EnOcean via l'API ReCom : les interrupteurs muraux qu'il écoute et les appareils auxquels il envoie ses rapports. Lecture seule. L'adresse propre de la passerelle est affichée comme « gateway ».",
+      "fields": {
+        "config_entry_id": {
+          "description": "Passerelle à utiliser. À sélectionner lorsque plusieurs passerelles sont chargées.",
+          "name": "Passerelle"
+        },
+        "device_id": {
+          "description": "EURID de l'appareil EnOcean.",
+          "name": "ID de l'appareil"
+        }
+      },
+      "name": "Récupérer les tables de liaison d'un appareil"
+    },
+    "get_device_parameters": {
+      "description": "Récupère les paramètres DDF d'un appareil EnOcean via l'API ReCom.",
+      "fields": {
+        "config_entry_id": {
+          "description": "Passerelle à utiliser. À sélectionner lorsque plusieurs passerelles sont chargées.",
+          "name": "Passerelle"
+        },
+        "device_id": {
+          "description": "EURID de l'appareil EnOcean.",
+          "name": "ID de l'appareil"
+        }
+      },
+      "name": "Récupérer les paramètres de l'appareil"
+    },
+    "reload_entry": {
+      "description": "Recharge une passerelle ou, si aucune n'est sélectionnée, toutes les passerelles Opus GreenNet chargées.",
+      "fields": {
+        "config_entry_id": {
+          "description": "Passerelle à recharger. Laissez vide pour recharger toutes les passerelles.",
+          "name": "Passerelle"
+        }
+      },
+      "name": "Recharger l'intégration"
+    },
+    "set_device_configuration": {
+      "description": "Écrit une configuration sur un appareil EnOcean via l'API ReCom.",
+      "fields": {
+        "config_entry_id": {
+          "description": "Passerelle à utiliser. À sélectionner lorsque plusieurs passerelles sont chargées.",
+          "name": "Passerelle"
+        },
+        "configuration": {
+          "description": "Objet de configuration à écrire sur l'appareil.",
+          "name": "Configuration"
+        },
+        "device_id": {
+          "description": "EURID de l'appareil EnOcean.",
+          "name": "ID de l'appareil"
+        }
+      },
+      "name": "Définir la configuration de l'appareil"
+    },
+    "set_cover_position": {
+      "name": "Définir la position du store",
+      "description": "Amène un store D2-05 à une position, éventuellement après une course de référence vers une position finale qui recalibre le suivi de position.",
+      "fields": {
+        "device_id": {
+          "name": "ID de l'appareil",
+          "description": "EURID du store."
+        },
+        "position": {
+          "name": "Position",
+          "description": "Position cible en pourcentage, 100 est ouvert et 0 est fermé (échelle de Home Assistant)."
+        },
+        "repositioning": {
+          "name": "Course de référence",
+          "description": "Aller d'abord à une position finale. Direct se déplace sans course de référence."
+        },
+        "channel": {
+          "name": "Canal",
+          "description": "Canal de sortie de l'actionneur de store."
+        },
+        "config_entry_id": {
+          "name": "Passerelle",
+          "description": "Passerelle à utiliser. À sélectionner lorsque plusieurs passerelles sont chargées."
+        }
+      }
+    }
+  },
+  "issues": {
+    "non_local_gateway_address": {
+      "title": "L'adresse de la passerelle n'est pas dans le réseau local",
+      "description": "L'adresse de cette passerelle se trouve en dehors du réseau local. La passerelle ne parle qu'en HTTP non chiffré, de sorte que sa connexion peut être interceptée en chemin. L'intégration continue de fonctionner, mais la ré-authentification et la reconfiguration n'acceptent plus qu'une adresse locale.\n\nOuvrez l'intégration Opus GreenNet Bridge, choisissez Reconfigurer dans son menu et saisissez l'adresse de la passerelle dans votre réseau local, ou joignez la passerelle via un VPN. L'avis disparaît lorsque l'intégration est rechargée avec une adresse locale."
+    },
+    "duplicate_beta_entity": {
+      "title": "L'entité en double {removed_entity_id} a été supprimée",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Mettre à jour les références à {removed_entity_id}",
+            "description": "Lors de la reprise des ID uniques en amont (upstream), l'intégration a trouvé deux entrées du registre pour le même appareil et la même passerelle. Elle a conservé votre entité existante {preserved_entity_id} avec son ID d'entité, son nom et ses réglages, et a supprimé l'entité en double {removed_entity_id}.\n\nLes automatisations, scripts, scènes et tableaux de bord qui utilisent encore {removed_entity_id} ne fonctionnent plus. Remplacez cet ID d'entité par {preserved_entity_id}, puis sélectionnez Valider pour fermer ce message. Rien n'est envoyé à la passerelle ni à l'appareil."
+          }
+        }
+      }
+    },
+    "write_access_off": {
+      "title": "L'accès en écriture aux réglages des appareils n'est pas activé",
+      "description": "Une entité qui modifie un réglage de {name} est activée, mais pas l'accès en écriture. Les modifications sont refusées tant que vous n'activez pas l'accès en écriture : ouvrez Paramètres → Appareils et services → Opus GreenNet, choisissez Configurer et confirmez l'avertissement.\n\nL'accès en écriture permet d'écrire la configuration de l'appareil directement dans l'actionneur. Des réglages incorrects peuvent provoquer des dysfonctionnements, la panne de l'appareil ou des dommages aux appareils raccordés. L'avis disparaît lorsque l'accès en écriture est activé ou que l'entité est de nouveau désactivée."
+    }
+  },
+  "selector": {
+    "repositioning": {
+      "options": {
+        "direct": "Direct",
+        "first_up": "D'abord vers le haut (position finale haute)",
+        "first_down": "D'abord vers le bas (position finale basse)"
+      }
+    }
+  }
+}

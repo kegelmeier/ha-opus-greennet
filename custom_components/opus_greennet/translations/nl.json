@@ -1,0 +1,961 @@
+{
+  "config": {
+    "flow_title": "{host}",
+    "step": {
+      "user": {
+        "title": "Opus GreenNet Bridge",
+        "description": "Verbind de OPUS-gateway in je netwerk. Home Assistant praat er rechtstreeks mee via de REST-API; een MQTT-broker is niet nodig. Een gateway die in het lokale netwerk wordt gevonden, wordt automatisch ingevuld.",
+        "data": {
+          "host": "Host",
+          "port": "Poort",
+          "username": "Gebruikersnaam",
+          "password": "Wachtwoord"
+        },
+        "data_description": {
+          "host": "IP-adres of hostnaam van de OPUS-gateway in je netwerk.",
+          "port": "Poort van de REST-API van de gateway: 8080 voor gateways van vóór WebUI 2026. Een gateway met WebUI 2026 wordt automatisch herkend en gebruikt poort 443 (HTTPS).",
+          "username": "API-gebruiker van de gateway (standaard admin). Voer voor een gateway met WebUI 2026 een gebruiker van de webinterface in (rol admin of installateur).",
+          "password": "API-wachtwoord. Voor gateways van vóór WebUI 2026 is dit standaard de EURID van de gateway in hoofdletters, zoals op de gateway staat gedrukt. Voer voor een gateway met WebUI 2026 het wachtwoord van die gebruiker in; Home Assistant maakt nooit gebruikers aan op de gateway."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Verbinden met gateway {eag_id}",
+        "description": "Voer het adres en de API-inloggegevens van gateway {eag_id} in. Gateways die met een eerdere versie van deze integratie zijn ingesteld, waren via MQTT verbonden; deze versie verbindt rechtstreeks met de gateway. De gateway is met de standaardinloggegevens niet in het lokale netwerk gevonden. Voer daarom eenmalig het adres in, of het wachtwoord als je dat hebt gewijzigd. Alle apparaten en entiteiten blijven behouden.",
+        "data": {
+          "host": "Host",
+          "port": "Poort",
+          "username": "Gebruikersnaam",
+          "password": "Wachtwoord"
+        },
+        "data_description": {
+          "host": "IP-adres of hostnaam van de OPUS-gateway in je netwerk.",
+          "port": "Poort van de REST-API van de gateway: 8080 voor gateways van vóór WebUI 2026. Een gateway met WebUI 2026 wordt automatisch herkend en gebruikt poort 443 (HTTPS).",
+          "username": "API-gebruiker van de gateway (standaard admin). Voer voor een gateway met WebUI 2026 een gebruiker van de webinterface in (rol admin of installateur).",
+          "password": "API-wachtwoord. Voor gateways van vóór WebUI 2026 is dit standaard de EURID van de gateway in hoofdletters, zoals op de gateway staat gedrukt. Voer voor een gateway met WebUI 2026 het wachtwoord van die gebruiker in; Home Assistant maakt nooit gebruikers aan op de gateway."
+        }
+      },
+      "reconfigure": {
+        "title": "Verbinding met gateway {eag_id} wijzigen",
+        "description": "Werk het adres of de API-inloggegevens van gateway {eag_id} bij.",
+        "data": {
+          "host": "Host",
+          "port": "Poort",
+          "username": "Gebruikersnaam",
+          "password": "Wachtwoord"
+        },
+        "data_description": {
+          "host": "IP-adres of hostnaam van de OPUS-gateway in je netwerk.",
+          "port": "Poort van de REST-API van de gateway: 8080 voor gateways van vóór WebUI 2026. Een gateway met WebUI 2026 wordt automatisch herkend en gebruikt poort 443 (HTTPS).",
+          "username": "API-gebruiker van de gateway (standaard admin). Voer voor een gateway met WebUI 2026 een gebruiker van de webinterface in (rol admin of installateur).",
+          "password": "API-wachtwoord. Voor gateways van vóór WebUI 2026 is dit standaard de EURID van de gateway in hoofdletters, zoals op de gateway staat gedrukt. Voer voor een gateway met WebUI 2026 het wachtwoord van die gebruiker in; Home Assistant maakt nooit gebruikers aan op de gateway."
+        }
+      },
+      "certificate": {
+        "title": "Gatewaycertificaat bevestigen",
+        "description": "Gateway {eag_id} toont een ander certificaat dan het certificaat dat bij de eerste verbinding is onthouden. Dit gebeurt na een fabrieksreset of wanneer de gateway is vervangen, maar ook wanneer een ander apparaat op dit adres antwoordt. Er is niets naar verzonden. Vingerafdruk (SHA-256): {fingerprint}. Ga alleen verder als je deze wijziging verwacht."
+      },
+      "certificate_new": {
+        "title": "Gatewaycertificaat bevestigen",
+        "description": "De gateway op {host} gebruikt WebUI 2026 en toont een zelfondertekend certificaat dat Home Assistant niet kan controleren. Het wordt onthouden en latere verbindingen accepteren alleen dit certificaat. Er is nog niets naar de gateway verzonden. Vingerafdruk (SHA-256): {fingerprint}. Ga alleen verder als dit jouw gateway is; vergelijk de vingerafdruk indien mogelijk met die in de webinterface van de gateway."
+      }
+    },
+    "error": {
+      "cannot_connect": "Verbinding met de gateway mislukt. Controleer de host en de poort.",
+      "invalid_host": "Voer alleen het IP-adres of de hostnaam van de gateway in, zonder http://, poort of pad.",
+      "host_not_local": "Voer een adres in je lokale netwerk in (privé, link-local, VPN of het netwerk waarin Home Assistant zich bevindt). De gateway spreekt alleen onversleuteld HTTP, dus openbare adressen worden niet ondersteund. Als een hostnaam niet werkt, voer dan het IPv4-adres van de gateway in.",
+      "invalid_auth": "De gateway heeft de gebruikersnaam of het wachtwoord geweigerd.",
+      "unsupported_gateway": "Het apparaat op dit adres antwoordde niet als een OPUS-gateway.",
+      "wrong_gateway": "Dit adres hoort bij een andere gateway dan {eag_id}.",
+      "unknown": "Onverwachte fout"
+    },
+    "abort": {
+      "already_configured": "Deze gateway is al ingesteld. De verbindingsinstellingen zijn bijgewerkt.",
+      "reauth_successful": "De verbinding met de gateway is bijgewerkt.",
+      "reconfigure_successful": "De verbinding met de gateway is bijgewerkt.",
+      "not_ipv4_address": "Alleen gateways met een IPv4-adres worden ondersteund.",
+      "not_local_address": "Het aangekondigde adres staat niet in het lokale netwerk en wordt genegeerd."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Schrijftoegang tot apparaatinstellingen",
+        "description": "**Let op: deze instellingen worden rechtstreeks naar de actuator geschreven.**\n\nOnjuiste waarden kunnen:\n\n- storingen of het uitvallen van het apparaat veroorzaken\n- de actuator of aangesloten apparatuur beschadigen\n\nSchakel schrijftoegang alleen in als je de gevolgen van de wijzigingen begrijpt.",
+        "data": {
+          "allow_setting_writes": "Ik begrijp de risico's en wil schrijftoegang inschakelen."
+        },
+        "data_description": {
+          "allow_setting_writes": "Geldt voor alle apparaten van deze gateway. Het lezen van instellingen blijft ongewijzigd."
+        }
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "contact": {
+        "name": "Contact"
+      },
+      "actuator_battery": {
+        "name": "Actuatorbatterij"
+      },
+      "actuator_deactivated": {
+        "name": "Actuator uitgeschakeld"
+      },
+      "actuator_not_responding": {
+        "name": "Actuator reageert niet"
+      },
+      "circuit_in_use": {
+        "name": "Circuit in gebruik"
+      },
+      "missing_temperature": {
+        "name": "Temperatuur ontbreekt"
+      },
+      "water_leak": {
+        "name": "Waterlek"
+      },
+      "window": {
+        "name": "Raam"
+      },
+      "smoke_alarm": {
+        "name": "Rookmelder"
+      },
+      "battery_low": {
+        "name": "Batterij bijna leeg"
+      },
+      "motion": {
+        "name": "Beweging"
+      },
+      "handle_open": {
+        "name": "Handgreep open"
+      },
+      "handle_tilt": {
+        "name": "Handgreep gekanteld"
+      },
+      "handle_closed": {
+        "name": "Handgreep gesloten"
+      },
+      "mechanics_fault": {
+        "name": "Mechanische storing"
+      },
+      "local_control": {
+        "name": "Lokale bediening"
+      },
+      "sensor_error": {
+        "name": "Sensorfout"
+      },
+      "lock_bolt": {
+        "name": "Grendel"
+      },
+      "rcu_communication_error": {
+        "name": "Communicatie ruimteregelaar"
+      },
+      "heat_circuits_error": {
+        "name": "Verwarmingscircuits"
+      },
+      "rcu_battery": {
+        "name": "Batterij ruimteregelaar"
+      },
+      "rcu_malfunction": {
+        "name": "Storing ruimteregelaar"
+      },
+      "actuator_obstructed": {
+        "name": "Actuator geblokkeerd"
+      },
+      "circuit_mismatch": {
+        "name": "Afwijking verwarmingscircuit"
+      },
+      "data_mismatch": {
+        "name": "Gegevensafwijking"
+      },
+      "digital_input_0": {
+        "name": "Digitale ingang 0"
+      },
+      "digital_input_1": {
+        "name": "Digitale ingang 1"
+      },
+      "digital_input_2": {
+        "name": "Digitale ingang 2"
+      },
+      "digital_input_3": {
+        "name": "Digitale ingang 3"
+      },
+      "energy_input": {
+        "name": "Energy harvesting"
+      },
+      "energy_storage_charged": {
+        "name": "Energieopslag geladen"
+      },
+      "mh_not_found": {
+        "name": "Möhlenhoff niet gevonden"
+      },
+      "missing_data": {
+        "name": "Ontbrekende gegevens"
+      },
+      "occupancy": {
+        "name": "Aanwezigheid"
+      },
+      "occupancy_button": {
+        "name": "Aanwezigheidsknop"
+      },
+      "past_leak_detection": {
+        "name": "Lek gedetecteerd in de afgelopen 14 dagen"
+      },
+      "power_failure": {
+        "name": "Stroomuitval"
+      },
+      "radio_error": {
+        "name": "Radiofout"
+      },
+      "radio_signal_weak": {
+        "name": "Zwak radiosignaal"
+      },
+      "wake_signal": {
+        "name": "Wekksignaal"
+      }
+    },
+    "cover": {
+      "channel": {
+        "name": "Kanaal {channel}"
+      }
+    },
+    "light": {
+      "channel": {
+        "name": "Kanaal {channel}"
+      }
+    },
+    "sensor": {
+      "feed_temperature": {
+        "name": "Aanvoertemperatuur"
+      },
+      "temperature": {
+        "name": "Temperatuur"
+      },
+      "humidity": {
+        "name": "Luchtvochtigheid"
+      },
+      "power_consumption": {
+        "name": "Stroomverbruik"
+      },
+      "signal_strength": {
+        "name": "Signaalsterkte"
+      },
+      "last_seen": {
+        "name": "Laatst gezien"
+      },
+      "settings_read": {
+        "name": "Instellingen gelezen"
+      },
+      "wall_switch_links": {
+        "name": "Koppelingen wandschakelaars"
+      },
+      "illuminance": {
+        "name": "Verlichtingssterkte"
+      },
+      "supply_voltage": {
+        "name": "Voedingsspanning"
+      },
+      "battery_level": {
+        "name": "Batterijniveau"
+      },
+      "handle_state": {
+        "name": "Handgreepstand",
+        "state": {
+          "open": "Open",
+          "closed": "Gesloten",
+          "tilted": "Gekanteld"
+        }
+      },
+      "unlock_request": {
+        "name": "Ontgrendelverzoek",
+        "state": {
+          "requested": "Aangevraagd",
+          "not_requested": "Niet aangevraagd"
+        }
+      },
+      "last_run_time": {
+        "name": "Laatste looptijd"
+      },
+      "gateway_uptime": {
+        "name": "Bedrijfstijd"
+      },
+      "gateway_eurid": {
+        "name": "EURID"
+      },
+      "gateway_firmware_version": {
+        "name": "Firmwareversie"
+      },
+      "gateway_app_version": {
+        "name": "App-versie"
+      },
+      "gateway_api_version": {
+        "name": "API-versie"
+      },
+      "gateway_hostname": {
+        "name": "Hostnaam"
+      },
+      "gateway_ipv4_address": {
+        "name": "IPv4-adres"
+      },
+      "gateway_ipv6_address": {
+        "name": "IPv6-adres"
+      },
+      "vertical_movement_time_setting": {
+        "name": "Looptijd verticaal (opgeslagen)"
+      },
+      "rotation_time_setting": {
+        "name": "Rotatietijd (opgeslagen)"
+      },
+      "max_holding_time_setting": {
+        "name": "Maximale houdtijd (opgeslagen)"
+      },
+      "ramping_time_setting": {
+        "name": "Rampertijd (opgeslagen)"
+      },
+      "short_press_time_setting": {
+        "name": "Tijd korte druk (opgeslagen)"
+      },
+      "long_press_time_setting": {
+        "name": "Tijd lange druk (opgeslagen)"
+      },
+      "timer_setting": {
+        "name": "Timerduur (opgeslagen)"
+      },
+      "timer_long_setting": {
+        "name": "Timerduur (lange druk) (opgeslagen)"
+      },
+      "switch_off_warning_setting": {
+        "name": "Uitschakelwaarschuwing (opgeslagen)"
+      },
+      "switch_off_warning_signal_setting": {
+        "name": "Duur waarschuwingssignaal (opgeslagen)"
+      },
+      "illumination_threshold_setting": {
+        "name": "Helderheidsdrempel (opgeslagen)"
+      },
+      "alive_cycle_setting": {
+        "name": "Alive-cyclus (opgeslagen)"
+      },
+      "pir_off_time_setting": {
+        "name": "PIR-uitschakeltijd (opgeslagen)"
+      },
+      "recom_ready_time_setting": {
+        "name": "ReCom-gereedheidscyclus (opgeslagen)"
+      },
+      "operation_mode_setting": {
+        "name": "Bedrijfsmodus (opgeslagen)",
+        "state": {
+          "bottom_on": "Onder AAN",
+          "timer": "Timer",
+          "toggle": "Omschakelen",
+          "top_on": "Boven AAN"
+        }
+      },
+      "led_color_setting": {
+        "name": "LED-kleur (opgeslagen)",
+        "state": {
+          "all": "Alle LED's aan",
+          "green": "Groene LED aan",
+          "off": "Beide LED's uit",
+          "red": "Rode LED aan"
+        }
+      },
+      "led_channel_setting": {
+        "name": "LED-kanaal (opgeslagen)",
+        "state": {
+          "channel1": "Kanaal 1",
+          "channel2": "Kanaal 2"
+        }
+      },
+      "function_external_input_setting": {
+        "name": "Functie externe ingang (opgeslagen)",
+        "state": {
+          "channel1": "Kanaal 1",
+          "channel2": "Kanaal 2",
+          "channels_all": "Kanaal 1 + 2",
+          "inactive": "Inactief"
+        }
+      },
+      "repeater_setting": {
+        "name": "Repeatermodus (opgeslagen)",
+        "state": {
+          "off": "Uit (standaard)",
+          "level_1": "Niveau 1 (enkele hop / 1-hop)",
+          "level_2": "Niveau 2 (dubbele hop / 2-hop)"
+        }
+      },
+      "routing_setting": {
+        "name": "ViNET Router (opgeslagen)",
+        "state": {
+          "off": "Uit",
+          "on": "Aan"
+        }
+      },
+      "signal_quality": {
+        "name": "Signaalkwaliteit",
+        "state": {
+          "good": "Goed",
+          "sufficient": "Voldoende",
+          "poor": "Slecht"
+        }
+      },
+      "device_id": {
+        "name": "Apparaat-ID"
+      },
+      "valve_position": {
+        "name": "Klepstand"
+      },
+      "acceleration_status": {
+        "name": "Versnellingsstatus",
+        "state": {
+          "heartbeat": "Hartslag",
+          "threshold1": "Drempel 1 overschreden",
+          "threshold2": "Drempel 2 overschreden"
+        }
+      },
+      "acceleration_x": {
+        "name": "Versnelling X"
+      },
+      "acceleration_y": {
+        "name": "Versnelling Y"
+      },
+      "acceleration_z": {
+        "name": "Versnelling Z"
+      },
+      "actuator_mode": {
+        "name": "Actuatormodus",
+        "state": {
+          "managed": "Aangestuurd door applicatie",
+          "off": "Uit",
+          "on": "Aan",
+          "error": "Fout"
+        }
+      },
+      "base_setpoint": {
+        "name": "Basissetpoint"
+      },
+      "channel_count": {
+        "name": "Aantal kanalen"
+      },
+      "current_1": {
+        "name": "Stroom kanaal 1"
+      },
+      "current_2": {
+        "name": "Stroom kanaal 2"
+      },
+      "current_3": {
+        "name": "Stroom kanaal 3"
+      },
+      "device_type": {
+        "name": "Apparaattype"
+      },
+      "fan_speed": {
+        "name": "Ventilatorstand",
+        "state": {
+          "auto": "Automatisch",
+          "speed0": "Stand 0",
+          "speed1": "Stand 1",
+          "speed2": "Stand 2",
+          "speed3": "Stand 3"
+        }
+      },
+      "hardware_version": {
+        "name": "Hardwareversie"
+      },
+      "heater_mode": {
+        "name": "Verwarmingsmodus",
+        "state": {
+          "heating": "Verwarmen",
+          "cooling": "Koelen"
+        }
+      },
+      "ip_address": {
+        "name": "IP-adres"
+      },
+      "led_status": {
+        "name": "LED-status",
+        "state": {
+          "disabled": "Uitgeschakeld",
+          "enabled": "Ingeschakeld"
+        }
+      },
+      "load": {
+        "name": "Belasting"
+      },
+      "manufacturer": {
+        "name": "Fabrikant"
+      },
+      "network_version": {
+        "name": "Netwerkversie"
+      },
+      "outdoor_temperature": {
+        "name": "Buitentemperatuur"
+      },
+      "power": {
+        "name": "Vermogen"
+      },
+      "serial": {
+        "name": "Serienummer"
+      },
+      "setpoint_shift": {
+        "name": "Setpointverschuiving"
+      },
+      "setpoint_type": {
+        "name": "Setpointtype",
+        "state": {
+          "absolute": "Absoluut",
+          "relative": "Relatief"
+        }
+      },
+      "software_version": {
+        "name": "Softwareversie"
+      },
+      "system_error": {
+        "name": "Systeemfout",
+        "state": {
+          "general_error": "Algemene fout",
+          "heat_circuit_error": "Fout verwarmingscircuit",
+          "no_error": "Geen fout"
+        }
+      },
+      "temperature_setpoint": {
+        "name": "Setpoint"
+      },
+      "total_current": {
+        "name": "Totale stroom"
+      },
+      "total_power": {
+        "name": "Totaal vermogen"
+      },
+      "uptime": {
+        "name": "Bedrijfstijd"
+      },
+      "version": {
+        "name": "Versie"
+      },
+      "gateway_receive_counter": {
+        "name": "Ontvangen telegrammen"
+      },
+      "gateway_average_dbm": {
+        "name": "Gemiddelde signaalsterkte"
+      },
+      "channel_temperature": {
+        "name": "Temperatuur kanaal {channel}"
+      },
+      "channel_temperature_setpoint": {
+        "name": "Setpoint kanaal {channel}"
+      },
+      "channel_circuit_state": {
+        "name": "Verwarmingscircuit kanaal {channel}",
+        "state": {
+          "off": "Uit",
+          "on": "Aan"
+        }
+      },
+      "channel_operation_mode": {
+        "name": "Modus kanaal {channel}",
+        "state": {
+          "emergency": "Noodbedrijf",
+          "off": "Uit",
+          "on": "Aan"
+        }
+      },
+      "ramping_time_1_setting": {
+        "name": "Rampertijd 1 (handmatig) (opgeslagen)"
+      },
+      "ramping_time_2_setting": {
+        "name": "Rampertijd 2 (opgeslagen)"
+      },
+      "ramping_time_3_setting": {
+        "name": "Rampertijd 3 (opgeslagen)"
+      },
+      "ramping_time_switch_setting": {
+        "name": "Rampertijd voor schakelen (opgeslagen)"
+      },
+      "lower_limit_setting": {
+        "name": "Ondergrens dimmen (opgeslagen)"
+      },
+      "upper_limit_setting": {
+        "name": "Bovengrens dimmen (opgeslagen)"
+      },
+      "dimmer_mode_setting": {
+        "name": "Dimprincipe (opgeslagen)",
+        "state": {
+          "phase_control_lower": "Fase-afsnijding (trailing edge)",
+          "phase_control_upper": "Fase-aansnijding (leading edge)"
+        }
+      }
+    },
+    "switch": {
+      "channel": {
+        "name": "Kanaal {channel}"
+      },
+      "blockage": {
+        "name": "Blokkering"
+      }
+    },
+    "lock": {
+      "autolock": {
+        "name": "AutoLock"
+      }
+    },
+    "button": {
+      "reference_run_up": {
+        "name": "Referentierit via boven"
+      },
+      "reference_run_down": {
+        "name": "Referentierit via onder"
+      },
+      "read_settings": {
+        "name": "Instellingen lezen"
+      }
+    },
+    "event": {
+      "buttons": {
+        "name": "Knoppen"
+      }
+    },
+    "number": {
+      "vertical_movement_time": {
+        "name": "Looptijd verticaal"
+      },
+      "rotation_time": {
+        "name": "Rotatietijd"
+      },
+      "max_holding_time": {
+        "name": "Maximale houdtijd"
+      },
+      "ramping_time": {
+        "name": "Rampertijd"
+      },
+      "short_press_time": {
+        "name": "Tijd korte druk"
+      },
+      "long_press_time": {
+        "name": "Tijd lange druk"
+      },
+      "timer": {
+        "name": "Timerduur"
+      },
+      "timer_long": {
+        "name": "Timerduur (lange druk)"
+      },
+      "switch_off_warning": {
+        "name": "Uitschakelwaarschuwing"
+      },
+      "switch_off_warning_signal": {
+        "name": "Duur waarschuwingssignaal"
+      },
+      "illumination_threshold": {
+        "name": "Helderheidsdrempel"
+      },
+      "temperature_setpoint_command": {
+        "name": "Doeltemperatuur"
+      },
+      "ramping_time_1": {
+        "name": "Rampertijd 1 (handmatig)"
+      },
+      "ramping_time_2": {
+        "name": "Rampertijd 2"
+      },
+      "ramping_time_3": {
+        "name": "Rampertijd 3"
+      },
+      "ramping_time_switch": {
+        "name": "Rampertijd voor schakelen"
+      },
+      "lower_limit": {
+        "name": "Ondergrens dimmen"
+      },
+      "upper_limit": {
+        "name": "Bovengrens dimmen"
+      }
+    },
+    "select": {
+      "operation_mode": {
+        "name": "Bedrijfsmodus",
+        "state": {
+          "bottom_on": "Onder AAN",
+          "timer": "Timer",
+          "toggle": "Omschakelen",
+          "top_on": "Boven AAN"
+        }
+      },
+      "led_color": {
+        "name": "LED-kleur",
+        "state": {
+          "all": "Alle LED's aan",
+          "green": "Groene LED aan",
+          "off": "Beide LED's uit",
+          "red": "Rode LED aan"
+        }
+      },
+      "led_channel": {
+        "name": "LED-kanaal",
+        "state": {
+          "channel1": "Kanaal 1",
+          "channel2": "Kanaal 2"
+        }
+      },
+      "function_external_input": {
+        "name": "Functie externe ingang",
+        "state": {
+          "channel1": "Kanaal 1",
+          "channel2": "Kanaal 2",
+          "channels_all": "Kanaal 1 + 2",
+          "inactive": "Inactief"
+        }
+      },
+      "repeater": {
+        "name": "Repeatermodus",
+        "state": {
+          "off": "Uit (standaard)",
+          "level_1": "Niveau 1 (enkele hop / 1-hop)",
+          "level_2": "Niveau 2 (dubbele hop / 2-hop)"
+        }
+      },
+      "routing": {
+        "name": "ViNET Router",
+        "state": {
+          "off": "Uit",
+          "on": "Aan"
+        }
+      },
+      "actuator_mode_command": {
+        "name": "Modus",
+        "state": {
+          "managed": "Aangestuurd",
+          "off": "Uit",
+          "on": "Aan"
+        }
+      },
+      "led_status_command": {
+        "name": "LED's",
+        "state": {
+          "enabled": "Ingeschakeld",
+          "disabled": "Uitgeschakeld"
+        }
+      },
+      "dimmer_mode": {
+        "name": "Dimprincipe",
+        "state": {
+          "phase_control_lower": "Fase-afsnijding (trailing edge)",
+          "phase_control_upper": "Fase-aansnijding (leading edge)"
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "config_entry_not_found": {
+      "message": "Er bestaat geen Opus GreenNet-configuratie-item met ID {config_entry_id}."
+    },
+    "config_entry_not_loaded": {
+      "message": "Het Opus GreenNet-configuratie-item {config_entry_id} is niet geladen."
+    },
+    "config_entry_required": {
+      "message": "Selecteer een gateway, omdat er meer dan één Opus GreenNet-configuratie-item is geladen."
+    },
+    "device_not_found": {
+      "message": "Apparaat {device_id} is niet gevonden op de geselecteerde gateway."
+    },
+    "gateway_address_required": {
+      "message": "Deze versie verbindt rechtstreeks met de OPUS-gateway in plaats van via MQTT. Voer het adres van de gateway in om door te gaan."
+    },
+    "gateway_unavailable": {
+      "message": "De OPUS-gateway is niet beschikbaar. Controleer de netwerkverbinding en probeer het opnieuw."
+    },
+    "invalid_configuration": {
+      "message": "De configuratie voor {device_id} is niet naar de gateway verzonden: {reason}."
+    },
+    "invalid_auth": {
+      "message": "De OPUS-gateway heeft de ingestelde inloggegevens geweigerd."
+    },
+    "no_loaded_config_entry": {
+      "message": "Er is geen Opus GreenNet-gateway geladen."
+    },
+    "request_cancelled": {
+      "message": "Het verzoek is geannuleerd omdat de integratie wordt verwijderd, het apparaat is verwijderd of de gateway niet meer beschikbaar is."
+    },
+    "request_rejected": {
+      "message": "De gateway heeft het verzoek voor {device_id} geweigerd: {reason}"
+    },
+    "request_timeout": {
+      "message": "De gateway heeft het verzoek voor {device_id} niet bevestigd. De uitkomst is onbekend; controleer het apparaat voordat je het opnieuw probeert."
+    },
+    "wrong_gateway": {
+      "message": "Het ingestelde adres antwoordt als een andere OPUS-gateway."
+    },
+    "repositioning_not_supported": {
+      "message": "Apparaat {device_id} is geen jaloezie met dit kanaal en deze positioneringsmodus."
+    },
+    "parameter_not_confirmed": {
+      "message": "{device_id} heeft de nieuwe waarde van {reason} niet bevestigd. Home Assistant heeft de vorige waarde behouden; lees de apparaatconfiguratie uit voordat je het opnieuw probeert."
+    },
+    "parameter_differs": {
+      "message": "{device_id} heeft voor {reason} een andere waarde opgeslagen dan gevraagd. Home Assistant toont nu de op het apparaat opgeslagen waarde."
+    },
+    "setting_conflict_holding_time_shorter_than_travel_time": {
+      "message": "{device_id}: niet geschreven. De maximale houdtijd zou korter zijn dan de looptijd verticaal. Wijzig eerst de andere instelling, of druk op Instellingen lezen als een getoonde waarde verouderd is."
+    },
+    "setting_conflict_travel_time_shorter_than_rotation_time": {
+      "message": "{device_id}: niet geschreven. De looptijd verticaal zou korter zijn dan de rotatietijd. Wijzig eerst de andere instelling, of druk op Instellingen lezen als een getoonde waarde verouderd is."
+    },
+    "setting_conflict_cleaning_time_shorter_than_run_on_time": {
+      "message": "{device_id}: niet geschreven. De timerduur (lange druk) zou korter zijn dan de timerduur. Wijzig eerst de andere instelling, of druk op Instellingen lezen als een getoonde waarde verouderd is."
+    },
+    "setting_conflict_switch_off_warning_longer_than_run_on_time": {
+      "message": "{device_id}: niet geschreven. De uitschakelwaarschuwing zou langer duren dan de timerduur. Wijzig eerst de andere instelling, of druk op Instellingen lezen als een getoonde waarde verouderd is."
+    },
+    "invalid_parameter_value": {
+      "message": "De waarde is geen geldig getal."
+    },
+    "parameter_write_failed": {
+      "message": "De gateway kon de nieuwe waarde niet naar {device_id} schrijven ({reason}). Home Assistant heeft de vorige waarde behouden. Het apparaat heeft de waarde waarschijnlijk niet ontvangen; lees de apparaatconfiguratie uit voordat je het opnieuw probeert."
+    },
+    "parameter_read_back_failed": {
+      "message": "De gateway heeft de nieuwe waarde voor {device_id} geaccepteerd, maar het terugleggen is mislukt ({reason}). De waarde kan zijn opgeslagen; Home Assistant heeft de vorige behouden. Lees de apparaatconfiguratie uit voordat je het opnieuw probeert."
+    },
+    "webui_2026_login_required": {
+      "message": "De OPUS-gateway vereist nu de aanmelding van de nieuwe gatewaygeneratie (WebUI 2026). Voer de gebruiker en het wachtwoord van de webinterface in om door te gaan; alle apparaten en entiteiten blijven behouden."
+    },
+    "hvac_mode_read_only": {
+      "message": "Deze verwarmingszone meldt verwarmen of koelen, maar kan niet vanuit Home Assistant worden omgeschakeld."
+    },
+    "write_access_disabled": {
+      "message": "{device_id}: niet geschreven. Schrijftoegang tot apparaatinstellingen is niet ingeschakeld. Schakel dit in onder Instellingen → Apparaten & diensten → Opus GreenNet → Configureren."
+    },
+    "setting_conflict_upper_limit_below_lower_limit": {
+      "message": "{device_id}: niet geschreven. De bovengrens voor dimmen zou lager zijn dan de ondergrens. Wijzig eerst de andere instelling, of druk op Instellingen lezen als een getoonde waarde verouderd is."
+    },
+    "setting_not_reported": {
+      "message": "Apparaat {device_id} heeft de instelling {key} niet; er is niets geschreven."
+    }
+  },
+  "services": {
+    "get_device_configuration": {
+      "description": "Haalt de opgeslagen configuratie van een EnOcean-apparaat op via de ReCom-API.",
+      "fields": {
+        "config_entry_id": {
+          "description": "Te gebruiken gateway. Selecteer er een wanneer meer dan één gateway is geladen.",
+          "name": "Gateway"
+        },
+        "device_id": {
+          "description": "EURID van het EnOcean-apparaat.",
+          "name": "Apparaat-ID"
+        }
+      },
+      "name": "Apparaatconfiguratie ophalen"
+    },
+    "get_device_link_tables": {
+      "description": "Leest de koppelingstabellen die op een EnOcean-apparaat zijn opgeslagen via de ReCom-API: de wandschakelaars waarop het luistert en de apparaten waaraan het rapporteert. Alleen lezen. Het eigen adres van de gateway wordt getoond als \"gateway\".",
+      "fields": {
+        "config_entry_id": {
+          "description": "Te gebruiken gateway. Selecteer er een wanneer meer dan één gateway is geladen.",
+          "name": "Gateway"
+        },
+        "device_id": {
+          "description": "EURID van het EnOcean-apparaat.",
+          "name": "Apparaat-ID"
+        }
+      },
+      "name": "Koppelingstabellen van een apparaat ophalen"
+    },
+    "get_device_parameters": {
+      "description": "Haalt de DDF-parameters van een EnOcean-apparaat op via de ReCom-API.",
+      "fields": {
+        "config_entry_id": {
+          "description": "Te gebruiken gateway. Selecteer er een wanneer meer dan één gateway is geladen.",
+          "name": "Gateway"
+        },
+        "device_id": {
+          "description": "EURID van het EnOcean-apparaat.",
+          "name": "Apparaat-ID"
+        }
+      },
+      "name": "Apparaatparameters ophalen"
+    },
+    "reload_entry": {
+      "description": "Laadt één gateway opnieuw of, als er geen is geselecteerd, alle geladen Opus GreenNet-gateways.",
+      "fields": {
+        "config_entry_id": {
+          "description": "Opnieuw te laden gateway. Laat leeg om alle gateways opnieuw te laden.",
+          "name": "Gateway"
+        }
+      },
+      "name": "Integratie opnieuw laden"
+    },
+    "set_device_configuration": {
+      "description": "Schrijft een configuratie naar een EnOcean-apparaat via de ReCom-API.",
+      "fields": {
+        "config_entry_id": {
+          "description": "Te gebruiken gateway. Selecteer er een wanneer meer dan één gateway is geladen.",
+          "name": "Gateway"
+        },
+        "configuration": {
+          "description": "Configuratieobject dat naar het apparaat wordt geschreven.",
+          "name": "Configuratie"
+        },
+        "device_id": {
+          "description": "EURID van het EnOcean-apparaat.",
+          "name": "Apparaat-ID"
+        }
+      },
+      "name": "Apparaatconfiguratie instellen"
+    },
+    "set_cover_position": {
+      "name": "Positie van de jaloezie instellen",
+      "description": "Beweegt een D2-05-jaloezie naar een positie, eventueel na een referentierit naar een eindpositie die de positiebepaling opnieuw kalibreert.",
+      "fields": {
+        "device_id": {
+          "name": "Apparaat-ID",
+          "description": "EURID van de jaloezie."
+        },
+        "position": {
+          "name": "Positie",
+          "description": "Doelpositie in procenten, 100 is open en 0 is gesloten (schaal van Home Assistant)."
+        },
+        "repositioning": {
+          "name": "Referentierit",
+          "description": "Eerst naar een eindpositie rijden. Direct beweegt zonder referentierit."
+        },
+        "channel": {
+          "name": "Kanaal",
+          "description": "Uitgangskanaal van de jaloezie-actuator."
+        },
+        "config_entry_id": {
+          "name": "Gateway",
+          "description": "Te gebruiken gateway. Selecteer er een wanneer meer dan één gateway is geladen."
+        }
+      }
+    }
+  },
+  "issues": {
+    "non_local_gateway_address": {
+      "title": "Het gatewayadres staat niet in het lokale netwerk",
+      "description": "Het adres van deze gateway ligt buiten het lokale netwerk. De gateway spreekt alleen onversleuteld HTTP, waardoor de aanmelding onderweg kan worden afgeluisterd. De integratie blijft werken, maar opnieuw verifiëren en herconfigureren accepteren alleen nog een lokaal adres.\n\nOpen de integratie Opus GreenNet Bridge, kies Opnieuw configureren in het menu en voer het adres van de gateway in je lokale netwerk in, of benader de gateway via een VPN. De melding verdwijnt wanneer de integratie opnieuw met een lokaal adres wordt geladen."
+    },
+    "duplicate_beta_entity": {
+      "title": "Dubbele entiteit {removed_entity_id} is verwijderd",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Verwijzingen naar {removed_entity_id} bijwerken",
+            "description": "Bij het overnemen van de unieke ID's van upstream vond de integratie twee registervermeldingen voor hetzelfde apparaat en dezelfde gateway. De bestaande entiteit {preserved_entity_id} is behouden met entiteits-ID, naam en instellingen, en de dubbele entiteit {removed_entity_id} is verwijderd.\n\nAutomatiseringen, scripts, scènes en dashboards die nog {removed_entity_id} gebruiken, werken niet meer. Vervang die entiteits-ID door {preserved_entity_id} en selecteer vervolgens Verzenden om deze melding te sluiten. Er wordt niets naar de gateway of het apparaat verzonden."
+          }
+        }
+      }
+    },
+    "write_access_off": {
+      "title": "Schrijftoegang tot apparaatinstellingen is niet ingeschakeld",
+      "description": "Een entiteit die een apparaatinstelling van {name} wijzigt, is ingeschakeld, maar schrijftoegang niet. Wijzigingen worden geweigerd totdat je schrijftoegang inschakelt: open Instellingen → Apparaten & diensten → Opus GreenNet, kies Configureren en bevestig de waarschuwing.\n\nMet schrijftoegang kan de apparaatconfiguratie rechtstreeks naar de actuator worden geschreven. Onjuiste instellingen kunnen storingen, het uitvallen van het apparaat of schade aan aangesloten apparatuur veroorzaken. De melding verdwijnt wanneer schrijftoegang wordt ingeschakeld of de entiteit weer wordt uitgeschakeld."
+    }
+  },
+  "selector": {
+    "repositioning": {
+      "options": {
+        "direct": "Direct",
+        "first_up": "Eerst omhoog (bovenste eindpositie)",
+        "first_down": "Eerst omlaag (onderste eindpositie)"
+      }
+    }
+  }
+}
