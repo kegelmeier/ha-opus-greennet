@@ -276,14 +276,16 @@ written by the integration on hardware so far**: try a single device first.
 |---------|--------|---------------------|
 | Blind: vertical movement time | Number | ✅ 24 blinds in one installation (effect confirmed by run durations) |
 | Blind: maximum holding time | Number | ✅ one blind |
-| Blind: rotation time | Number | not tested |
+| Blind: rotation time | Number | ⚠️ written, read back and restored on one D2-05-02 (0 → test value → 0, other parameters unchanged); the effect on slats was not observed (no venetian blind available) |
 | Dimmer D2-01-03: ramping, short-press and long-press time | Number | not confirmed: *Ramping time* 0.5 s and 1.0 s were not stored by one dimmer (short and long press not tested); correspondence to the settings of the configuration tool not verified |
 | Switch D2-01-01/-11: timers, switch-off warning and signal, illumination threshold | Number | ✅ one switch, through the gateway API (not through these entities) |
 | Switch: LED colour | Select | ✅ one D2-01-01 (text value) |
 | Switch: operation mode | Select | ✅ one switch, through the gateway API (not through this entity) |
-| Switch: LED channel, external input function, function of rocker A and B (switches and blinds) | Select | not tested |
+| Switch: external input function | Select | ✅ one D2-01-01 (*channel 1* → *inactive* → *channel 1*, read back by radio each time); nothing was connected to the input |
+| Switch and blind: function of rocker A and B | Select | ✅ rocker B on one D2-01-01 (with *inactive* the rocker no longer switched, after restoring *channel 1* it switched again) and one D2-05-02 (written, read back by radio and restored); rocker A on one D2-01-11 (*channel 1* → *channel 2*: the press then switched channel 2, no load was connected there; restored and read back). Not tested: rocker A of a 1-channel switch (it reports the raw value 0), *channels all* |
+| Switch: LED channel | Select | ✅ one D2-01-11 (*channel 1* → *channel 2* → *channel 1*, read back by radio each time; LED colour and rockers unchanged); the LED of channel 2 lit up as expected |
 | Repeater mode (blinds) | Select | ✅ 24 blinds of a second installation: *off* on four blinds that had a repeater (two at level 2, two at level 1), level 2 on one blind and back to *off*, read back each time; the repeater indicator of the MyOPUS app disappeared. Whether the radio behaviour changes at level 2 was not verified |
-| ViNET Router (switches) | Select | ✅ *on* on 28 of 28 switches of a second installation (the gateway reported *on*); whether routing takes place was not verified |
+| ViNET Router (switches) | Select | ✅ *on* on 28 of 28 switches of a second installation (the gateway reported *on*); on one D2-01-01 also *on* → *off*, read back by radio each time; whether routing takes place was not verified |
 | ViNET routing (blinds) | Action `set_device_configuration` | ✅ 0.3 s accepted and read back by 22 of 24 blinds of a second installation; two did not answer radio configuration requests at first |
 | Link tables (wall switch links) | Action, sensor, diagnostics | read only, read on hardware |
 

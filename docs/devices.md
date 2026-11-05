@@ -372,8 +372,13 @@ with gateway firmware 1.21.30). The *Operation mode* of one switch was written
 and read back through the gateway's REST API, not through this entity; the other
 selects were **not tested on hardware**, so try a single switch first.
 The function of rocker A and B (*Function of rocker A* and *B*, disabled by
-default) says which channel a rocker switches, or *inactive*. **Not tested on
-hardware.** A wrong choice changes which button switches which channel, and an
+default) says which channel a rocker switches, or *inactive*. **Rocker B was
+verified on hardware** on one D2-01-01 (with *inactive* the rocker no longer
+switched, and it switched again after restoring *channel 1*) and on one D2-05-02
+(written, read back and restored). Rocker A was verified on one D2-01-11
+(*channel 1* → *channel 2*, the press then switched channel 2; restored and read
+back); rocker A of a 1-channel switch (raw value 0) and *channels all* were **not
+tested**. A wrong choice changes which button switches which channel, and an
 inactive rocker no longer operates the actuator locally (Home Assistant still
 does). A D2-01-01 reported the number 0 for rocker A, a value its own catalog
 does not list: the stored sensor and the select then show *unknown*, and
