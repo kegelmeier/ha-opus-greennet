@@ -375,7 +375,7 @@ The function of rocker A and B (*Function of rocker A* and *B*, disabled by
 default) says which channel a rocker switches, or *inactive*. **Rocker B was
 verified on hardware** on one D2-01-01 (with *inactive* the rocker no longer
 switched, and it switched again after restoring *channel 1*) and on one D2-05-02
-(written, read back and restored). Rocker A was verified on one D2-01-11
+(written, read back and restored; behaviour at the wall switch confirmed). Rocker A was verified on one D2-01-11
 (*channel 1* → *channel 2*, the press then switched channel 2; restored and read
 back); rocker A of a 1-channel switch (raw value 0) and *channels all* were **not
 tested**. A wrong choice changes which button switches which channel, and an
