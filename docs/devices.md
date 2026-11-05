@@ -375,7 +375,7 @@ read back by radio and restored through these entities on real switches (see the
 [README](../README.md#what-was-verified-on-hardware)); the other selects were
 **not tested on hardware**, so try a single switch first.
 The function of rocker A and B (*Function of rocker A* and *B*, disabled by
-default) says which channel a rocker switches, or *inactive*. **Rocker B was
+default, as are their read-only "(stored)" sensors) says which channel a rocker switches, or *inactive*. **Rocker B was
 verified on hardware** on one D2-01-01 (with *inactive* the rocker no longer
 switched, and it switched again after restoring *channel 1*) and on one D2-05-02
 (written, read back and restored; behaviour at the wall switch confirmed). Rocker A was verified on one D2-01-11

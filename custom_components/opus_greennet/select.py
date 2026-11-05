@@ -68,6 +68,8 @@ class DeviceSelect:
     values: Mapping[str, tuple[str, ...]]
     # Only the universal dimmer 563.076 has the setting (decided by product ID).
     universal_dimmer_only: bool = False
+    # Whether the read-only sensor with the stored value is enabled by default.
+    stored_sensor_enabled: bool = True
 
     def values_for(self, device: EnOceanDevice) -> tuple[str, ...] | None:
         """Return the values of the device, or None if it has no such setting."""
@@ -120,12 +122,14 @@ CATALOG_SELECTS: tuple[DeviceSelect, ...] = (
         KEY_FUNCTION_ROCKER_A,
         "function_rocker_a",
         ROCKER_FUNCTIONS,
+        stored_sensor_enabled=False,
     ),
     DeviceSelect(
         "function_rocker_b",
         KEY_FUNCTION_ROCKER_B,
         "function_rocker_b",
         ROCKER_FUNCTIONS,
+        stored_sensor_enabled=False,
     ),
 )
 # Not in the catalog as such. Routing: "on" stands for any routing time the

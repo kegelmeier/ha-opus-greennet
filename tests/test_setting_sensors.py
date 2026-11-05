@@ -105,14 +105,27 @@ async def test_the_sensors_follow_the_number_and_select_entities() -> None:
         assert {e.unique_id for e in await _created(eep)} == expected
 
 
+ROCKER_SENSORS = ("function_rocker_a_setting", "function_rocker_b_setting")
+
+
 async def test_the_sensors_are_read_only_diagnostics_enabled_by_default() -> None:
     for entity in await _created("D2-01-11"):
         assert entity.entity_category is EntityCategory.DIAGNOSTIC
-        assert entity.entity_registry_enabled_default is True
+        # The stored rocker functions are the exception: disabled by default.
+        assert entity.entity_registry_enabled_default is (
+            entity.translation_key not in ROCKER_SENSORS
+        )
         assert entity.translation_key.endswith("_setting")
         assert not hasattr(entity, "async_set_native_value")
         assert not hasattr(entity, "async_select_option")
         assert entity.state_class is None
+
+
+@pytest.mark.parametrize("eep", ["D2-01-01", "D2-01-11", "D2-05-02"])
+async def test_the_stored_rocker_functions_are_disabled_by_default(eep: str) -> None:
+    created = {e.translation_key: e for e in await _created(eep)}
+    for key in ROCKER_SENSORS:
+        assert created[key].entity_registry_enabled_default is False
 
 
 async def test_the_unique_ids_differ_from_the_writing_entities() -> None:
