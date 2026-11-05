@@ -22,7 +22,12 @@ from custom_components.opus_greennet.sensor import (
     OpusGreenNetReadingSensor,
 )
 from tests.fake_gateway import FakeGateway, device_object, telegram
-from tests.ha_helpers import setup_bridge, wait_for_entity, wait_until
+from tests.ha_helpers import (
+    seed_restored_states,
+    setup_bridge,
+    wait_for_entity,
+    wait_until,
+)
 
 EAG_ID = "AABB0011"
 
@@ -105,7 +110,7 @@ async def test_run_sensor_restores_a_value_without_a_saved_state(
         ),
         dt_util.utcnow(),
     )
-    restore_state.async_get(hass).last_states = {sensor.entity_id: stored}
+    seed_restored_states(hass, {sensor.entity_id: stored})
 
     with patch.object(sensor, "async_get_last_state", AsyncMock(return_value=None)):
         await sensor.async_added_to_hass()
