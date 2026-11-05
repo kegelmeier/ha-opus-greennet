@@ -170,7 +170,7 @@ jobs:
           sparse-checkout: |
             homeassistant
             packages/hassfest
-            pylint/plugins/pylint_home_assistant/generated
+            packages/pylint-home-assistant/pylint_home_assistant/generated
             script
 
       - name: Build hassfest from the reference commit
@@ -193,7 +193,7 @@ jobs:
         run: |
           set -o pipefail
           python3 integration/script/check_icons.py \
-            core/pylint/plugins/pylint_home_assistant/generated/mdi_icons.py \
+            core/packages/pylint-home-assistant/pylint_home_assistant/generated/mdi_icons.py \
             integration/custom_components/opus_greennet/icons.json \
             | tee icon-check.txt
           {
