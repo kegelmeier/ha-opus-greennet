@@ -39,7 +39,7 @@ Works with both OPUS gateways, the black **OPUS greenNet gateway** and the newer
   resynchronises every device.
 - **Diagnostics** with redacted downloads, plus actions for device
   configuration (ReCom).
-- **UI setup** with re-authentication and reconfiguration; English and German.
+- **UI setup** with re-authentication and reconfiguration; English, German, French, Spanish, Italian and Dutch.
 
 ## Supported devices
 

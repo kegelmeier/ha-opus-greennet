@@ -83,13 +83,14 @@ def test_keys_and_suffixes_are_unique_per_profile() -> None:
 
 def test_translations_cover_every_reading() -> None:
     strings = json.loads((COMPONENT / "strings.json").read_text(encoding="utf-8"))
-    german = json.loads(
-        (COMPONENT / "translations/de.json").read_text(encoding="utf-8")
-    )
+    translated = [
+        json.loads(path.read_text(encoding="utf-8"))
+        for path in sorted((COMPONENT / "translations").glob("*.json"))
+    ]
     assert strings == json.loads(
         (COMPONENT / "translations/en.json").read_text(encoding="utf-8")
     )
-    for catalog in (strings, german):
+    for catalog in (strings, *translated):
         for _eep, spec in ALL_SPECS:
             domain = "binary_sensor" if spec.kind == "bool" else "sensor"
             entry = catalog["entity"][domain][spec.suffix]

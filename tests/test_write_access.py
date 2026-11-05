@@ -269,7 +269,14 @@ async def test_unloading_the_entry_removes_the_notice(
 
 
 @pytest.mark.parametrize(
-    "name", ["strings.json", "translations/en.json", "translations/de.json"]
+    "name",
+    [
+        "strings.json",
+        *(
+            f"translations/{language}.json"
+            for language in ("en", "de", "fr", "es", "it", "nl")
+        ),
+    ],
 )
 def test_the_warning_texts_exist_in_every_language(name: str) -> None:
     texts = json.loads((INTEGRATION / name).read_text(encoding="utf-8"))
