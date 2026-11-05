@@ -37,7 +37,7 @@ tests/
 ├── conftest.py           # Shared fixtures (real HA core, fake gateway)
 ├── fake_gateway.py       # In-process OPUS gateway serving the REST API over HTTP
 ├── ha_helpers.py         # Config flow and waiting helpers
-├── fixtures/             # Anonymized parameter catalogs and configurations read from a gateway (one device per actuator type)
+├── fixtures/             # Anonymized parameter catalogs and configurations read from a gateway (one device per actuator type; D2-01-03 once per gateway firmware)
 │                         # and the reported functions of the read-only device profiles (checked against readings.py)
 └── test_*.py             # One module per area (api, coordinator, platforms, flows, …)
 script/
@@ -60,7 +60,7 @@ pytest -v --cov --cov-report=json:coverage.json
 python script/check_coverage.py coverage.json
 ```
 
-The suite has 3,151 tests. They run against real Home Assistant core and an
+The suite has 3,270 tests. They run against real Home Assistant core and an
 in-process gateway that serves the REST API and its event stream over real HTTP
 (`tests/fake_gateway.py`).
 

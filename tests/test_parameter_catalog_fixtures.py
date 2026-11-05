@@ -21,7 +21,7 @@ from custom_components.opus_greennet.number import DEVICE_TIMES
 from custom_components.opus_greennet.select import CATALOG_SELECTS, EXTRA_SELECTS
 
 FIXTURES = Path(__file__).parent / "fixtures"
-TYPES = ("d2_05_02", "d2_01_01", "d2_01_11", "d2_01_03")
+TYPES = ("d2_05_02", "d2_01_01", "d2_01_11", "d2_01_03", "d2_01_03_fw1_21_34")
 
 _SWITCH_KEYS = {
     "functionExternalInput",
@@ -49,7 +49,23 @@ CATALOG_KEYS = {
     "d2_01_01": _SWITCH_KEYS,
     "d2_01_11": _SWITCH_KEYS | {"ledChannel"},
     "d2_01_03": {"longPress", "rampingTime", "shortPress"},
+    # The same type with another parameter set (two dimmers, gateway 1.21.34).
+    "d2_01_03_fw1_21_34": {
+        "dimmerMode",
+        "functionRockerA",
+        "functionRockerB",
+        "ledColor",
+        "lowerLimit",
+        "rampingTimeRocker1",
+        "rampingTimeRocker2",
+        "rampingTimeRocker3",
+        "rampingTimeSwitch",
+        "routingTime",
+        "upperLimit",
+    },
 }
+# Parameters without a unit in their catalog range (percent, per the manual).
+UNITLESS = {"lowerLimit", "upperLimit"}
 # Configured values the catalog does not list (the device reports a raw value).
 UNLISTED_VALUES = {("d2_01_01", "functionRockerA"): 0}
 
@@ -90,7 +106,7 @@ def test_numeric_ranges_and_defaults_are_consistent(name: str) -> None:
         for item in ranges:
             assert 0 <= item["min"] <= item["max"], key
             assert item["step"] > 0, key
-            assert item["unit"], key
+            assert item.get("unit") or key in UNITLESS, key
         default = entry["defaultValue"]
         listed = [item["value"] for item in entry["values"] if "value" in item]
         if (name, key) in UNLISTED_VALUES:
@@ -183,7 +199,12 @@ EEPS = {
     "d2_01_01": "D2-01-01",
     "d2_01_11": "D2-01-11",
     "d2_01_03": "D2-01-03",
+    "d2_01_03_fw1_21_34": "D2-01-03",
 }
+# Both D2-01-03 catalogs belong to one EEP; the product ID of the device decides
+# which parameter set a dimmer gets (the universal dimmer 563.076 reports the
+# second one).
+PRODUCT_IDS = {"d2_01_03_fw1_21_34": "00400000001E"}
 # Catalog parameters without an entity, each with the reason. A new parameter
 # in a catalog fails the coverage test until it gets an entity or is listed here.
 _SWITCH_DEFERRED = {
@@ -199,11 +220,19 @@ DEFERRED = {
     "d2_01_01": _SWITCH_DEFERRED,
     "d2_01_11": _SWITCH_DEFERRED,
     "d2_01_03": {},
+    "d2_01_03_fw1_21_34": {
+        "functionRockerA": "same options as the switches; needs a text write test",
+        "functionRockerB": "same options as the switches; needs a text write test",
+        "ledColor": "the dimmer lists no 'all' option; no select for dimmers yet",
+        "routingTime": "unit (10 ms) and the value for 'on' are not verified",
+    },
 }
 
 
 def _device(name: str) -> EnOceanDevice:
-    return EnOceanDevice("DEV1", "Test", [{"eep": EEPS[name]}])
+    return EnOceanDevice(
+        "DEV1", "Test", [{"eep": EEPS[name]}], product_id=PRODUCT_IDS.get(name, "")
+    )
 
 
 def _entity_parameters(name: str) -> set[str]:

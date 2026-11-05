@@ -1,0 +1,104 @@
+{
+  "004000000003": {
+    "devices": 4,
+    "eeps": [
+      "D2-01-03",
+      "F6-03-01"
+    ],
+    "keys": [
+      "longPress",
+      "rampingTime",
+      "shortPress"
+    ]
+  },
+  "004000000004": {
+    "devices": 10,
+    "eeps": [
+      "D2-05-02",
+      "F6-03-01"
+    ],
+    "keys": [
+      "functionRockerA",
+      "functionRockerB",
+      "lastVerticalMovementTime",
+      "maxHoldingTime",
+      "rotationTime",
+      "routingTime",
+      "verticalMovementTime"
+    ]
+  },
+  "004000000005": {
+    "devices": 17,
+    "eeps": [
+      "D2-01-01",
+      "F6-03-01"
+    ],
+    "keys": [
+      "functionExternalInput",
+      "functionRockerA",
+      "functionRockerB",
+      "illuminationThreshold",
+      "ledColor",
+      "operationMode",
+      "routingTime",
+      "switchOffWarning",
+      "switchOffWarningSignal",
+      "timer",
+      "timerLong"
+    ]
+  },
+  "004000000006": {
+    "devices": 6,
+    "eeps": [
+      "D2-01-11",
+      "F6-03-01"
+    ],
+    "keys": [
+      "functionExternalInput",
+      "functionRockerA",
+      "functionRockerB",
+      "illuminationThreshold",
+      "ledChannel",
+      "ledColor",
+      "operationMode",
+      "routingTime",
+      "switchOffWarning",
+      "switchOffWarningSignal",
+      "timer",
+      "timerLong"
+    ]
+  },
+  "00400000000B": {
+    "devices": 5,
+    "eeps": [
+      "A5-07-03"
+    ],
+    "keys": [
+      "aliveCycle",
+      "pirOffTime",
+      "recomReadyTime"
+    ]
+  },
+  "004010000029": {
+    "devices": 2,
+    "eeps": [
+      "F6-05-01"
+    ],
+    "keys": []
+  },
+  "004010000040": {
+    "devices": 1,
+    "eeps": [
+      "F6-10-00",
+      "D2-03-10"
+    ],
+    "keys": []
+  },
+  "005C0000000A": {
+    "devices": 8,
+    "eeps": [
+      "D2-06-40"
+    ],
+    "keys": []
+  }
+}

@@ -96,6 +96,8 @@ SETTING_DISPLAY_PRECISION: Final[dict[str, int]] = {
     "pir_off_time": 0,
     "recom_ready_time": 0,
     "alive_cycle": 0,
+    "lower_limit": 0,
+    "upper_limit": 0,
 }
 MEASUREMENT_DISPLAY_PRECISION: Final[dict[str, int]] = {
     "battery_level": 0,
@@ -684,9 +686,7 @@ class OpusGreenNetSignalStrengthSensor(OpusGreenNetBaseSensor):
     @property
     def native_value(self) -> int | None:
         """Return the signal strength value."""
-        if self._device.dbm is not None:
-            return self._device.dbm
-        return None
+        return self._device.dbm
 
 
 class OpusGreenNetSignalQualitySensor(OpusGreenNetBaseSensor):
@@ -890,7 +890,11 @@ class OpusGreenNetSettingSensor(OpusGreenNetBaseSensor):
         super().__init__(coordinator, eag_id, gateway_device_id, device, key, key)
         self._device_time = device_time
         self._attr_native_unit_of_measurement = device_time.unit
-        self._attr_device_class = SensorDeviceClass(device_time.device_class.value)
+        self._attr_device_class = (
+            None
+            if device_time.device_class is None
+            else SensorDeviceClass(device_time.device_class.value)
+        )
         self._attr_suggested_display_precision = SETTING_DISPLAY_PRECISION.get(
             device_time.translation_key
         )
@@ -1062,7 +1066,7 @@ class OpusGreenNetHandleSensor(OpusGreenNetBaseSensor):
         if suffix == "handle_state":
             self._attr_device_class = SensorDeviceClass.ENUM
             self._attr_options = ["open", "closed", "tilted"]
-        elif suffix == "unlock_request":
+        else:  # "unlock_request", the only other suffix
             self._attr_device_class = SensorDeviceClass.ENUM
             self._attr_options = ["requested", "not_requested"]
             self._attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -1078,9 +1082,7 @@ class OpusGreenNetHandleSensor(OpusGreenNetBaseSensor):
             if channel.unlock_request is None:
                 return None
             return "requested" if channel.unlock_request else "not_requested"
-        if self._suffix == "handle_state":
-            return channel.handle_state
-        return None
+        return channel.handle_state
 
 
 class OpusGreenNetCoverRunSensor(OpusGreenNetEntity, RestoreSensor):

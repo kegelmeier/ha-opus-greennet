@@ -465,6 +465,26 @@ def configuration_functions(data: WireMapping) -> list[WireFunction]:
     ]
 
 
+def configuration_keys(data: WireMapping) -> frozenset[str] | None:
+    """Return the setting keys a device object or configuration document lists.
+
+    Only the keys count, whatever their values: a device reports exactly the
+    settings it has. ``None`` means the object carries no parameter list, which
+    says nothing about the device and never restricts it.
+    """
+    configuration = data.get("configuration")
+    if not isinstance(configuration, dict):
+        return None
+    parameters = configuration.get("parameters")
+    if not isinstance(parameters, list):
+        return None
+    return frozenset(
+        key
+        for parameter in parameters
+        if isinstance(parameter, dict) and isinstance(key := parameter.get("key"), str)
+    )
+
+
 def configuration_read_time(data: WireMapping) -> datetime | None:
     """Return when the gateway last read the configuration of a device object.
 

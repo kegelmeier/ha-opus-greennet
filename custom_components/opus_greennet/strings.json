@@ -79,13 +79,13 @@
   "options": {
     "step": {
       "init": {
-        "title": "Caution: Changing device configuration",
-        "description": "These settings are written directly to the actuator. Changes may cause the device to malfunction or stop working. Incorrect settings may also damage the actuator or connected equipment.\n\nOnly enable write access if you understand the effects of the changes.",
+        "title": "Write access to device settings",
+        "description": "**Caution: These settings are written directly to the actuator.**\n\nIncorrect values can:\n\n- cause malfunctions or device failure\n- damage the actuator or connected equipment\n\nOnly enable write access if you understand the effects of the changes.",
         "data": {
           "allow_setting_writes": "I understand the risks and want to enable write access."
         },
         "data_description": {
-          "allow_setting_writes": "Allows device configuration to be written directly to the actuator. Incorrect settings may cause malfunctions, device failure, or damage to connected equipment."
+          "allow_setting_writes": "Applies to all devices of this gateway. Reading settings is not affected."
         }
       }
     }
@@ -558,6 +558,31 @@
           "off": "Off",
           "on": "On"
         }
+      },
+      "ramping_time_1_setting": {
+        "name": "Ramp time 1 (manual) (stored)"
+      },
+      "ramping_time_2_setting": {
+        "name": "Ramp time 2 (stored)"
+      },
+      "ramping_time_3_setting": {
+        "name": "Ramp time 3 (stored)"
+      },
+      "ramping_time_switch_setting": {
+        "name": "Ramp time for switching (stored)"
+      },
+      "lower_limit_setting": {
+        "name": "Lower dimming limit (stored)"
+      },
+      "upper_limit_setting": {
+        "name": "Upper dimming limit (stored)"
+      },
+      "dimmer_mode_setting": {
+        "name": "Dimming principle (stored)",
+        "state": {
+          "phase_control_lower": "Trailing edge (phase cut-off)",
+          "phase_control_upper": "Leading edge (phase cut-on)"
+        }
       }
     },
     "switch": {
@@ -622,6 +647,27 @@
       },
       "illumination_threshold": {
         "name": "Illumination threshold"
+      },
+      "temperature_setpoint_command": {
+        "name": "Target temperature"
+      },
+      "ramping_time_1": {
+        "name": "Ramp time 1 (manual)"
+      },
+      "ramping_time_2": {
+        "name": "Ramp time 2"
+      },
+      "ramping_time_3": {
+        "name": "Ramp time 3"
+      },
+      "ramping_time_switch": {
+        "name": "Ramp time for switching"
+      },
+      "lower_limit": {
+        "name": "Lower dimming limit"
+      },
+      "upper_limit": {
+        "name": "Upper dimming limit"
       }
     },
     "select": {
@@ -672,6 +718,28 @@
         "state": {
           "off": "Off",
           "on": "On"
+        }
+      },
+      "actuator_mode_command": {
+        "name": "Mode",
+        "state": {
+          "managed": "Managed",
+          "off": "Off",
+          "on": "On"
+        }
+      },
+      "led_status_command": {
+        "name": "LEDs",
+        "state": {
+          "enabled": "Enabled",
+          "disabled": "Disabled"
+        }
+      },
+      "dimmer_mode": {
+        "name": "Dimming principle",
+        "state": {
+          "phase_control_lower": "Trailing edge (phase cut-off)",
+          "phase_control_upper": "Leading edge (phase cut-on)"
         }
       }
     }
@@ -754,6 +822,12 @@
     },
     "write_access_disabled": {
       "message": "{device_id}: Not written. Write access to device settings is not enabled. Enable it under Settings → Devices & services → Opus GreenNet → Configure."
+    },
+    "setting_conflict_upper_limit_below_lower_limit": {
+      "message": "{device_id}: Not written. The upper dimming limit would be lower than the lower dimming limit. Change the other setting first, or press Read settings if a shown value is outdated."
+    },
+    "setting_not_reported": {
+      "message": "Device {device_id} does not have the setting {key}; nothing was written."
     }
   },
   "services": {

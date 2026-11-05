@@ -215,6 +215,45 @@ tested. Only the vertical movement time and the maximum holding time of blinds
 were confirmed, so try a single dimmer first. The ranges are those of the parameter catalog read from one
 D2-01-03; other dimmer types get no such entities.
 
+**Two parameter sets for D2-01-03, chosen by product ID.** The 1 channel dimmer
+from 2017 (product ID `004000000003`, article 563.035) has *Ramping time*,
+*Short-press time* and *Long-press time*. The universal dimmer 563.076 (product
+IDs `00400000001E` and, in the earlier version, `00400000001B`, as listed in the
+product catalog of the OPUS config tool) has *Ramping time 1* to *3*,
+*Switching ramp time*, *Lower limit*, *Upper limit* and *Dimming principle*
+instead. Both use the EEP D2-01-03, so the integration decides by the product ID
+the gateway reports: the universal dimmer gets only the second set, every other
+dimmer only the first. The universal dimmer's parameters were read from a tester's
+gateway (firmware 1.21.34); whether a 563.076 on another gateway firmware reports
+the same keys is not verified.
+
+**Settings follow what the device reports.** When the gateway lists a device with a
+configuration, number and select entities for settings are created only for the keys
+the device reports in it (the product ID decides only where the keys are not enough,
+as for the two dimmers above). A device listed without any configuration keeps the
+sets chosen by its EEP. Writing a setting the device does not report is refused
+with the message *setting not reported* before anything is sent over the radio, also in
+a configuration passed to the *set device configuration* action; the
+routing and repeater mode are not affected. Entities that already exist for a key the
+device does not report are not removed and stay unavailable.
+
+- *Ramping time 1* to *3* and *Switching ramp time*: numbers in seconds, 0 to
+  6553 s in steps of 0.1 s. According to the manual of the 563.076 the factory
+  values are 4 s (dimming) and 0.5 s (switching). That *Ramping time 1* is the
+  manual dimming time is taken from these defaults and the config tool; the
+  use of ramps 2 and 3 is not verified.
+- *Lower limit* and *Upper limit*: numbers in percent, 15 to 80 (defaults
+  25 and 80 in the catalog). The dimmer scales the range; the upper limit may
+  not be set below the lower limit (refused before anything is sent).
+- *Dimming principle* (select): `phase control lower` (trailing edge, suited for
+  LEDs) or `phase control upper` (leading edge). The manual describes switching
+  the principle at the device itself; **writing it through the gateway is not
+  verified on hardware.** Change it only with a matching load connected. The
+  catalog default (`phaseControlUpper`) differs from the manual's factory default
+  (trailing edge), so defaults are not used as stored values.
+- Not offered yet: ViNET routing time of dimmers (unit and value for "on" not
+  verified), LED colour and the function of rocker A and B.
+
 **Dimmer times: what is not verified.** Which setting of the OPUS configuration
 tool each of the three numbers corresponds to has **not been verified**. The
 gateway calls them "Rampenzeit Ein/Aus", "Zeit ShortPress" and "Zeit
@@ -464,8 +503,11 @@ gateway queues every answer for the sleeping handle.
 
 ## Heat Area 3.0 Physical (D1-4B-03)
 
-The Moellenhoff room control unit of a heating controller (gateway profile
-"Heat Area 3.0 Physical") appears as a climate entity.
+The heating zone for Moellenhoff systems (gateway profile "Heat Area 3.0
+Physical", product "Heizzone für Möhlenhoff" in the OPUS config tool) appears
+as a climate entity. It is an object of the gateway that reports the data of
+the room control unit behind it; the device data may name another manufacturer
+than Moellenhoff.
 
 - **Setpoint:** 5–30 °C in steps of 0.2 °C; the unit reports its current
   temperature and setpoint.
@@ -477,6 +519,8 @@ The Moellenhoff room control unit of a heating controller (gateway profile
   entity shows no heating action from it.
 - **Diagnostics:** binary sensors for communication with the room control unit,
   heat circuits, battery and malfunction (on = the unit reported the problem).
+  The battery warning is disabled by default, because the field is also
+  reported by units without a battery; enable it if your unit has one.
 - There is no humidity, window or feed temperature for this profile.
 - The profile is taken from the gateway catalog (`/profiles/D1-4B-03`). It has
   not been tested with a real device yet.
@@ -484,8 +528,8 @@ The Moellenhoff room control unit of a heating controller (gateway profile
 ## Read-only profiles from the gateway catalog
 
 These profiles are taken from the gateway catalog (`GET /profiles/<EEP>`) and
-the OPUS config tool product catalog (device names and article numbers from there). They only show what the device reports:
-no commands are sent, and none of them was tested with a real device yet. A
+the OPUS config tool product catalog (device names and article numbers from there). They only show what the device reports, except for the commands of D2-35-00 and the LEDs of D1-4B-50. The other profiles need a device to test commands; D2-34-10 would also need the gateway to feed the room temperature, which is a control loop and not a single command.
+None of these profiles was tested with a real device yet. A
 value the profile lists as "not available" or "error" shows as unknown; a
 malformed or out-of-range value keeps the last known one.
 
@@ -499,13 +543,13 @@ malformed or out-of-range value keeps the last known one.
 | D2-14-54 | OPUS 55 SENS temperature and humidity sensor (563.043.xx battery powered, 563.044.xx with power supply; 8 variants) | Temperature, humidity, water leak, leak in the last 14 days |
 | D2-32-00, D2-32-02 | A.C. current clamp, 1 A to 60 A, 1 channel (CTV3.868) and 3 channels (CTV3.868.3CH.060A) | Current per channel, power failure |
 | D2-34-10 | CosiTherm actuator, 2 or 6 heating circuits (78123, 78124) | Heater mode, system error, channel count; per heating circuit (channel 1 to 30, learned from the telegrams): temperature, setpoint, circuit state (on/off) and mode (on/off/emergency) |
-| D2-35-00 | Oekoswiss heating actuator for infrared heating panels (388xxxxxx) | Mode, setpoint, outdoor temperature, window, load, power. The two meanings of `temperature` and the contradicting `presence` text are not mapped |
+| D2-35-00 | Oekoswiss heating actuator for infrared heating panels (388xxxxxx) | Mode, setpoint, outdoor temperature, window, load, power. **Experimental:** a mode select (managed, off, on) and a setpoint number (5–40 °C, 0.5 °C steps), both disabled by default, send commands; they show what the device reports, not what was sent (not tested with a real device). The two meanings of `temperature` and the contradicting `presence` text are not mapped |
 | D1-4B-00, D1-4B-02 | Moellenhoff actuator (older, 3.0) | Heater mode, versions, IP address, errors (diagnostic, disabled by default) |
 | D1-4B-01 | Moellenhoff heat area (older) | Temperature, setpoint |
 | D1-4B-04 | Moellenhoff heat area 3.0 (virtual) | Climate as D1-4B-03, plus data mismatch and missing data |
 | D1-4B-10 | WirelessMBus virtual device | Device type, manufacturer, serial number, version (diagnostic, disabled); the raw payload is not mapped |
 | D1-4B-15 | Pressac power clamp | Total current, total power |
-| D1-4B-50 | REG central control unit | LED status, uptime (diagnostic, disabled); LED, firmware reset and update commands are not mapped |
+| D1-4B-50 | REG central control unit | LED status, uptime (diagnostic, disabled). **Experimental:** a select (disabled by default) switches the LEDs on and off; the firmware reset and update commands are deliberately not offered |
 
 The heating circuits of a CosiTherm actuator (D2-34-10) get their entities with
 the first telegram that names the channel, and only up to the channel count the

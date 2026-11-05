@@ -7,6 +7,7 @@ import pytest
 from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.opus_greennet import protocol
+from custom_components.opus_greennet.coordinator import CoverMovement
 from custom_components.opus_greennet.cover import OpusGreenNetCover
 from tests.fake_gateway import device_object, telegram
 from tests.ha_helpers import setup_bridge, wait_for_entity, wait_until
@@ -433,3 +434,68 @@ async def test_short_travel_waits_for_ack_before_assuming_target(
         assert [delay for delay, _, _ in timers[-2:]] == [10, 20]
     assert channel.movement is None
     assert not coord._cover_movements
+
+
+# ── A newer estimate must survive the end of an older request ──────────────
+
+
+def _replace_estimate(coord, target):
+    """Replace the running estimate as a newer command would."""
+    device = coord.devices["DEV1"]
+    movement = coord._start_cover_movement(device, 0, target)  # noqa: SLF001
+    assert movement is not None
+    return movement
+
+
+@pytest.mark.parametrize("status", [201, 400])
+async def test_older_request_leaves_the_newer_estimate_alone(
+    motion, radio, timers, status
+):
+    coord, channel, _ = motion
+    radio.auto_respond = False
+    task = asyncio.create_task(coord.async_set_cover_position("DEV1", 0))
+    await radio.wait_sent(1)
+    newer = _replace_estimate(coord, 50)
+
+    radio.respond({"header": {"httpStatus": status}})
+    if status == 400:
+        with pytest.raises(HomeAssistantError):
+            await task
+    else:
+        await task
+
+    assert coord._cover_movements["DEV1", 0] is newer
+
+
+async def test_clearing_the_estimate_of_an_unknown_device_is_harmless(motion):
+    coord, _, _ = motion
+    cancel = MagicMock()
+    coord._cover_movements["GONE", 0] = CoverMovement(None, 0, 100.0, 10.0, cancel)
+
+    coord._clear_cover_movement("GONE", 0)
+
+    assert ("GONE", 0) not in coord._cover_movements
+    cancel.assert_called_once_with()
+
+
+async def test_retarget_without_a_known_start_position(motion):
+    coord, channel, clock = motion
+    channel.position = None
+    first = _replace_estimate(coord, 0)
+    assert first.start_position is None
+    clock[0] += 5
+
+    second = _replace_estimate(coord, 100)
+
+    assert second.target == 100
+    assert coord._cover_movements["DEV1", 0] is second
+
+
+async def test_a_finished_estimate_of_a_removed_device_is_dropped(motion):
+    coord, _, _ = motion
+    movement = _replace_estimate(coord, 0)
+    del coord.devices["DEV1"]
+
+    coord._finish_cover_movement("DEV1", 0, movement)
+
+    assert ("DEV1", 0) not in coord._cover_movements

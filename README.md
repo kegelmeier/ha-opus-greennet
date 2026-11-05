@@ -52,7 +52,7 @@ Works with both OPUS gateways, the black **OPUS greenNet gateway** and the newer
 | Heating areas | D1-4B-03, -04, -05, -06, -07 (Moellenhoff 3.0 physical and virtual, Valve, CosiTherm, Electro) | Climate, feed temperature, power, humidity, window open, errors, battery |
 | Temperature and humidity sensors | A5-04-01, -02, -03 | Temperature, humidity |
 | More sensors (read-only) | A5-08-01, A5-30-03, D2-11-01, D2-14-41, D2-14-54, D2-32-00, D2-32-02 | Temperature, humidity, illuminance, motion, contact, leak, digital inputs, current, room panel values; see [docs/devices.md](docs/devices.md) |
-| More heating devices (read-only) | A5-20-06, D2-34-10, D2-35-00, D1-4B-00, -01, -02, -10, -15, -50 | Temperature, setpoint, valve, mode, errors, power; see [docs/devices.md](docs/devices.md) |
+| More heating devices (mostly read-only) | A5-20-06, D2-34-10, D2-35-00 (mode and setpoint, experimental), D1-4B-00, -01, -02, -10, -15, -50 (LEDs, experimental) | Temperature, setpoint, valve, mode, errors, power; see [docs/devices.md](docs/devices.md) |
 | Presence detectors (SMS) | A5-07-01, A5-07-03 | Motion, illuminance (A5-07-03), supply voltage, sensor error; A5-07-03 also shows alive cycle, PIR off time and ReCom readiness cycle as read-only diagnostic values |
 | OPUS motion detector | F6-02-01 + A5-04-01 | Motion, temperature, humidity |
 | Smoke detectors (RWM) | F6-05-02 | Smoke alarm, low battery |
@@ -226,7 +226,7 @@ All limitations: [docs/how-it-works.md](docs/how-it-works.md#known-limitations).
 | Status | Topic |
 |--------|-------|
 | ✅ Released | 1.0 with the REST API instead of MQTT |
-| 🚧 In progress | Device settings as Home Assistant entities. Available: blind times, dimmer times and switch timers as numbers, switch operation mode, LED, external input, routing (off/on; switches and blinds) and repeater mode (switches, dimmers, blinds) as selects, link tables read-only. Still open: function of rocker A and B and gateway diagnostics (see below) |
+| 🚧 In progress | Device settings as Home Assistant entities. Available: blind times, dimmer times and switch timers as numbers, switch operation mode, LED, external input, routing (off/on; switches and blinds) and repeater mode (switches, dimmers, blinds) as selects, link tables read-only. The universal dimmer 563.076 (recognised by its product ID) gets four ramp times, dimming limits and the dimming principle instead of the three times (writing not yet verified on hardware). Setting entities are created only for keys the device reports, and writing an unreported key is refused. Still open: function of rocker A and B and gateway diagnostics (see below) |
 | 🚧 Untested | HTTPS for gateways with WebUI 2026 is implemented, but was never tried on a real gateway |
 | 🔍 Investigating | Adding and removing devices from Home Assistant |
 | 🔍 Investigating | The OPUS REG multifunction actuator (CPU D2-70-00, blind D2-05-04, heating circuit D2-34-20 / D2-74-20): the gateway has no profiles for them yet, so support follows with a firmware that provides them |
