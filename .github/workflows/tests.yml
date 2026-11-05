@@ -169,6 +169,7 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             homeassistant
+            packages/hassfest
             pylint/plugins/pylint_home_assistant/generated
             script
 
