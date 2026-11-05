@@ -43,6 +43,8 @@ tests/
 script/
 ├── check_coverage.py     # Per-module coverage gate used by CI
 └── check_icons.py        # Checks icons.json against the frontend's icon catalogue
+blueprints/
+└── automation/opus_greennet/   # Importable automation blueprints (not loaded by the integration)
 docs/
 └── quality/              # Quality scale evidence and gateway protocol contract
 ```
@@ -60,7 +62,7 @@ pytest -v --cov --cov-report=json:coverage.json
 python script/check_coverage.py coverage.json
 ```
 
-The suite has 3,270 tests. They run against real Home Assistant core and an
+The suite has 3,287 tests. They run against real Home Assistant core and an
 in-process gateway that serves the REST API and its event stream over real HTTP
 (`tests/fake_gateway.py`).
 

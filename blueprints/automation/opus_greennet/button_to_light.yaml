@@ -1,0 +1,89 @@
+blueprint:
+  name: "Opus GreenNet: rocker button controls a light"
+  description: >-
+    Toggle, switch on or switch off lights when a button of an OPUS rocker
+    switch (or the rocker buttons of an OPUS actuator) is pressed.
+
+    Every press starts the automation, also when the same button is pressed
+    twice in a row. Event entities of Opus GreenNet Bridge are enabled but
+    hidden by default; they are found under the device of the rocker.
+  domain: automation
+  author: Opus GreenNet Bridge
+  source_url: https://github.com/kegelmeier/ha-opus-greennet/blob/main/blueprints/automation/opus_greennet/button_to_light.yaml
+  homeassistant:
+    min_version: 2026.10.1
+  input:
+    button_event:
+      name: Rocker or button event entity
+      description: The event entity of the rocker switch or of the actuator's buttons.
+      selector:
+        entity:
+          filter:
+            - integration: opus_greennet
+              domain: event
+    button:
+      name: Button
+      description: >-
+        Which button starts the automation. A rocker has an I side and a 0
+        side per rocker (A to D).
+      default: buttonAI
+      selector:
+        select:
+          options:
+            - label: Rocker A, I side
+              value: buttonAI
+            - label: Rocker A, 0 side
+              value: buttonA0
+            - label: Rocker B, I side
+              value: buttonBI
+            - label: Rocker B, 0 side
+              value: buttonB0
+            - label: Rocker C, I side
+              value: buttonCI
+            - label: Rocker C, 0 side
+              value: buttonC0
+            - label: Rocker D, I side
+              value: buttonDI
+            - label: Rocker D, 0 side
+              value: buttonD0
+    light_target:
+      name: Light
+      description: The lights, areas or devices to control.
+      selector:
+        target:
+          entity:
+            - domain: light
+    light_action:
+      name: Action
+      default: toggle
+      selector:
+        select:
+          options:
+            - label: Toggle
+              value: toggle
+            - label: Switch on
+              value: turn_on
+            - label: Switch off
+              value: turn_off
+
+mode: single
+max_exceeded: silent
+
+variables:
+  button: !input button
+  light_action: !input light_action
+
+triggers:
+  - trigger: state
+    entity_id: !input button_event
+
+conditions:
+  - alias: Only the chosen button, only on press
+    condition: template
+    value_template: >-
+      {{ trigger.to_state is not none
+         and trigger.to_state.attributes.event_type == button ~ '_pressed' }}
+
+actions:
+  - action: "light.{{ light_action }}"
+    target: !input light_target

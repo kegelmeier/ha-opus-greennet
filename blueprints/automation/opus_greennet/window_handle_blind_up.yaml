@@ -1,0 +1,73 @@
+blueprint:
+  name: "Opus GreenNet: window handle opened or tilted, blinds move up"
+  description: >-
+    Move blinds or shutters up when a HOPPE window handle reports open or
+    tilted, for example to keep the way free at a balcony door.
+
+    A blind that is already completely open is left alone, so no command is
+    sent for it. Nothing happens when the handle sensor is unknown or
+    unavailable. The blinds stay up when the handle is closed again.
+  domain: automation
+  author: Opus GreenNet Bridge
+  source_url: https://github.com/kegelmeier/ha-opus-greennet/blob/main/blueprints/automation/opus_greennet/window_handle_blind_up.yaml
+  homeassistant:
+    min_version: 2026.10.1
+  input:
+    handle_sensor:
+      name: Handle position sensor
+      description: The "Handle position" sensor of the window handle.
+      selector:
+        entity:
+          filter:
+            - integration: opus_greennet
+              domain: sensor
+              device_class: enum
+    handle_states:
+      name: Positions that count
+      default:
+        - open
+        - tilted
+      selector:
+        select:
+          multiple: true
+          options:
+            - label: Open
+              value: open
+            - label: Tilted
+              value: tilted
+    blinds:
+      name: Blinds
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: cover
+              device_class:
+                - blind
+                - shutter
+                - shade
+                - curtain
+
+mode: single
+max_exceeded: silent
+
+triggers:
+  - trigger: state
+    entity_id: !input handle_sensor
+    to: !input handle_states
+
+actions:
+  - alias: Open every blind that is not completely open
+    repeat:
+      for_each: !input blinds
+      sequence:
+        - if:
+            - alias: Not completely open
+              condition: template
+              value_template: >-
+                {{ not (is_state(repeat.item, 'open')
+                        and state_attr(repeat.item, 'current_position') in [none, 100]) }}
+          then:
+            - action: cover.open_cover
+              target:
+                entity_id: "{{ repeat.item }}"

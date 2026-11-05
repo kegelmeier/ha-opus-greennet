@@ -1,0 +1,77 @@
+blueprint:
+  name: "Opus GreenNet: water leak, warn"
+  description: >-
+    Run a warning when a water leak sensor reports a leak, and optionally
+    repeat it until the sensor reports dry again.
+
+    The leak sensor reports only when its state changes. It shows unavailable
+    during a gateway outage, which is not treated as dry: a repeated warning
+    continues until the sensor reports dry.
+  domain: automation
+  author: Opus GreenNet Bridge
+  source_url: https://github.com/kegelmeier/ha-opus-greennet/blob/main/blueprints/automation/opus_greennet/water_leak_warning.yaml
+  homeassistant:
+    min_version: 2026.10.1
+  input:
+    leak_sensors:
+      name: Water leak sensors
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - integration: opus_greennet
+              domain: binary_sensor
+              device_class: moisture
+    warning:
+      name: Warning
+      description: >-
+        The actions that deliver the warning, for example a notify action of
+        your phone, a siren or lights. The variable trigger.to_state holds the
+        leak sensor. The default creates a persistent notification.
+      default:
+        - action: persistent_notification.create
+          data:
+            title: Water leak
+            message: "{{ trigger.to_state.name }} reports a water leak."
+      selector:
+        action:
+    repeat_minutes:
+      name: Repeat every (minutes)
+      description: Repeat the warning while the sensor still reports a leak. 0 warns once.
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 240
+          step: 1
+          unit_of_measurement: min
+          mode: box
+
+mode: parallel
+max: 10
+max_exceeded: silent
+
+variables:
+  repeat_minutes: !input repeat_minutes
+
+triggers:
+  - trigger: state
+    entity_id: !input leak_sensors
+    to: "on"
+
+actions:
+  - repeat:
+      sequence:
+        - alias: Warn
+          sequence: !input warning
+        - if:
+            - condition: template
+              value_template: "{{ repeat_minutes | int(0) <= 0 }}"
+          then:
+            - stop: Warned once
+        - delay:
+            minutes: "{{ repeat_minutes | int(0) }}"
+      until:
+        - alias: The sensor reports dry again
+          condition: template
+          value_template: "{{ is_state(trigger.entity_id, 'off') }}"

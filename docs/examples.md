@@ -6,8 +6,44 @@ Bridge**). How each device type behaves is described in
 [Devices](devices.md); how updates and acknowledgements work in
 [How it works](how-it-works.md).
 
+- [Blueprints](#blueprints)
 - [Examples](#examples)
 - [Use cases](#use-cases)
+
+## Blueprints
+
+Four blueprints cover common automations. Import one with the button, then
+create an automation from it under **Settings → Automations & scenes →
+Blueprints**. The pickers list only the matching Opus GreenNet entities, so no
+entity IDs have to be typed. A blueprint is a copy: later changes in this
+repository reach you through **Re-import blueprint** in Home Assistant, not
+through HACS.
+
+| Blueprint | Import |
+|-----------|--------|
+| Rocker button controls a light | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fbutton_to_light.yaml) |
+| Window handle opened or tilted, send a notification | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fwindow_handle_notification.yaml) |
+| Window handle opened or tilted, blinds move up | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fwindow_handle_blind_up.yaml) |
+| Water leak, warn | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fwater_leak_warning.yaml) |
+
+- **Rocker button controls a light.** Toggles, switches on or off lights when
+  the chosen button is pressed. Every press counts, also the same button twice
+  in a row.
+- **Window handle, notification.** Runs your notification actions when the
+  handle is tilted or open, optionally only after it stayed there for a while.
+  Unknown and unavailable positions do nothing.
+- **Window handle, blinds move up.** Opens the chosen blinds when the handle is
+  tilted or open, for example to keep the way free at a balcony door. Blinds
+  that are already completely open get no command.
+- **Water leak, warn.** Runs your warning actions when a leak sensor reports
+  water and can repeat them every few minutes until the sensor reports dry. A
+  gateway outage (*unavailable*) does not count as dry.
+
+The notification and warning inputs take any actions, for example the notify
+action of your phone, a siren or lights. The files are in
+[`blueprints/automation/opus_greennet`](../blueprints/automation/opus_greennet).
+To use them without the import button, copy them to
+`<config>/blueprints/automation/opus_greennet/`.
 
 ## Examples
 
