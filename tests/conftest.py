@@ -15,6 +15,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import frame
 from homeassistant.helpers import issue_registry as ir
 
 from custom_components.opus_greennet.coordinator import OpusGreenNetCoordinator
@@ -75,15 +76,19 @@ async def hass(tmp_path: Path) -> AsyncIterator[HomeAssistant]:
     resolver.start()
     hass = HomeAssistant(str(tmp_path))
     loader.async_setup(hass)
+    frame.async_setup(hass)
     hass.config_entries = ConfigEntries(hass, {})
     dr.async_setup(hass)
+    # Home Assistant 2026.11 loads the entity registry only after the config
+    # entries are initialized, so initialize them first (older releases do not
+    # care about the order).
+    await hass.config_entries.async_initialize()
     await asyncio.gather(
         ar.async_load(hass, load_empty=True),
         dr.async_load(hass, load_empty=True),
         er.async_load(hass, load_empty=True),
         ir.async_load(hass, load_empty=True),
     )
-    await hass.config_entries.async_initialize()
     try:
         yield hass
     finally:
