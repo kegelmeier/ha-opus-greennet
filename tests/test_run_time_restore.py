@@ -10,7 +10,12 @@ from homeassistant.util import dt as dt_util
 
 from custom_components.opus_greennet.const import DOMAIN
 from tests.fake_gateway import FakeGateway, device_object, telegram
-from tests.ha_helpers import setup_bridge, wait_for_entity, wait_until
+from tests.ha_helpers import (
+    seed_restored_states,
+    setup_bridge,
+    wait_for_entity,
+    wait_until,
+)
 
 EAG_ID = "AABB0011"
 UNIQUE_ID = f"{EAG_ID}_BLIND_last_run_time"
@@ -38,15 +43,20 @@ def _register(hass: HomeAssistant) -> None:
 
 def _restore(hass: HomeAssistant, value: object, attributes: dict) -> None:
     """Seed what Home Assistant saved for the sensor before the restart."""
-    restore_state.async_get(hass).last_states = {
-        ENTITY_ID: restore_state.StoredState(
-            State(ENTITY_ID, str(value), {**attributes, "unit_of_measurement": "s"}),
-            restore_state.RestoredExtraData(
-                {"native_value": value, "native_unit_of_measurement": "s"}
-            ),
-            dt_util.utcnow(),
-        )
-    }
+    seed_restored_states(
+        hass,
+        {
+            ENTITY_ID: restore_state.StoredState(
+                State(
+                    ENTITY_ID, str(value), {**attributes, "unit_of_measurement": "s"}
+                ),
+                restore_state.RestoredExtraData(
+                    {"native_value": value, "native_unit_of_measurement": "s"}
+                ),
+                dt_util.utcnow(),
+            )
+        },
+    )
 
 
 async def test_last_run_is_restored_until_the_next_run(
