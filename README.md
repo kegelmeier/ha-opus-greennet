@@ -8,7 +8,7 @@ Local Home Assistant integration for **OPUS greenNet** EnOcean smart homes.
 Works with both OPUS gateways, the black **OPUS greenNet gateway** and the newer
 **OPUS IQ-DOT**, connected directly to their EnOcean over IP REST API.
 
-[![HACS Custom][hacs-shield]][hacs]
+[![HACS Default][hacs-shield]][hacs]
 [![GitHub Release][release-shield]][releases]
 [![License][license-shield]][license]
 ![HA Min Version][ha-shield]
@@ -94,16 +94,20 @@ No MQTT broker, MQTT integration or Mosquitto bridge is needed.
 
 ### HACS (recommended)
 
+The integration is in the HACS default store.
+
 1. Install [HACS](https://hacs.xyz) if you haven't yet.
-2. Add this repository as a custom repository of type **Integration**:
+2. In HACS, search for **Opus GreenNet Bridge**, or open it directly:
 
    [![Open in HACS][hacs-repo-badge]][hacs-repo]
 
-   …or in HACS open **⋮ → Custom repositories**, paste
-   `https://github.com/kegelmeier/ha-opus-greennet` and choose **Integration**.
-3. Search for **Opus GreenNet Bridge**, download it and restart Home Assistant.
+3. Download it and restart Home Assistant.
 
-To try a beta, enable pre-release versions for this repository in HACS first.
+If you added this repository as a custom repository before, you don't need to do
+anything: updates keep coming through HACS as before.
+
+To try a beta, open the integration in HACS, choose **⋮ → Redownload**, turn on
+**Show beta versions** and select the beta.
 
 ### Manual
 
@@ -333,7 +337,7 @@ Released under the [MIT License](LICENSE).
 
 <!-- badges -->
 [hacs]: https://hacs.xyz
-[hacs-shield]: https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge
+[hacs-shield]: https://img.shields.io/badge/HACS-Default-41BDF5.svg?style=for-the-badge
 [releases]: https://github.com/kegelmeier/ha-opus-greennet/releases
 [release-shield]: https://img.shields.io/github/v/release/kegelmeier/ha-opus-greennet?style=for-the-badge
 [license]: https://github.com/kegelmeier/ha-opus-greennet/blob/main/LICENSE
