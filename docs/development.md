@@ -43,6 +43,8 @@ tests/
 script/
 ├── check_coverage.py     # Per-module coverage gate used by CI
 └── check_icons.py        # Checks icons.json against the frontend's icon catalogue
+blueprints/
+└── automation/opus_greennet/   # Importable automation blueprints (not loaded by the integration)
 docs/
 └── quality/              # Quality scale evidence and gateway protocol contract
 ```

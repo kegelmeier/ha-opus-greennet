@@ -39,6 +39,8 @@ Works with both OPUS gateways, the black **OPUS greenNet gateway** and the newer
   resynchronises every device.
 - **Diagnostics** with redacted downloads, plus actions for device
   configuration (ReCom).
+- **Blueprints** for rocker buttons, window handles and water leak sensors; see
+  [docs/examples.md](docs/examples.md#blueprints).
 - **UI setup** with re-authentication and reconfiguration; English and German.
 
 ## Supported devices
