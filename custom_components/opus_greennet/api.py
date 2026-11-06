@@ -99,7 +99,10 @@ class OpusConnectionError(OpusApiError):
 
 
 class OpusTimeoutError(OpusConnectionError):
-    """The request was sent but its answer did not arrive in time."""
+    """The request was sent but no answer arrived (timeout or broken connection).
+
+    Whether the gateway acted on the request is unknown.
+    """
 
 
 class OpusAuthError(OpusApiError):
@@ -144,6 +147,32 @@ class OpusResponseError(OpusApiError):
         self.status = status
         self.http_status = http_status
         self.gateway_status = gateway_status
+
+
+class _NotRepeated(aiohttp.ClientError):
+    """aiohttp tried to send a request again after its connection broke."""
+
+
+def _send_once() -> aiohttp.ClientMiddlewareType:
+    """Return a middleware that stops aiohttp from sending a request again.
+
+    aiohttp resends idempotent methods, ``PUT`` included, once when the
+    connection breaks. The gateway may already have acted on the first request,
+    so a command could run twice and a radio read would be repeated. The
+    middleware runs once per attempt and fails the second.
+    """
+    attempts = 0
+
+    async def middleware(
+        request: aiohttp.ClientRequest, handler: aiohttp.ClientHandlerType
+    ) -> aiohttp.ClientResponse:
+        nonlocal attempts
+        attempts += 1
+        if attempts > 1:
+            raise _NotRepeated
+        return await handler(request)
+
+    return middleware
 
 
 def response_status(data: JsonObject) -> int:
@@ -517,6 +546,9 @@ class OpusGatewayClient:
         timeout: float,
     ) -> JsonObject:
         headers = await self._async_auth_headers()
+        # A command or a radio read is never sent again by aiohttp if the
+        # connection breaks after the gateway may have taken it.
+        radio = method != "GET" or timeout > REQUEST_TIMEOUT
         tls = self._tls
         try:
             async with self._session.request(
@@ -524,6 +556,7 @@ class OpusGatewayClient:
                 f"{self._base_url}{path}",
                 headers=headers,
                 json=body,
+                middlewares=(_send_once(),) if radio else None,
                 # The gateway never redirects. Following one could send the
                 # Authorization header to another host.
                 allow_redirects=False,
@@ -536,6 +569,10 @@ class OpusGatewayClient:
             raise OpusTimeoutError(f"{method} {path} timed out") from err
         except aiohttp.ServerFingerprintMismatch as err:
             raise OpusCertificateError("The gateway certificate changed") from err
+        except _NotRepeated as err:
+            raise OpusTimeoutError(
+                f"{method} {path} lost its connection and is not sent again"
+            ) from err
         except aiohttp.ClientError as err:
             raise OpusConnectionError(f"{method} {path} failed: {err}") from err
         # Transport success (2xx) and gateway success (document status 200 or

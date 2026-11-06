@@ -48,7 +48,12 @@ Verification legend: **[Code]** read from source, **[Test]** covered by tests,
   must report success. A non-2xx status line fails the request even if the
   body reports 200 (`reason` "HTTP status <h>, gateway status <g>");
   `OpusResponseError` carries `http_status` and `gateway_status`. Requests are
-  never repeated. **[Code][Test]**
+  never repeated. This includes aiohttp's own resend of idempotent methods
+  after a broken connection: commands (`PUT`) and radio reads (timeout above
+  the ordinary request bound) are not sent again, and a connection lost after
+  the request was sent is reported like a timeout (`OpusTimeoutError`, outcome
+  unknown). Ordinary reads (health probe, device list) keep aiohttp's single
+  resend. **[Code][Test]**
 - Shared Home Assistant aiohttp session (`async_get_clientsession`). Request
   bound 10 s (connect 10 s); ReCom requests 45 s. **[Code]**
 
