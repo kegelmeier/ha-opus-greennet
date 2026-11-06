@@ -961,4 +961,8 @@ async def test_device_without_profile_gets_entities_once_its_eeps_arrive(
     )
     # Home Assistant 2026.11 states the unit of the temperatures; the gateway
     # reports degrees Celsius, so the default metric system shows them unchanged.
-    assert hass.states.get(entity_id).attributes.get("temperature_unit") == "°C"
+    # Earlier versions have no such attribute.
+    from homeassistant.components.climate import ClimateEntity
+
+    if hasattr(ClimateEntity, "native_current_temperature"):
+        assert hass.states.get(entity_id).attributes.get("temperature_unit") == "°C"

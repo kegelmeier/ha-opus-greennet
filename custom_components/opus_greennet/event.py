@@ -93,8 +93,9 @@ async def async_setup_entry(
 # OpusGreenNetEntity overrides it to keep the dispatch projection. That is
 # safe here: the override runs first in the MRO, only resets the projection
 # bookkeeping (which event entities do not use, see _handle_state_update) and
-# then calls the final method through super().
-class OpusGreenNetEvent(OpusGreenNetEntity, EventEntity):  # type: ignore[misc]
+# then calls the final method through super(). Before 2026.11 the method is not
+# final, hence ``unused-ignore``.
+class OpusGreenNetEvent(OpusGreenNetEntity, EventEntity):  # type: ignore[misc, unused-ignore]
     """Representation of an Opus GreenNet rocker switch event."""
 
     _attr_has_entity_name = True

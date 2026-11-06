@@ -39,8 +39,6 @@ Works with both OPUS gateways, the black **OPUS greenNet gateway** and the newer
   resynchronises every device.
 - **Diagnostics** with redacted downloads, plus actions for device
   configuration (ReCom).
-- **Blueprints** for rocker buttons, window handles and water leak sensors; see
-  [docs/examples.md](docs/examples.md#blueprints).
 - **UI setup** with re-authentication and reconfiguration; English and German.
 
 ## Supported devices
@@ -67,9 +65,7 @@ Signal strength and battery level are available where the gateway reports them.
 Every device also has a diagnostic **Last seen** time, and the gateway's own
 device shows when it started (**Uptime**). Signal strength and Last seen are
 disabled by default because they change with every telegram; enable them where
-you need them. The diagnostic **Remote management** sensor (disabled by default)
-shows the state the gateway lists for reaching the device, for example *No
-response* or *Wrong secure code*; it helps when *Read settings* fails.
+you need them.
 
 The gateway's device information shows its **serial number** (as reported by
 `/system/info`, not the EURID). Further diagnostic sensors show the
@@ -87,7 +83,7 @@ Details per device type: [docs/devices.md](docs/devices.md).
 
 | | Requirement |
 |---|---|
-| Home Assistant | 2026.11.0 or newer |
+| Home Assistant | 2026.10.1 or newer |
 | Gateway | Both OPUS gateways: the black OPUS greenNet gateway (reports itself as `OPUS-GW`) and the OPUS IQ-DOT (`OPUS-IQ-DOT`). Before WebUI 2026: REST API on port 8080 (tested with firmware 1.21.30 to 1.21.34). With WebUI 2026: the same REST API over HTTPS on port 443 with a user login (see [Gateways with WebUI 2026](#gateways-with-webui-2026); not yet tested on such a gateway) |
 | Network | Home Assistant and the gateway in the same local network. Discovery uses mDNS; without it (for example Docker without host networking) enter the address once |
 | Devices | Paired with the gateway in the OPUS app |
@@ -121,9 +117,8 @@ To try a beta, open the integration in HACS, choose **⋮ → Redownload**, turn
 
 > [!IMPORTANT]
 > A manual copy does not check the Home Assistant version. On a version older
-> than 2026.11.0 the climate entities of the heating devices do not work
-> correctly, because they use the native temperature properties that
-> Home Assistant introduced in 2026.11.
+> than 2026.10.1 setup fails with `ImportError: cannot import name
+> 'ATTR_BRIGHTNESS'`.
 
 ## Configuration
 
@@ -226,8 +221,7 @@ diagnostics** on the integration entry). More in
   TLS). Keep the gateway in a trusted network; new or changed addresses must be
   local, for both generations.
 - Devices cannot be added to or removed from the gateway yet, and some device
-  settings (for example the ViNET routing time of dimmers) are not offered yet
-  (see [Roadmap](#roadmap)).
+  settings (the function of rocker A and B) are not offered yet (see [Roadmap](#roadmap)).
 
 All limitations: [docs/how-it-works.md](docs/how-it-works.md#known-limitations).
 
@@ -236,7 +230,7 @@ All limitations: [docs/how-it-works.md](docs/how-it-works.md#known-limitations).
 | Status | Topic |
 |--------|-------|
 | ✅ Released | 1.0 with the REST API instead of MQTT |
-| 🚧 In progress | Device settings as Home Assistant entities. Available: blind times, dimmer times and switch timers as numbers, switch operation mode, LED, external input, function of rocker A and B (switches, blinds and the universal dimmer), routing (off/on; switches and blinds) and repeater mode (switches, dimmers, blinds) as selects, link tables read-only. The universal dimmer 563.076 (recognised by its product ID) gets four ramp times, dimming limits, the dimming principle and the function of rocker A and B instead of the three times (writing not yet verified on hardware). Setting entities are created only for keys the device reports, and writing an unreported key is refused. Still open: gateway diagnostics (see below) |
+| 🚧 In progress | Device settings as Home Assistant entities. Available: blind times, dimmer times and switch timers as numbers, switch operation mode, LED, external input, routing (off/on; switches and blinds) and repeater mode (switches, dimmers, blinds) as selects, link tables read-only. The universal dimmer 563.076 (recognised by its product ID) gets four ramp times, dimming limits and the dimming principle instead of the three times (writing not yet verified on hardware). Setting entities are created only for keys the device reports, and writing an unreported key is refused. Still open: function of rocker A and B and gateway diagnostics (see below) |
 | 🚧 Untested | HTTPS for gateways with WebUI 2026 is implemented, but was never tried on a real gateway |
 | 🔍 Investigating | Adding and removing devices from Home Assistant |
 | 🔍 Investigating | The OPUS REG multifunction actuator (CPU D2-70-00, blind D2-05-04, heating circuit D2-34-20 / D2-74-20): the gateway has no profiles for them yet, so support follows with a firmware that provides them |
@@ -256,8 +250,8 @@ is still open is offered the same way once it is safe to write:
 
 | Device | Settings |
 |--------|----------|
-| Switch actuators (D2-01-00/-01, 2-channel D2-01-11) | Available: timer durations, switch-off warning, its signal duration and illumination threshold as numbers; operation mode, LED colour, LED channel, external input function, function of rocker A and B, routing off/on and repeater mode as selects |
-| Blinds (D2-05-02) | Available: vertical movement time, rotation time and maximum holding time as numbers; function of rocker A and B, ViNET routing off/on and repeater mode as selects |
+| Switch actuators (D2-01-00/-01, 2-channel D2-01-11) | Function of rocker A and B (channel assignment). Available: timer durations, switch-off warning, its signal duration and illumination threshold are available as numbers; operation mode, LED colour, LED channel, external input function, routing off/on and repeater mode as selects |
+| Blinds (D2-05-02) | Function of rocker A and B (vertical movement time, rotation time and maximum holding time are available as numbers; ViNET routing off/on and repeater mode as selects) |
 | All actuators | Link tables (linked wall switches and their role, e.g. central on/off or up/down) can already be read with the `get_device_link_tables` action, and a diagnostic *Wall switch links* sensor and the diagnostics download show them without a radio request; writing them is not planned |
 | Gateway | Services such as HomeKit, Alexa, MQTT, InfluxDB, scheduler and heating zones. Available as diagnostic sensors: firmware, app and API version, received telegrams and average signal strength |
 
@@ -281,16 +275,14 @@ written by the integration on hardware so far**: try a single device first.
 |---------|--------|---------------------|
 | Blind: vertical movement time | Number | ✅ 24 blinds in one installation (effect confirmed by run durations) |
 | Blind: maximum holding time | Number | ✅ one blind |
-| Blind: rotation time | Number | ⚠️ written, read back and restored on one D2-05-02 (0 → test value → 0, other parameters unchanged); the effect on slats was not observed (no venetian blind available) |
+| Blind: rotation time | Number | not tested |
 | Dimmer D2-01-03: ramping, short-press and long-press time | Number | not confirmed: *Ramping time* 0.5 s and 1.0 s were not stored by one dimmer (short and long press not tested); correspondence to the settings of the configuration tool not verified |
 | Switch D2-01-01/-11: timers, switch-off warning and signal, illumination threshold | Number | ✅ one switch, through the gateway API (not through these entities) |
 | Switch: LED colour | Select | ✅ one D2-01-01 (text value) |
 | Switch: operation mode | Select | ✅ one switch, through the gateway API (not through this entity) |
-| Switch: external input function | Select | ✅ one D2-01-01 (*channel 1* → *inactive* → *channel 1*, read back by radio each time) and, with a button connected to the input, one D2-01-01 and one D2-01-11 (written through the select, read back by radio; the input function worked as expected) |
-| Switch and blind: function of rocker A and B | Select | ✅ rocker B on one D2-01-01 (with *inactive* the rocker no longer switched, after restoring *channel 1* it switched again) and one D2-05-02 (written, read back by radio and restored; behaviour at the wall switch confirmed); rocker A on one D2-01-11 (*channel 1* → *channel 2*: the press then switched channel 2, no load was connected there; restored and read back). Not tested: rocker A of a 1-channel switch (it reports the raw value 0), *channels all* |
-| Switch: LED channel | Select | ✅ one D2-01-11 (*channel 1* → *channel 2* → *channel 1*, read back by radio each time; LED colour and rockers unchanged); the LED of channel 2 lit up as expected |
+| Switch: LED channel, external input function | Select | not tested |
 | Repeater mode (blinds) | Select | ✅ 24 blinds of a second installation: *off* on four blinds that had a repeater (two at level 2, two at level 1), level 2 on one blind and back to *off*, read back each time; the repeater indicator of the MyOPUS app disappeared. Whether the radio behaviour changes at level 2 was not verified |
-| ViNET Router (switches) | Select | ✅ *on* on 28 of 28 switches of a second installation (the gateway reported *on*); on one D2-01-01 also *on* → *off*, read back by radio each time; whether routing takes place was not verified |
+| ViNET Router (switches) | Select | ✅ *on* on 28 of 28 switches of a second installation (the gateway reported *on*); whether routing takes place was not verified |
 | ViNET routing (blinds) | Action `set_device_configuration` | ✅ 0.3 s accepted and read back by 22 of 24 blinds of a second installation; two did not answer radio configuration requests at first |
 | Link tables (wall switch links) | Action, sensor, diagnostics | read only, read on hardware |
 
@@ -350,7 +342,7 @@ Released under the [MIT License](LICENSE).
 [release-shield]: https://img.shields.io/github/v/release/kegelmeier/ha-opus-greennet?style=for-the-badge
 [license]: https://github.com/kegelmeier/ha-opus-greennet/blob/main/LICENSE
 [license-shield]: https://img.shields.io/github/license/kegelmeier/ha-opus-greennet?style=for-the-badge
-[ha-shield]: https://img.shields.io/badge/Home%20Assistant-2026.11.0%2B-41BDF5.svg?style=for-the-badge&logo=home-assistant&logoColor=white
+[ha-shield]: https://img.shields.io/badge/Home%20Assistant-2026.10.1%2B-41BDF5.svg?style=for-the-badge&logo=home-assistant&logoColor=white
 [hacs-repo]: https://my.home-assistant.io/redirect/hacs_repository/?owner=kegelmeier&repository=ha-opus-greennet&category=integration
 [hacs-repo-badge]: https://my.home-assistant.io/badges/hacs_repository.svg
 [config-flow]: https://my.home-assistant.io/redirect/config_flow_start/?domain=opus_greennet
