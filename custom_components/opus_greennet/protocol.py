@@ -34,6 +34,7 @@ from .const import (
     KEY_VERTICAL_MOVEMENT_TIME,
     KNOWN_STATE_KEYS,
     LOCKING_MODES,
+    REMAN_STATES,
     REPEATER_EEPS,
     RWM_EEP,
 )
@@ -483,6 +484,16 @@ def configuration_keys(data: WireMapping) -> frozenset[str] | None:
         for parameter in parameters
         if isinstance(parameter, dict) and isinstance(key := parameter.get("key"), str)
     )
+
+
+def reman_state(data: WireMapping) -> str | None:
+    """Return the option key of a device's ``remanState``, or None.
+
+    A missing field or a value this integration does not know is unknown: the
+    gateway text is data, never a name the integration shows unchecked.
+    """
+    value = data.get("remanState")
+    return REMAN_STATES.get(value) if isinstance(value, str) else None
 
 
 def configuration_read_time(data: WireMapping) -> datetime | None:

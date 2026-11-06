@@ -398,6 +398,22 @@
           "poor": "Poor"
         }
       },
+      "reman_state": {
+        "name": "Remote management",
+        "state": {
+          "not_seen": "Not seen",
+          "no_response": "No response",
+          "learned_in": "Learned in",
+          "unsupported_eep": "EEP not supported",
+          "query_starting": "Query starting",
+          "query_in_progress": "Query in progress",
+          "queried": "Queried",
+          "unsupported_product_id": "Product ID not supported",
+          "invalid_product_id": "Invalid product ID",
+          "unlock_failed": "Unlock failed",
+          "wrong_secure_code": "Wrong secure code"
+        }
+      },
       "device_id": {
         "name": "Device ID"
       },

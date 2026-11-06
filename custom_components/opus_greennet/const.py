@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import MappingProxyType
 from typing import Final
 
 DOMAIN: Final = "opus_greennet"
@@ -286,6 +287,24 @@ ROUTING_ON_SECONDS: Final = 0.3
 # D2-01 switches (catalog read from a D2-01-01 and a D2-01-11).
 # Radio link quality by signal strength (dBm): above GOOD is good, down to
 # POOR (inclusive) sufficient, below it poor (a repeater is recommended).
+# Remote management (ReMan) states a gateway lists as ``remanState``, mapped to
+# the option keys of the diagnostic sensor. The gateway spells two of them
+# "Successfull..."; a value that is not listed here is shown as unknown.
+REMAN_STATES: Final = MappingProxyType(
+    {
+        "NotSeen": "not_seen",
+        "NoResponse": "no_response",
+        "SuccessfullLearnedIn": "learned_in",
+        "UnsupportedEEP": "unsupported_eep",
+        "QueryStarting": "query_starting",
+        "QueryInProgress": "query_in_progress",
+        "SuccessfullQueried": "queried",
+        "UnsupportedProductId": "unsupported_product_id",
+        "InvalidProductId": "invalid_product_id",
+        "UnlockFailed": "unlock_failed",
+        "WrongSecureCode": "wrong_secure_code",
+    }
+)
 SIGNAL_GOOD_DBM: Final = -75
 SIGNAL_POOR_DBM: Final = -85
 SWITCH_EEPS: Final = ("D2-01-01", "D2-01-11")

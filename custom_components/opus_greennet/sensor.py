@@ -35,6 +35,7 @@ from .const import (
     CONF_EAG_ID,
     DEFAULT_CHANNEL,
     DOMAIN,
+    REMAN_STATES,
     SIGNAL_GOOD_DBM,
     SIGNAL_POOR_DBM,
 )
@@ -332,6 +333,12 @@ async def async_setup_entry(
                 gateway_device_id=gateway_device_id,
                 device=device,
             )
+        )
+
+        # The remote management state the gateway lists (diagnostic, disabled
+        # by default), for every device.
+        entities.append(
+            OpusGreenNetRemanStateSensor(coordinator, eag_id, gateway_device_id, device)
         )
 
         # The device ID (EURID) as text, for every device (diagnostic).
@@ -794,6 +801,40 @@ class OpusGreenNetLastSeenSensor(OpusGreenNetBaseSensor):
     def native_value(self) -> datetime | None:
         """Return the time of the newest report, unknown when not usable."""
         return parse_last_seen(self._device.last_seen)
+
+
+class OpusGreenNetRemanStateSensor(OpusGreenNetBaseSensor):
+    """Remote management (ReMan) state of a device, as the gateway lists it.
+
+    The gateway reaches a device for its settings through remote management
+    and keeps the outcome of its last attempt, for example *No response* or
+    *Wrong secure code*. The sensor explains why *Read settings* fails for a
+    device. It changes only when the gateway lists the device again and
+    requests nothing from the gateway or the device. Disabled by default: it
+    matters only when settings cannot be read.
+    """
+
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_options = list(REMAN_STATES.values())
+
+    def __init__(
+        self,
+        coordinator: OpusGreenNetCoordinator,
+        eag_id: str,
+        gateway_device_id: str,
+        device: EnOceanDevice,
+    ) -> None:
+        """Initialize the remote management state sensor."""
+        super().__init__(
+            coordinator, eag_id, gateway_device_id, device, "reman_state", "reman_state"
+        )
+        self._attr_entity_registry_enabled_default = False
+
+    @property
+    def native_value(self) -> str | None:
+        """Return the state, unknown while the gateway lists none."""
+        return self._device.reman_state
 
 
 class OpusGreenNetSettingsReadSensor(OpusGreenNetBaseSensor):
