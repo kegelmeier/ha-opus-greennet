@@ -2,9 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [1.2.0b3] - 2026-11-06
 
-Support for gateways with **WebUI 2026**, settings you can **read on request**, **routing and repeater mode** as entities, and much more detail for diagnosing the radio network: a radio journal, gateway versions and address, a signal quality rating. Built on @fubu2k's work, rebased onto v1.1.0. The version number and release header are left to the maintainer.
+Fourth beta of 1.2. New since 1.2.0b2: **Home Assistant 2026.11** support (2026.10 keeps working), settings of the **universal dimmer 563.076** (fixes its unknown settings on gateway firmware 1.21.34), the **function of rocker A and B** as selects, a **remote management** diagnostic sensor, **automation blueprints**, experimental commands for the Oekoswiss infrared heater and the REG unit (disabled by default), and fixes: no command is ever sent twice after a broken connection, and an empty settings list no longer removes known settings. Built on @fubu2k's work (#112, #145, #151, #167). v1.1.1 stays the stable release.
+
+> **WebUI 2026 support is experimental.** No gateway with WebUI 2026 has been tested yet: the login and the token handling follow the documented pattern but are unverified. When the access token expires, the gateway can show as unavailable for up to a minute or one command can fail; this is tracked for a later version. Gateways of the earlier generation (HTTP, port 8080) are not affected. The new device profiles were built from the gateway's profile catalog and have not been tested with real devices.
 
 ### Requirement
 - **Home Assistant 2026.10.1 or newer**, as before. CI now uses 2026.10.4 as the fixed reference.
