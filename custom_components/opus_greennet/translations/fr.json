@@ -375,6 +375,24 @@
           "inactive": "Inactive"
         }
       },
+      "function_rocker_a_setting": {
+        "name": "Fonction de la bascule A (enregistrée)",
+        "state": {
+          "channel1": "Canal 1",
+          "channel2": "Canal 2",
+          "channels_all": "Canaux 1 + 2",
+          "inactive": "Inactive"
+        }
+      },
+      "function_rocker_b_setting": {
+        "name": "Fonction de la bascule B (enregistrée)",
+        "state": {
+          "channel1": "Canal 1",
+          "channel2": "Canal 2",
+          "channels_all": "Canaux 1 + 2",
+          "inactive": "Inactive"
+        }
+      },
       "repeater_setting": {
         "name": "Mode répéteur (enregistré)",
         "state": {
@@ -698,6 +716,24 @@
       },
       "function_external_input": {
         "name": "Fonction de l'entrée externe",
+        "state": {
+          "channel1": "Canal 1",
+          "channel2": "Canal 2",
+          "channels_all": "Canaux 1 + 2",
+          "inactive": "Inactive"
+        }
+      },
+      "function_rocker_a": {
+        "name": "Fonction de la bascule A",
+        "state": {
+          "channel1": "Canal 1",
+          "channel2": "Canal 2",
+          "channels_all": "Canaux 1 + 2",
+          "inactive": "Inactive"
+        }
+      },
+      "function_rocker_b": {
+        "name": "Fonction de la bascule B",
         "state": {
           "channel1": "Canal 1",
           "channel2": "Canal 2",

@@ -375,6 +375,24 @@
           "inactive": "Inattivo"
         }
       },
+      "function_rocker_a_setting": {
+        "name": "Funzione del bilanciere A (memorizzato)",
+        "state": {
+          "channel1": "Canale 1",
+          "channel2": "Canale 2",
+          "channels_all": "Canali 1 + 2",
+          "inactive": "Inattivo"
+        }
+      },
+      "function_rocker_b_setting": {
+        "name": "Funzione del bilanciere B (memorizzato)",
+        "state": {
+          "channel1": "Canale 1",
+          "channel2": "Canale 2",
+          "channels_all": "Canali 1 + 2",
+          "inactive": "Inattivo"
+        }
+      },
       "repeater_setting": {
         "name": "Modalità ripetitore (memorizzato)",
         "state": {
@@ -698,6 +716,24 @@
       },
       "function_external_input": {
         "name": "Funzione dell'ingresso esterno",
+        "state": {
+          "channel1": "Canale 1",
+          "channel2": "Canale 2",
+          "channels_all": "Canali 1 + 2",
+          "inactive": "Inattivo"
+        }
+      },
+      "function_rocker_a": {
+        "name": "Funzione del bilanciere A",
+        "state": {
+          "channel1": "Canale 1",
+          "channel2": "Canale 2",
+          "channels_all": "Canali 1 + 2",
+          "inactive": "Inattivo"
+        }
+      },
+      "function_rocker_b": {
+        "name": "Funzione del bilanciere B",
         "state": {
           "channel1": "Canale 1",
           "channel2": "Canale 2",

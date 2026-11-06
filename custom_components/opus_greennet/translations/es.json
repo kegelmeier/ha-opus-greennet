@@ -375,6 +375,24 @@
           "inactive": "Inactiva"
         }
       },
+      "function_rocker_a_setting": {
+        "name": "Función del balancín A (guardado)",
+        "state": {
+          "channel1": "Canal 1",
+          "channel2": "Canal 2",
+          "channels_all": "Canales 1 + 2",
+          "inactive": "Inactiva"
+        }
+      },
+      "function_rocker_b_setting": {
+        "name": "Función del balancín B (guardado)",
+        "state": {
+          "channel1": "Canal 1",
+          "channel2": "Canal 2",
+          "channels_all": "Canales 1 + 2",
+          "inactive": "Inactiva"
+        }
+      },
       "repeater_setting": {
         "name": "Modo repetidor (guardado)",
         "state": {
@@ -698,6 +716,24 @@
       },
       "function_external_input": {
         "name": "Función de la entrada externa",
+        "state": {
+          "channel1": "Canal 1",
+          "channel2": "Canal 2",
+          "channels_all": "Canales 1 + 2",
+          "inactive": "Inactiva"
+        }
+      },
+      "function_rocker_a": {
+        "name": "Función del balancín A",
+        "state": {
+          "channel1": "Canal 1",
+          "channel2": "Canal 2",
+          "channels_all": "Canales 1 + 2",
+          "inactive": "Inactiva"
+        }
+      },
+      "function_rocker_b": {
+        "name": "Función del balancín B",
         "state": {
           "channel1": "Canal 1",
           "channel2": "Canal 2",

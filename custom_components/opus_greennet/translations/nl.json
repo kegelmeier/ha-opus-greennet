@@ -375,6 +375,24 @@
           "inactive": "Inactief"
         }
       },
+      "function_rocker_a_setting": {
+        "name": "Functie wip A (opgeslagen)",
+        "state": {
+          "channel1": "Kanaal 1",
+          "channel2": "Kanaal 2",
+          "channels_all": "Kanaal 1 + 2",
+          "inactive": "Inactief"
+        }
+      },
+      "function_rocker_b_setting": {
+        "name": "Functie wip B (opgeslagen)",
+        "state": {
+          "channel1": "Kanaal 1",
+          "channel2": "Kanaal 2",
+          "channels_all": "Kanaal 1 + 2",
+          "inactive": "Inactief"
+        }
+      },
       "repeater_setting": {
         "name": "Repeatermodus (opgeslagen)",
         "state": {
@@ -698,6 +716,24 @@
       },
       "function_external_input": {
         "name": "Functie externe ingang",
+        "state": {
+          "channel1": "Kanaal 1",
+          "channel2": "Kanaal 2",
+          "channels_all": "Kanaal 1 + 2",
+          "inactive": "Inactief"
+        }
+      },
+      "function_rocker_a": {
+        "name": "Functie wip A",
+        "state": {
+          "channel1": "Kanaal 1",
+          "channel2": "Kanaal 2",
+          "channels_all": "Kanaal 1 + 2",
+          "inactive": "Inactief"
+        }
+      },
+      "function_rocker_b": {
+        "name": "Functie wip B",
         "state": {
           "channel1": "Kanaal 1",
           "channel2": "Kanaal 2",
