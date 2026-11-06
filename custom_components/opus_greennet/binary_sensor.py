@@ -11,6 +11,7 @@ from homeassistant.components.binary_sensor.const import BinarySensorDeviceClass
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -19,7 +20,7 @@ from .binary_sensor_descriptions import (
     BINARY_SENSOR_DESCRIPTIONS,
     OpusBinarySensorDescription,
 )
-from .const import CONF_EAG_ID, DEFAULT_CHANNEL
+from .const import CONF_EAG_ID, DEFAULT_CHANNEL, DOMAIN
 from .coordinator import (
     SIGNAL_DEVICE_DISCOVERED,
     SIGNAL_DEVICE_REMOVED,
@@ -27,6 +28,7 @@ from .coordinator import (
 )
 from .enocean_device import EnOceanChannel, EnOceanDevice
 from .entity import OpusGreenNetEntity
+from .learn_mode import SIGNAL_LEARN_MODE_UPDATE
 
 # Binary sensor state is pushed by the coordinator.
 PARALLEL_UPDATES = 0
@@ -58,6 +60,7 @@ async def async_setup_entry(
     submitted: dict[str, dict[str, OpusGreenNetBaseBinarySensor]] = {}
     removing: set[str] = set()
     rediscovered: dict[str, EnOceanDevice] = {}
+    async_add_entities([OpusGreenNetLearnModeSensor(coordinator, eag_id)])
 
     async def async_finish_removal(entity: OpusGreenNetBaseBinarySensor) -> None:
         # HA invokes on-remove callbacks before completing state removal. Its
@@ -343,3 +346,41 @@ class OpusGreenNetHandlePositionSensor(OpusGreenNetBaseBinarySensor):
         if channel is None or channel.handle_state is None:
             return None
         return channel.handle_state == self._position
+
+
+class OpusGreenNetLearnModeSensor(BinarySensorEntity):
+    """Whether the gateway was last seen in learn mode.
+
+    Nothing is polled: the value follows the requests of this integration (the
+    start, and reading the mode before a start or when ending it). Unknown
+    means the last request left the mode open.
+    """
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
+    _attr_translation_key = "learn_mode"
+
+    def __init__(self, coordinator: OpusGreenNetCoordinator, eag_id: str) -> None:
+        """Initialize the sensor for the gateway ``eag_id``."""
+        self._coordinator = coordinator
+        self._eag_id = eag_id
+        self._attr_unique_id = f"{eag_id}_learn_mode"
+        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, eag_id)})
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return whether the gateway was last seen in learn mode."""
+        return self._coordinator.learn_mode.state
+
+    async def async_added_to_hass(self) -> None:
+        """Follow the learn mode requests of this integration."""
+        await super().async_added_to_hass()
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                f"{SIGNAL_LEARN_MODE_UPDATE}_{self._eag_id}",
+                self.async_write_ha_state,
+            )
+        )

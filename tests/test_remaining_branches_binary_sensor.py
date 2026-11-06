@@ -59,7 +59,8 @@ async def test_release_of_an_entity_that_was_never_added_is_ignored(
         hass, f"{SIGNAL_DEVICE_DISCOVERED}_{coordinator.eag_id}", device
     )
     await hass.async_block_till_done()
-    assert add.call_count == 1
+    # The first call is the gateway-level learn mode sensor.
+    assert add.call_count == 2
 
 
 async def test_an_entity_without_unique_id_is_refused(hass, coordinator, make_device):

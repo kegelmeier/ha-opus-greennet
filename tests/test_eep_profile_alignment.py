@@ -234,7 +234,12 @@ async def _platform_entities(setup, device: EnOceanDevice) -> list:
         patch(f"{setup.__module__}.migrate_output_entities", MagicMock(), create=True),
     ):
         await setup(MagicMock(), _entry(coordinator), added.extend)
-    return added
+    # Gateway-level entities do not belong to the device under test.
+    return [
+        entity
+        for entity in added
+        if not entity.unique_id.endswith(("_learn_mode", "_learn_mode_start"))
+    ]
 
 
 # ── Profile parser ───────────────────────────────────────────────────────────

@@ -62,7 +62,12 @@ async def test_repeated_discovery_submits_each_id_once(
             hass, f"{SIGNAL_DEVICE_DISCOVERED}_{coordinator.eag_id}", device
         )
     await hass.async_block_till_done()
-    ids = [entity.unique_id for call in add.call_args_list for entity in call.args[0]]
+    ids = [
+        entity.unique_id
+        for call in add.call_args_list
+        for entity in call.args[0]
+        if not entity.unique_id.endswith("_learn_mode")  # gateway-level
+    ]
     assert len(ids) == count
     assert len(set(ids)) == count
     for call in entry.async_on_unload.call_args_list:
@@ -71,7 +76,8 @@ async def test_repeated_discovery_submits_each_id_once(
         hass, f"{SIGNAL_DEVICE_DISCOVERED}_{coordinator.eag_id}", device
     )
     await hass.async_block_till_done()
-    assert add.call_count == 1
+    # The first call is the gateway-level learn mode sensor.
+    assert add.call_count == 2
 
 
 async def test_new_profile_entities_and_other_devices_remain_addable(
@@ -88,7 +94,12 @@ async def test_new_profile_entities_and_other_devices_remain_addable(
             hass, f"{SIGNAL_DEVICE_DISCOVERED}_{coordinator.eag_id}", dev
         )
     await hass.async_block_till_done()
-    ids = [e.unique_id for call in add.call_args_list for e in call.args[0]]
+    ids = [
+        e.unique_id
+        for call in add.call_args_list
+        for e in call.args[0]
+        if not e.unique_id.endswith("_learn_mode")  # gateway-level
+    ]
     assert len(ids) == len(set(ids)) == 6
     for call in entry.async_on_unload.call_args_list:
         call.args[0]()
@@ -172,7 +183,8 @@ async def test_gateway_discovery_and_tracking_are_isolated(hass, make_device):
         additions.append(add)
     async_dispatcher_send(hass, "opus_greennet_device_discovered_AABB0011", device)
     await hass.async_block_till_done()
-    assert [add.call_count for add in additions] == [1, 1]
+    # The first call of each setup is the gateway-level learn mode sensor.
+    assert [add.call_count for add in additions] == [2, 2]
     assert (
         additions[0].call_args.args[0][0].unique_id
         != additions[1].call_args.args[0][0].unique_id

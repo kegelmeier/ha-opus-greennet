@@ -232,7 +232,7 @@ All limitations: [docs/how-it-works.md](docs/how-it-works.md#known-limitations).
 | ✅ Released | 1.0 with the REST API instead of MQTT |
 | 🚧 In progress | Device settings as Home Assistant entities. Available: blind times, dimmer times and switch timers as numbers, switch operation mode, LED, external input, routing (off/on; switches and blinds) and repeater mode (switches, dimmers, blinds) as selects, link tables read-only. The universal dimmer 563.076 (recognised by its product ID) gets four ramp times, dimming limits and the dimming principle instead of the three times (writing not yet verified on hardware). Setting entities are created only for keys the device reports, and writing an unreported key is refused. Still open: function of rocker A and B and gateway diagnostics (see below) |
 | 🚧 Untested | HTTPS for gateways with WebUI 2026 is implemented, but was never tried on a real gateway |
-| 🔍 Investigating | Adding and removing devices from Home Assistant |
+| 🚧 Untested | Learn mode: a button starts the gateway's learn mode for 180 seconds so new devices can teach in (device management is off until enabled in the options; never run on a real gateway). Removing a device from the gateway and adding one by hand are still being investigated |
 | 🔍 Investigating | The OPUS REG multifunction actuator (CPU D2-70-00, blind D2-05-04, heating circuit D2-34-20 / D2-74-20): the gateway has no profiles for them yet, so support follows with a firmware that provides them |
 | 💡 Idea | Write support for the read-only device profiles (valve position, mode, setpoint), only after it was tested on hardware |
 
@@ -297,8 +297,10 @@ step is to record what the OPUS app sends to the gateway when it teaches in and
 removes a device. If that turns out to be local and repeatable, the integration
 could offer:
 
-- **Add device:** a 60-second learn mode (press the learn button on the
+- **Add device:** a 180-second learn mode (press the learn button on the
   device), or manual entry of EURID and EEP for sensors and wall switches.
+  The learn mode is implemented as an **untested** first step, see
+  [Learn mode](docs/devices.md#learn-mode-experimental).
 - **Remove device:** the existing **Delete** also removes the device from the
   gateway after a confirmation, and clears the actuator's link to it.
 

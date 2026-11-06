@@ -26,6 +26,10 @@ CONF_GENERATION: Final = "generation"
 # before the option existed has none and keeps writing.
 CONF_ALLOW_SETTING_WRITES: Final = "allow_setting_writes"
 ISSUE_WRITE_ACCESS_OFF: Final = "write_access_off"
+# Option: may Home Assistant change the gateway's device management (learn
+# mode)? Off for every entry, new or existing: it acts on the gateway and the
+# radio environment, not on one device setting.
+CONF_ALLOW_DEVICE_MANAGEMENT: Final = "allow_device_management"
 CONF_CERTIFICATE_FINGERPRINT: Final = "certificate_fingerprint"
 WEBUI_2026_PORT: Final = 443
 
@@ -370,6 +374,25 @@ SETTING_CONSTRAINTS: Final = (
 SETTING_GUARD_STORE_KEY: Final = "opus_greennet.setting_guards"
 SETTING_GUARD_STORE_VERSION: Final = 1
 SETTING_GUARD_SAVE_DELAY: Final = 5.0
+
+# Learn mode (the gateway accepts teach-in telegrams of new devices). The
+# integration ends it after a fixed time, shorter than the limit the gateway
+# itself seems to have (LEARNMODE_TIMEOUT 180000 in gateway software 1.21.30;
+# that it ends the mode by itself is not verified).
+RECEIVE_MODE_PATH: Final = "/system/receivemode"
+RECEIVE_MODE_KEY: Final = "receiveMode"
+RECEIVE_MODE_LEARN: Final = "learnMode"
+RECEIVE_MODE_NORMAL: Final = "normalMode"
+LEARN_MODE_SECONDS: Final = 180.0
+# Extra attempts to restore the normal mode when the first one could not be
+# confirmed by reading. Setting the normal mode is idempotent; starting the
+# learn mode is never repeated.
+# Longest wait for the reset when an entry is unloaded or Home Assistant stops.
+LEARN_MODE_SHUTDOWN_TIMEOUT: Final = 15.0
+# Local hours in which the gateway restarts and reads all devices; the learn
+# mode cannot be started then.
+LEARN_MODE_BLOCKED_HOURS: Final = (3, 4)
+ISSUE_LEARN_MODE_RESET_FAILED: Final = "learn_mode_reset_failed"
 COVER_MOVEMENT_GRACE_SECONDS: Final = 5.0
 # A run into an end stop is reported about 1.4 s later than a partial run
 # (measured on one installation of D2-05-02 blinds), so its estimate waits longer.

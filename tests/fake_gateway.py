@@ -106,6 +106,12 @@ class FakeGateway:
         self.reject_status = 400
         self.stream_queries: list[str] = []
         self.snapshot_delay = 0.0
+        # ``/system/receivemode``: ASSUMED shape, taken from names in the gateway
+        # software (field ``receiveMode``, values ``learnMode``/``normalMode``),
+        # not from a recording. ``receive_mode_ignores_put`` models a gateway
+        # that accepts a write without applying it.
+        self.receive_mode = "normalMode"
+        self.receive_mode_ignores_put = False
         # Real gateways stream the device list without ``configuration``
         # (phase 21 hardware diagnostics); GET /devices carries it.
         self.stream_without_configuration = False
@@ -275,6 +281,15 @@ class FakeGateway:
             return {
                 "header": {**ok, "content": "Uptime"},
                 "systemUptimeResponse": {"uptime": self.uptime},
+            }
+        if path == "/system/receivemode":
+            if method == "PUT" and not self.receive_mode_ignores_put:
+                self.receive_mode = (body or {}).get("receiveMode", self.receive_mode)
+            if method == "PUT":
+                return {"header": ok}
+            return {
+                "header": {**ok, "content": "receiveMode"},
+                "receiveMode": self.receive_mode,
             }
         if path == "/devices":
             return self.devices_document()

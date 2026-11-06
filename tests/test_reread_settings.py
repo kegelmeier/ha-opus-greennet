@@ -329,4 +329,8 @@ async def test_the_platform_adds_the_button_per_device(eep, unique_ids) -> None:
         await async_setup_entry(MagicMock(), entry, added.extend)
 
     prefix = f"{EAG_ID}_DEV1_"
-    assert {entity.unique_id.removeprefix(prefix) for entity in added} == unique_ids
+    assert {
+        entity.unique_id.removeprefix(prefix)
+        for entity in added
+        if entity.unique_id.startswith(prefix)  # not the gateway-level button
+    } == unique_ids

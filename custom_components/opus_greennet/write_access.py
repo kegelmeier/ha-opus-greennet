@@ -21,7 +21,12 @@ from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 
-from .const import CONF_ALLOW_SETTING_WRITES, DOMAIN, ISSUE_WRITE_ACCESS_OFF
+from .const import (
+    CONF_ALLOW_DEVICE_MANAGEMENT,
+    CONF_ALLOW_SETTING_WRITES,
+    DOMAIN,
+    ISSUE_WRITE_ACCESS_OFF,
+)
 
 # The number and select entities of this integration are the ones that change a
 # device setting; both are disabled by default.
@@ -35,6 +40,15 @@ def setting_writes_allowed(entry: ConfigEntry) -> bool:
     An entry without the option (set up before it existed) may.
     """
     return bool(entry.options.get(CONF_ALLOW_SETTING_WRITES, True))
+
+
+def device_management_allowed(entry: ConfigEntry) -> bool:
+    """Return whether the entry may start the learn mode.
+
+    Unlike write access this is off for every entry that did not switch it on,
+    existing ones included: it acts on the gateway and the radio environment.
+    """
+    return bool(entry.options.get(CONF_ALLOW_DEVICE_MANAGEMENT, False))
 
 
 def _writing_entity_enabled(hass: HomeAssistant, entry: ConfigEntry) -> bool:

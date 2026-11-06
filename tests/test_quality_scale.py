@@ -412,6 +412,8 @@ GATEWAY_LEVEL_ENTITY_CLASSES = frozenset(
         "OpusGreenNetGatewayUptimeSensor",
         "OpusGreenNetGatewayInfoSensor",
         "OpusGreenNetGatewayNumberSensor",
+        "OpusGreenNetLearnModeSensor",
+        "OpusGreenNetLearnModeButton",
     }
 )
 

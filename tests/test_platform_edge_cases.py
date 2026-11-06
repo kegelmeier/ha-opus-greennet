@@ -153,7 +153,8 @@ async def test_forgetting_unsubmitted_binary_sensors_allows_rediscovery(hass) ->
     device = _device("F6-05-01")
     async_dispatcher_send(hass, f"{SIGNAL_DEVICE_DISCOVERED}_{EAG_ID}", device)
     await hass.async_block_till_done()
-    assert add.call_count == 1
+    # The first call is the gateway-level learn mode sensor.
+    assert add.call_count == 2
 
     # Unknown devices are ignored; a known device is released and re-added.
     async_dispatcher_send(hass, f"{SIGNAL_DEVICE_REMOVED}_{EAG_ID}", "UNKNOWN")
@@ -161,7 +162,7 @@ async def test_forgetting_unsubmitted_binary_sensors_allows_rediscovery(hass) ->
     await hass.async_block_till_done()
     async_dispatcher_send(hass, f"{SIGNAL_DEVICE_DISCOVERED}_{EAG_ID}", device)
     await hass.async_block_till_done()
-    assert add.call_count == 2
-    first = [entity.unique_id for entity in add.call_args_list[0].args[0]]
-    second = [entity.unique_id for entity in add.call_args_list[1].args[0]]
+    assert add.call_count == 3
+    first = [entity.unique_id for entity in add.call_args_list[1].args[0]]
+    second = [entity.unique_id for entity in add.call_args_list[2].args[0]]
     assert first == second

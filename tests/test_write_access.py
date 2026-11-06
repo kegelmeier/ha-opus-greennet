@@ -21,6 +21,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 
 from custom_components.opus_greennet.const import (
+    CONF_ALLOW_DEVICE_MANAGEMENT,
     CONF_ALLOW_SETTING_WRITES,
     DOMAIN,
     ISSUE_WRITE_ACCESS_OFF,
@@ -75,7 +76,10 @@ async def test_the_options_dialog_enables_and_disables_write_access(
     assert flow["type"] is FlowResultType.FORM
     assert flow["step_id"] == "init"
     # The box is cleared as long as write access is off.
-    assert flow["data_schema"]({}) == {CONF_ALLOW_SETTING_WRITES: False}
+    assert flow["data_schema"]({}) == {
+        CONF_ALLOW_SETTING_WRITES: False,
+        CONF_ALLOW_DEVICE_MANAGEMENT: False,
+    }
 
     done = await hass.config_entries.options.async_configure(
         flow["flow_id"], {CONF_ALLOW_SETTING_WRITES: True}
@@ -84,7 +88,10 @@ async def test_the_options_dialog_enables_and_disables_write_access(
     assert entry.options[CONF_ALLOW_SETTING_WRITES] is True
 
     flow = await hass.config_entries.options.async_init(entry.entry_id)
-    assert flow["data_schema"]({}) == {CONF_ALLOW_SETTING_WRITES: True}
+    assert flow["data_schema"]({}) == {
+        CONF_ALLOW_SETTING_WRITES: True,
+        CONF_ALLOW_DEVICE_MANAGEMENT: False,
+    }
     await hass.config_entries.options.async_configure(
         flow["flow_id"], {CONF_ALLOW_SETTING_WRITES: False}
     )

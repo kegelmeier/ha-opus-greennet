@@ -99,6 +99,7 @@ from .const import (
 )
 from .discovery import async_gateway_address
 from .enocean_device import DeviceProfile, EnOceanDevice
+from .learn_mode import LearnModeController
 from .wire import (
     JsonObject,
     WireFunction,
@@ -481,11 +482,18 @@ class OpusGreenNetCoordinator:
         on_auth_failed: Callable[[], None] | None = None,
         generation_check: Callable[[], Awaitable[bool]] | None = None,
         write_access_allowed: Callable[[], bool] | None = None,
+        device_management_allowed: Callable[[], bool] | None = None,
+        config_entry_id: str | None = None,
     ) -> None:
         """Initialize the coordinator.
 
         ``write_access_allowed`` tells whether device settings may be written
         (the option of the config entry); without it they may.
+
+        ``device_management_allowed`` tells whether the learn mode may be
+        started (its own option); without it it may not. ``config_entry_id``
+        ties the repair issue of a learn mode that could not be ended to the
+        entry.
 
         ``generation_check`` is given for a gateway of the earlier generation
         only: it tells whether a gateway of the newer generation answers at
@@ -507,6 +515,9 @@ class OpusGreenNetCoordinator:
         self._on_auth_failed = on_auth_failed
         self._generation_check = generation_check
         self._write_access_allowed = write_access_allowed
+        self._device_management_allowed = device_management_allowed
+        self.config_entry_id = config_entry_id
+        self.learn_mode = LearnModeController(self)
         self._probe_failures = 0
         self._generation_checked_at: float | None = None
         self._auth_failed = False
@@ -665,10 +676,15 @@ class OpusGreenNetCoordinator:
         # is only logged; the 30 min refresh tries again. No radio telegram is
         # sent.
         await self._async_refresh_device_list()
+        # A learn mode started before a restart and not confirmed ended.
+        self.learn_mode.schedule_recovery()
 
     async def async_unload(self) -> None:
         """Stop all background work and mark the gateway unavailable."""
         _LOGGER.debug("Unloading Opus GreenNet coordinator for EAG %s", self.eag_id)
+        # Before the gateway is marked unavailable: ending a learn mode of this
+        # integration is the one request an unload still sends.
+        await self.learn_mode.async_shutdown()
         self._unloaded = True
         self._set_gateway_available(False)
         for cancel in self._timers:
@@ -730,6 +746,8 @@ class OpusGreenNetCoordinator:
         if self._gateway_available == available:
             return
         self._gateway_available = available
+        if available:
+            self.learn_mode.schedule_recovery()
         if not available:
             self._outage_generation += 1
             self._cancel_background_work()
@@ -2572,10 +2590,50 @@ class OpusGreenNetCoordinator:
             )
             return
         self._setting_guards = _setting_guards_from_storage(saved, monotonic(), time())
+        self.learn_mode.restore(saved)
 
     def _setting_guards_for_storage(self) -> dict[str, Any]:
-        """Return the protection as it is when it is saved."""
-        return _setting_guards_to_storage(self._setting_guards, monotonic(), time())
+        """Return the bookkeeping as it is when it is saved."""
+        return {
+            **_setting_guards_to_storage(self._setting_guards, monotonic(), time()),
+            **self.learn_mode.as_storage(),
+        }
+
+    async def async_save_bookkeeping(self) -> bool:
+        """Save the bookkeeping now; return whether it could be saved.
+
+        Without a store (not set up by Home Assistant) there is nothing to save.
+        """
+        if self._guard_store is None:
+            return True
+        try:
+            await self._guard_store.async_save(self._setting_guards_for_storage())
+        except (HomeAssistantError, OSError) as err:
+            _LOGGER.warning(
+                "The bookkeeping of gateway %s was not saved: %s", self.eag_id, err
+            )
+            return False
+        return True
+
+    def create_background_task(
+        self, coroutine: Coroutine[object, object, object], name: str
+    ) -> asyncio.Task[None]:
+        """Run a coroutine in the background until unload (see ``_create_task``)."""
+
+        async def _run() -> None:
+            try:
+                await coroutine
+            finally:
+                coroutine.close()
+
+        return self._create_task(_run(), name)
+
+    def device_management_allowed(self) -> bool:
+        """Return whether device management (the learn mode) is switched on."""
+        return (
+            self._device_management_allowed is not None
+            and self._device_management_allowed()
+        )
 
     @callback
     def _save_setting_guards(self) -> None:

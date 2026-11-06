@@ -79,13 +79,15 @@
   "options": {
     "step": {
       "init": {
-        "title": "Write access to device settings",
-        "description": "**Caution: These settings are written directly to the actuator.**\n\nIncorrect values can:\n\n- cause malfunctions or device failure\n- damage the actuator or connected equipment\n\nOnly enable write access if you understand the effects of the changes.",
+        "title": "Write access and device management",
+        "description": "**Caution: These settings are written directly to the actuator.**\n\nIncorrect values can:\n\n- cause malfunctions or device failure\n- damage the actuator or connected equipment\n\nOnly enable write access if you understand the effects of the changes.\n\n**Device management (experimental, untested on hardware):** allows Home Assistant to put the gateway into learn mode for 180 seconds so that new devices can teach in. While it is on, a device in radio range can be taught in to your gateway. It ends by itself; if it cannot be ended, a notice appears under Repairs.",
         "data": {
-          "allow_setting_writes": "I understand the risks and want to enable write access."
+          "allow_setting_writes": "I understand the risks and want to enable write access.",
+          "allow_device_management": "Allow the learn mode of the gateway (experimental)."
         },
         "data_description": {
-          "allow_setting_writes": "Applies to all devices of this gateway. Reading settings is not affected."
+          "allow_setting_writes": "Applies to all devices of this gateway. Reading settings is not affected.",
+          "allow_device_management": "Off by default. Adds the disabled button Start learn mode, which still has to be enabled."
         }
       }
     }
@@ -211,6 +213,9 @@
       },
       "wake_signal": {
         "name": "Wake signal"
+      },
+      "learn_mode": {
+        "name": "Learn mode"
       }
     },
     "cover": {
@@ -641,6 +646,9 @@
       },
       "read_settings": {
         "name": "Read settings"
+      },
+      "learn_mode_start": {
+        "name": "Start learn mode"
       }
     },
     "event": {
@@ -880,6 +888,30 @@
     },
     "setting_not_reported": {
       "message": "Device {device_id} does not have the setting {key}; nothing was written."
+    },
+    "device_management_disabled": {
+      "message": "Device management is switched off. Enable it in the options of the integration first."
+    },
+    "learn_mode_night": {
+      "message": "The learn mode cannot be started now: the gateway restarts and reads all devices at night. Try again later."
+    },
+    "learn_mode_active": {
+      "message": "The learn mode started by Home Assistant is still running or was not confirmed ended."
+    },
+    "learn_mode_busy": {
+      "message": "A learn mode request is in progress. Wait for it to finish."
+    },
+    "learn_mode_foreign": {
+      "message": "The gateway is already in learn mode, started by something else. Home Assistant does not end it."
+    },
+    "learn_mode_unreadable": {
+      "message": "The learn mode was not started because the gateway's receive mode could not be read."
+    },
+    "learn_mode_not_saved": {
+      "message": "The learn mode was not started because Home Assistant could not save the note that ends it after a restart."
+    },
+    "learn_mode_start_unclear": {
+      "message": "The gateway did not confirm the learn mode. It is not requested again; Home Assistant ends it after the set time in any case."
     }
   },
   "services": {
@@ -999,6 +1031,10 @@
     "write_access_off": {
       "title": "Write access to device settings is not enabled",
       "description": "An entity that changes a device setting of {name} is enabled, but write access is not. Changes are refused until you enable write access: open Settings → Devices & services → Opus GreenNet, choose Configure and confirm the warning.\n\nWrite access allows device configuration to be written directly to the actuator. Incorrect settings may cause malfunctions, device failure, or damage to connected equipment. The notice disappears when write access is enabled or the entity is disabled again."
+    },
+    "learn_mode_reset_failed": {
+      "title": "The learn mode of the gateway could not be ended",
+      "description": "Home Assistant started the learn mode of the gateway and could not confirm that the normal mode is back. New devices in radio range can teach in until it ends. Check the gateway in the OPUS app and end the learn mode there. Home Assistant checks again when the gateway is reachable and when the integration starts."
     }
   },
   "selector": {

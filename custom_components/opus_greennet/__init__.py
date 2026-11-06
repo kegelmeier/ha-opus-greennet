@@ -13,9 +13,11 @@ from homeassistant.const import (
     CONF_PASSWORD,
     CONF_PORT,
     CONF_USERNAME,
+    EVENT_HOMEASSISTANT_STOP,
     Platform,
 )
 from homeassistant.core import (
+    Event,
     HomeAssistant,
     ServiceCall,
     ServiceResponse,
@@ -69,7 +71,11 @@ from .entity import (
     async_set_non_local_address_issue,
 )
 from .wire import json_body_problem
-from .write_access import async_setup_write_access_notice, setting_writes_allowed
+from .write_access import (
+    async_setup_write_access_notice,
+    device_management_allowed,
+    setting_writes_allowed,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -304,6 +310,8 @@ async def async_setup_entry(
             _newer_generation_answers if generation == GENERATION_LEGACY else None
         ),
         write_access_allowed=lambda: setting_writes_allowed(entry),
+        device_management_allowed=lambda: device_management_allowed(entry),
+        config_entry_id=entry.entry_id,
     )
 
     try:
@@ -373,6 +381,13 @@ async def async_setup_entry(
         _remove_daily_read_entities(hass, eag_id)
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
         async_setup_write_access_notice(hass, entry)
+
+        async def _end_learn_mode(_event: Event) -> None:
+            await coordinator.learn_mode.async_shutdown()
+
+        entry.async_on_unload(
+            hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _end_learn_mode)
+        )
     except BaseException:
         await coordinator.async_unload()
         raise

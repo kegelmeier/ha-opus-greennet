@@ -75,6 +75,12 @@
           "on": "mdi:access-point-network-off",
           "off": "mdi:access-point-network"
         }
+      },
+      "learn_mode": {
+        "default": "mdi:link-off",
+        "state": {
+          "on": "mdi:link-plus"
+        }
       }
     },
     "sensor": {
@@ -250,6 +256,9 @@
       },
       "read_settings": {
         "default": "mdi:refresh"
+      },
+      "learn_mode_start": {
+        "default": "mdi:link-plus"
       }
     }
   },

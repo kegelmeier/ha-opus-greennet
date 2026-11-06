@@ -1,10 +1,11 @@
-"""Button platform: reference runs of D2-05 blinds and reading device settings."""
+"""Button platform: reference runs, reading device settings and the learn mode."""
 
 from __future__ import annotations
 
 from homeassistant.components.button import ButtonEntity
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -12,6 +13,7 @@ from . import OpusGreenNetConfigEntry
 from .const import (
     CONF_EAG_ID,
     DEFAULT_CHANNEL,
+    DOMAIN,
     REPOSITIONING_FIRST_DOWN,
     REPOSITIONING_FIRST_UP,
 )
@@ -76,6 +78,7 @@ async def async_setup_entry(
             ]
         )
 
+    async_add_entities([OpusGreenNetLearnModeButton(coordinator, eag_id)])
     entry.async_on_unload(
         async_dispatcher_connect(
             hass, f"{SIGNAL_DEVICE_DISCOVERED}_{eag_id}", async_add_buttons
@@ -156,3 +159,28 @@ class OpusGreenNetReadSettingsButton(OpusGreenNetEntity, ButtonEntity):
     async def async_press(self) -> None:
         """Read the settings of the device."""
         await self._coordinator.async_reread_device_settings(self._device.device_id)
+
+
+class OpusGreenNetLearnModeButton(ButtonEntity):
+    """Let new devices teach in to the gateway for a fixed time.
+
+    Disabled by default and refused until device management is switched on in
+    the options. One press sends one request; the learn mode ends by itself
+    (see ``learn_mode.py``).
+    """
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_entity_registry_enabled_default = False
+    _attr_translation_key = "learn_mode_start"
+
+    def __init__(self, coordinator: OpusGreenNetCoordinator, eag_id: str) -> None:
+        """Initialize the button for the gateway ``eag_id``."""
+        self._coordinator = coordinator
+        self._attr_unique_id = f"{eag_id}_learn_mode_start"
+        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, eag_id)})
+
+    async def async_press(self) -> None:
+        """Start the learn mode."""
+        await self._coordinator.learn_mode.async_start()

@@ -13,6 +13,7 @@ profiles see [Supported devices](../README.md#supported-devices).
 - [Single input contacts (D5-00-01)](#single-input-contacts-d5-00-01)
 - [Sensor values](#sensor-values)
 - [Removing or replacing a device](#removing-or-replacing-a-device)
+- [Learn mode (experimental)](#learn-mode-experimental)
 - [Actions](#actions)
 
 ## Settings entities by device type
@@ -698,6 +699,44 @@ way; remove the integration entry instead.
 - When replacing a device, first remove the old one in the OPUS app, then
   delete it in Home Assistant. Automations that reference the old entities are
   not migrated.
+
+## Learn mode (experimental)
+
+**Not tested on a real gateway.** The request and the answer of the gateway's
+receive mode (`/system/receivemode`) were taken from names in the gateway
+software, not from a recording; the tests use a simulated gateway. Please report
+what your gateway does.
+
+While the gateway is in learn mode it accepts the teach-in telegram of a device
+in radio range, so a device of a neighbour can be taught in too. The integration
+therefore keeps it short and makes sure it ends:
+
+- It is **off until enabled**: *Settings → Devices & services → Opus GreenNet
+  Bridge → Configure → Allow the learn mode of the gateway*, for new and existing
+  installations alike. Without it nothing is sent.
+- *Start learn mode* (a gateway button, **disabled by default**) reads the receive
+  mode, then asks for the learn mode **once** and ends it after 180 seconds. The
+  *Learn mode* diagnostic sensor (also disabled by default) shows what the
+  integration last saw; it does not poll the gateway.
+- A note that Home Assistant started it is saved with the other bookkeeping of
+  the gateway *before* the request. Unloading the integration and stopping Home
+  Assistant end the learn mode; after a restart, or when the gateway is
+  reachable again, a note that is still there leads to reading the mode and
+  ending it.
+- Ending is confirmed by **reading the mode back**. Ending is sent **once**
+  and never repeated within the same attempt, like the start. If it cannot be
+  confirmed, a notice appears under
+  *Settings → System → Repairs*. End the learn mode in the OPUS app then.
+- A learn mode started by something else (for example the OPUS app) is never
+  ended by the integration; the button refuses to start in that case.
+- It cannot be started if the 180 seconds would touch the night (local time
+  03:00 to 05:00), when the gateway
+  restarts and reads all devices, nor while the gateway is unavailable.
+- The gateway seems to end the learn mode by itself after about three minutes
+  (a limit found in its software; not verified).
+
+Teaching a device in still happens on the device (press its learn button). New
+devices appear through the normal device list of the gateway.
 
 ## Actions
 

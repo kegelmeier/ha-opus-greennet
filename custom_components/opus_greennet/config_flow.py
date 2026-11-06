@@ -34,6 +34,7 @@ from .api import (
     OpusResponseError,
 )
 from .const import (
+    CONF_ALLOW_DEVICE_MANAGEMENT,
     CONF_ALLOW_SETTING_WRITES,
     CONF_CERTIFICATE_FINGERPRINT,
     CONF_EAG_ID,
@@ -53,7 +54,11 @@ from .discovery import (
     is_local_address,
     parse_host_literal,
 )
-from .write_access import async_update_write_access_issue, setting_writes_allowed
+from .write_access import (
+    async_update_write_access_issue,
+    device_management_allowed,
+    setting_writes_allowed,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -543,9 +548,15 @@ class OpusGreenNetOptionsFlow(OptionsFlow):
             async_update_write_access_issue(
                 self.hass, self.config_entry, allowed=allowed
             )
-            return self.async_create_entry(
-                data={**self.config_entry.options, CONF_ALLOW_SETTING_WRITES: allowed}
-            )
+            data = {
+                **self.config_entry.options,
+                CONF_ALLOW_SETTING_WRITES: allowed,
+            }
+            data.pop(CONF_ALLOW_DEVICE_MANAGEMENT, None)
+            # Stored only when switched on: an entry without it stays off.
+            if user_input.get(CONF_ALLOW_DEVICE_MANAGEMENT, False):
+                data = {**data, CONF_ALLOW_DEVICE_MANAGEMENT: True}
+            return self.async_create_entry(data=data)
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
@@ -553,7 +564,11 @@ class OpusGreenNetOptionsFlow(OptionsFlow):
                     vol.Required(
                         CONF_ALLOW_SETTING_WRITES,
                         default=setting_writes_allowed(self.config_entry),
-                    ): bool
+                    ): bool,
+                    vol.Optional(
+                        CONF_ALLOW_DEVICE_MANAGEMENT,
+                        default=device_management_allowed(self.config_entry),
+                    ): bool,
                 }
             ),
         )

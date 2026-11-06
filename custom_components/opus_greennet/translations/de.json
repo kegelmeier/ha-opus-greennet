@@ -79,13 +79,15 @@
   "options": {
     "step": {
       "init": {
-        "title": "Schreibzugriff auf Geräteeinstellungen",
-        "description": "**Achtung: Diese Einstellungen werden direkt auf den Aktor geschrieben.**\n\nFehlerhafte Werte können:\n\n- Fehlfunktionen oder den Ausfall des Geräts verursachen\n- den Aktor oder angeschlossene Geräte beschädigen\n\nAktiviere den Schreibzugriff nur, wenn du die Auswirkungen der Änderungen kennst.",
+        "title": "Schreibzugriff und Geräteverwaltung",
+        "description": "**Achtung: Diese Einstellungen werden direkt auf den Aktor geschrieben.**\n\nFehlerhafte Werte können:\n\n- Fehlfunktionen oder den Ausfall des Geräts verursachen\n- den Aktor oder angeschlossene Geräte beschädigen\n\nAktiviere den Schreibzugriff nur, wenn du die Auswirkungen der Änderungen kennst.\n\n**Geräteverwaltung (experimentell, an Hardware ungetestet):** erlaubt Home Assistant, das Gateway für 180 Sekunden in den Lernmodus zu versetzen, damit sich neue Geräte anlernen können. Solange er an ist, kann sich ein Gerät in Funkreichweite an Ihrem Gateway anlernen. Er endet von selbst; lässt er sich nicht beenden, erscheint ein Hinweis unter Reparaturen.",
         "data": {
-          "allow_setting_writes": "Ich verstehe die Risiken und möchte den Schreibzugriff aktivieren."
+          "allow_setting_writes": "Ich verstehe die Risiken und möchte den Schreibzugriff aktivieren.",
+          "allow_device_management": "Lernmodus des Gateways erlauben (experimentell)."
         },
         "data_description": {
-          "allow_setting_writes": "Gilt für alle Geräte dieses Gateways. Das Lesen der Einstellungen bleibt davon unberührt."
+          "allow_setting_writes": "Gilt für alle Geräte dieses Gateways. Das Lesen der Einstellungen bleibt davon unberührt.",
+          "allow_device_management": "Standardmäßig aus. Fügt die deaktivierte Schaltfläche Lernmodus starten hinzu, die noch aktiviert werden muss."
         }
       }
     }
@@ -211,6 +213,9 @@
       },
       "wake_signal": {
         "name": "Wake-Signal"
+      },
+      "learn_mode": {
+        "name": "Lernmodus"
       }
     },
     "cover": {
@@ -641,6 +646,9 @@
       },
       "read_settings": {
         "name": "Einstellungen lesen"
+      },
+      "learn_mode_start": {
+        "name": "Lernmodus starten"
       }
     },
     "event": {
@@ -880,6 +888,30 @@
     },
     "setting_not_reported": {
       "message": "Das Gerät {device_id} hat die Einstellung {key} nicht und wird nicht beschrieben."
+    },
+    "device_management_disabled": {
+      "message": "Die Geräteverwaltung ist ausgeschaltet. Schalten Sie sie zuerst in den Optionen der Integration ein."
+    },
+    "learn_mode_night": {
+      "message": "Der Lernmodus kann jetzt nicht gestartet werden: Das Gateway startet nachts neu und liest alle Geräte. Versuchen Sie es später erneut."
+    },
+    "learn_mode_active": {
+      "message": "Der von Home Assistant gestartete Lernmodus läuft noch oder wurde nicht als beendet bestätigt."
+    },
+    "learn_mode_busy": {
+      "message": "Eine Lernmodus-Anfrage läuft gerade. Warten Sie, bis sie beendet ist."
+    },
+    "learn_mode_foreign": {
+      "message": "Das Gateway ist bereits im Lernmodus, gestartet von etwas anderem. Home Assistant beendet ihn nicht."
+    },
+    "learn_mode_unreadable": {
+      "message": "Der Lernmodus wurde nicht gestartet, weil der Empfangsmodus des Gateways nicht gelesen werden konnte."
+    },
+    "learn_mode_not_saved": {
+      "message": "Der Lernmodus wurde nicht gestartet, weil Home Assistant die Notiz nicht speichern konnte, die ihn nach einem Neustart beendet."
+    },
+    "learn_mode_start_unclear": {
+      "message": "Das Gateway hat den Lernmodus nicht bestätigt. Er wird nicht erneut angefordert; Home Assistant beendet ihn nach der eingestellten Zeit in jedem Fall."
     }
   },
   "services": {
@@ -999,6 +1031,10 @@
     "write_access_off": {
       "title": "Schreibzugriff auf Geräteeinstellungen ist nicht aktiviert",
       "description": "Eine Entität, die eine Geräteeinstellung von {name} ändert, ist aktiviert, der Schreibzugriff aber nicht. Änderungen werden abgelehnt, bis du den Schreibzugriff aktivierst: Öffne Einstellungen → Geräte & Dienste → Opus GreenNet, wähle Konfigurieren und bestätige den Warnhinweis.\n\nDer Schreibzugriff ermöglicht das direkte Schreiben der Gerätekonfiguration auf den Aktor. Fehlerhafte Einstellungen können zu Fehlfunktionen, Geräteausfällen oder Schäden an angeschlossenen Geräten führen. Der Hinweis verschwindet, wenn der Schreibzugriff aktiviert oder die Entität wieder deaktiviert wird."
+    },
+    "learn_mode_reset_failed": {
+      "title": "Der Lernmodus des Gateways konnte nicht beendet werden",
+      "description": "Home Assistant hat den Lernmodus des Gateways gestartet und konnte nicht bestätigen, dass der normale Modus wieder aktiv ist. Neue Geräte in Funkreichweite können sich anlernen, bis er endet. Prüfen Sie das Gateway in der OPUS-App und beenden Sie den Lernmodus dort. Home Assistant prüft erneut, wenn das Gateway erreichbar ist und wenn die Integration startet."
     }
   },
   "selector": {
