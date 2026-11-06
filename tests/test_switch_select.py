@@ -290,6 +290,64 @@ def test_a_device_that_does_not_report_a_rocker_gets_no_select(select) -> None:
     assert select.values_for(device) == ("channel1", "inactive")
 
 
+UNIVERSAL_DIMMER = "00400000001E"  # product ID of the universal dimmer 563.076
+
+
+def _dimmer(product_id: str) -> EnOceanDevice:
+    return EnOceanDevice("DEV1", "Dimmer", [{"eep": "D2-01-03"}], product_id=product_id)
+
+
+@pytest.mark.parametrize("select", [ROCKER_A, ROCKER_B])
+def test_the_universal_dimmer_gets_the_rocker_selects(select) -> None:
+    device = _dimmer(UNIVERSAL_DIMMER)
+    assert select.values_for(device) == ("channel1", "inactive")
+    device.reported_settings = frozenset({select.parameter})
+    assert select.values_for(device) == ("channel1", "inactive")
+    # The dimmer lists the key itself; one option per distinct gateway value.
+    entity = _select(select, device)
+    assert entity.options == ["channel1", "inactive"]
+    assert entity.unique_id == f"{EAG_ID}_DEV1_{select.translation_key}"
+
+
+@pytest.mark.parametrize("select", [ROCKER_A, ROCKER_B])
+@pytest.mark.parametrize("product_id", ["004000000003", "", "004000000099"])
+def test_other_dimmers_get_no_rocker_select(select, product_id) -> None:
+    device = _dimmer(product_id)
+    # Before the configuration was seen the product ID decides ...
+    assert select.values_for(device) is None
+    # ... and a key the device lists does not change that for an older model.
+    device.reported_settings = frozenset({select.parameter})
+    assert select.values_for(device) is None
+
+
+@pytest.mark.parametrize("select", [ROCKER_A, ROCKER_B])
+def test_a_universal_dimmer_that_does_not_list_the_key_gets_no_select(select) -> None:
+    device = _dimmer(UNIVERSAL_DIMMER)
+    device.reported_settings = frozenset({"rampingTimeSwitch"})
+    assert select.values_for(device) is None
+
+
+@pytest.mark.parametrize("select", [ROCKER_A, ROCKER_B])
+@pytest.mark.parametrize("raw", ["0", "3", "channel2"])
+def test_a_dimmer_rocker_value_outside_the_options_is_unknown(select, raw) -> None:
+    device = _dimmer(UNIVERSAL_DIMMER)
+    device.get_or_create_channel().__setattr__(select.attribute, raw)
+    assert _select(select, device).current_option is None
+    # Shown as reported, nothing is sent by merely looking at it.
+    assert getattr(device.channels[0], select.attribute) == raw
+
+
+@pytest.mark.parametrize("select", [ROCKER_A, ROCKER_B])
+async def test_selecting_a_dimmer_rocker_function_writes_once(select) -> None:
+    coordinator = MagicMock()
+    coordinator.async_set_device_option = AsyncMock()
+    entity = _select(select, _dimmer(UNIVERSAL_DIMMER), coordinator=coordinator)
+    await entity.async_select_option("inactive")
+    coordinator.async_set_device_option.assert_awaited_once_with(
+        "DEV1", select.parameter, "inactive"
+    )
+
+
 def test_the_rocker_functions_of_the_real_devices_are_read() -> None:
     """A rocker of the D2-01-01 reports the number 0, which is no listed option."""
     expected = {

@@ -148,6 +148,11 @@ def test_catalog_oddities_are_kept() -> None:
     blind = _catalog("d2_05_02")
     values = [item["value"] for item in blind["functionRockerA"]["values"]]
     assert values.count("inactive") == 3
+    # The dimmer catalog of firmware 1.21.34 repeats it as well.
+    dimmer = _catalog("d2_01_03_fw1_21_34")
+    for key in ("functionRockerA", "functionRockerB"):
+        listed = [item["value"] for item in dimmer[key]["values"]]
+        assert listed == ["channel1", "inactive", "inactive", "inactive"]
     switch = _catalog("d2_01_01")
     # A numeric default and a numeric configured value next to a text list.
     assert switch["functionRockerA"]["defaultValue"] == 3
@@ -215,8 +220,6 @@ DEFERRED = {
     "d2_01_11": {},
     "d2_01_03": {},
     "d2_01_03_fw1_21_34": {
-        "functionRockerA": "not offered for dimmers yet; the catalog of this firmware",
-        "functionRockerB": "not offered for dimmers yet; the catalog of this firmware",
         "ledColor": "the dimmer lists no 'all' option; no select for dimmers yet",
         "routingTime": "unit (10 ms) and the value for 'on' are not verified",
     },
