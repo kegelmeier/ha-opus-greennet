@@ -65,7 +65,9 @@ Signal strength and battery level are available where the gateway reports them.
 Every device also has a diagnostic **Last seen** time, and the gateway's own
 device shows when it started (**Uptime**). Signal strength and Last seen are
 disabled by default because they change with every telegram; enable them where
-you need them.
+you need them. The diagnostic **Remote management** sensor (disabled by default)
+shows the state the gateway lists for reaching the device, for example *No
+response* or *Wrong secure code*; it helps when *Read settings* fails.
 
 The gateway's device information shows its **serial number** (as reported by
 `/system/info`, not the EURID). Further diagnostic sensors show the

@@ -289,6 +289,9 @@ class EnOceanDevice:
     hardware_revision: str = ""
     first_seen: str = ""
     last_seen: str = ""
+    # Remote management state of the device as an option key of REMAN_STATES;
+    # None while the gateway lists none or a value that is not known.
+    reman_state: str | None = None
     # When the settings shown for the device were last read from it: the time of
     # the gateway's cached configuration, or of the last "Read settings".
     settings_read_at: datetime | None = None
@@ -323,6 +326,7 @@ class EnOceanDevice:
         "hardware_revision",
         "first_seen",
         "last_seen",
+        "reman_state",
         "dbm",
         "link_tables",
     )
@@ -354,6 +358,9 @@ class EnOceanDevice:
             self.last_seen = listed.last_seen
         if listed.dbm is not None and not keep_signal:
             self.dbm = listed.dbm
+        # A list without a usable state keeps the known one.
+        if listed.reman_state is not None:
+            self.reman_state = listed.reman_state
         # The gateway's cache time never moves back past a read made since.
         if listed.settings_read_at is not None and (
             self.settings_read_at is None

@@ -657,6 +657,19 @@ battery percentage is invented when the gateway publishes none.
   value without a UTC offset or in an unknown format stays unknown. Devices
   that only send on a change (for example leak sensors) can legitimately stay
   unchanged for a long time.
+- Every device also has a diagnostic **Remote management** sensor (disabled by
+  default): the state of the gateway's remote management (ReMan) for the device
+  as the device list gives it (`remanState`): *Not seen*, *No response*,
+  *Learned in*, *EEP not supported*, *Query starting*, *Query in progress*,
+  *Queried*, *Product ID not supported*, *Invalid product ID*, *Unlock failed*
+  or *Wrong secure code*. It explains why *Read settings* fails for a device (for
+  example no answer, or a secure code the gateway does not have). It is the
+  outcome of the gateway's last attempt, not a health verdict, and only changes
+  when the gateway lists the device again; nothing is requested for it. A
+  value the integration does not know, or a list without the field, leaves the
+  sensor unchanged (unknown until a known value was listed). The names are
+  those of gateway firmware 1.21.30. The meaning of each state is derived from
+  its name and was not checked on hardware.
 - Actuators whose device list contains a link table also have a diagnostic
   **Wall switch links** sensor (disabled by default): the number of wall
   switches the actuator listens to. The sensor appears as soon as the gateway

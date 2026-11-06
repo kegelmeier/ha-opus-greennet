@@ -1149,6 +1149,7 @@ class OpusGreenNetCoordinator:
             first_seen=protocol.metadata_text(data.get("firstSeen")),
             last_seen=protocol.metadata_text(data.get("lastSeen")),
             dbm=EnOceanDevice._parse_integer(data.get("dbm")),
+            reman_state=protocol.reman_state(data),
             link_tables=protocol.link_tables(data),
             settings_read_at=protocol.configuration_read_time(data),
             reported_settings=protocol.configuration_keys(data),
