@@ -37,6 +37,8 @@ FIXTURES = Path(__file__).parent / "fixtures"
     LED_CHANNEL,
     _DIMMER_MODE,
     EXTERNAL_INPUT,
+    ROCKER_A,
+    ROCKER_B,
     ROUTING,
     REPEATER,
 ) = DEVICE_SELECTS
@@ -46,6 +48,8 @@ KEYS = (
     "ledChannel",
     "dimmerMode",
     "functionExternalInput",
+    "functionRockerA",
+    "functionRockerB",
     "routingTime",
     "repeaterState",
 )
@@ -109,6 +113,8 @@ async def _setup(hass: HomeAssistant, devices: dict) -> list:
                 "operation_mode",
                 "led_color",
                 "function_external_input",
+                "function_rocker_a",
+                "function_rocker_b",
                 "routing",
                 "repeater",
             ],
@@ -120,6 +126,8 @@ async def _setup(hass: HomeAssistant, devices: dict) -> list:
                 "led_color",
                 "led_channel",
                 "function_external_input",
+                "function_rocker_a",
+                "function_rocker_b",
                 "routing",
                 "repeater",
             ],
@@ -146,10 +154,12 @@ async def test_no_selects_for_other_devices(hass: HomeAssistant) -> None:
             "BLIND": EnOceanDevice("BLIND", "Blind", [{"eep": "D2-05-02"}]),
         },
     )
-    # A dimmer reports the repeater mode only; a blind also lists ViNET routing.
-    # Neither has the other switch settings.
+    # A dimmer reports the repeater mode only; a blind also lists the function
+    # of the rockers and ViNET routing. Neither has the other switch settings.
     assert [entity.unique_id for entity in added] == [
         f"{EAG_ID}_DIM_repeater",
+        f"{EAG_ID}_BLIND_function_rocker_a",
+        f"{EAG_ID}_BLIND_function_rocker_b",
         f"{EAG_ID}_BLIND_routing",
         f"{EAG_ID}_BLIND_repeater",
     ]
@@ -178,6 +188,13 @@ def test_select_metadata() -> None:
             "D2-01-11",
             ["channel1", "channel2", "channels_all", "inactive"],
         ),
+        # The catalog of the blinds lists "inactive" three times; it is one option.
+        (ROCKER_A, "D2-01-01", ["channel1", "inactive"]),
+        (ROCKER_B, "D2-01-01", ["channel1", "inactive"]),
+        (ROCKER_A, "D2-05-02", ["channel1", "inactive"]),
+        (ROCKER_B, "D2-05-02", ["channel1", "inactive"]),
+        (ROCKER_A, "D2-01-11", ["channel1", "channel2", "channels_all", "inactive"]),
+        (ROCKER_B, "D2-01-11", ["channel1", "channel2", "channels_all", "inactive"]),
     ],
 )
 def test_options_follow_the_gateway_parameter_catalog(select, eep, options) -> None:
@@ -243,6 +260,119 @@ async def test_selecting_writes_the_camel_case_value() -> None:
     coordinator.async_set_device_option.assert_awaited_once_with(
         "DEV1", "operationMode", "topOn"
     )
+
+
+@pytest.mark.parametrize("select", [ROCKER_A, ROCKER_B])
+async def test_selecting_a_rocker_function_writes_the_gateway_value(select) -> None:
+    coordinator = MagicMock()
+    coordinator.async_set_device_option = AsyncMock()
+    entity = _select(select, _switch("D2-01-11"), coordinator=coordinator)
+    await entity.async_select_option("inactive")
+    coordinator.async_set_device_option.assert_awaited_once_with(
+        "DEV1", select.parameter, "inactive"
+    )
+
+
+@pytest.mark.parametrize("select", [ROCKER_A, ROCKER_B])
+def test_a_rocker_function_is_an_optional_setting_entity(select) -> None:
+    entity = _select(select, _switch("D2-01-11"))
+    assert entity.entity_category is EntityCategory.CONFIG
+    assert entity.entity_registry_enabled_default is False
+    assert entity.unique_id == f"{EAG_ID}_DEV1_{select.translation_key}"
+
+
+@pytest.mark.parametrize("select", [ROCKER_A, ROCKER_B])
+def test_a_device_that_does_not_report_a_rocker_gets_no_select(select) -> None:
+    device = _switch("D2-01-01")
+    device.reported_settings = frozenset({"operationMode"})
+    assert select.values_for(device) is None
+    device.reported_settings = None  # not seen yet: the EEP decides
+    assert select.values_for(device) == ("channel1", "inactive")
+
+
+UNIVERSAL_DIMMER = "00400000001E"  # product ID of the universal dimmer 563.076
+
+
+def _dimmer(product_id: str) -> EnOceanDevice:
+    return EnOceanDevice("DEV1", "Dimmer", [{"eep": "D2-01-03"}], product_id=product_id)
+
+
+@pytest.mark.parametrize("select", [ROCKER_A, ROCKER_B])
+def test_the_universal_dimmer_gets_the_rocker_selects(select) -> None:
+    device = _dimmer(UNIVERSAL_DIMMER)
+    assert select.values_for(device) == ("channel1", "inactive")
+    device.reported_settings = frozenset({select.parameter})
+    assert select.values_for(device) == ("channel1", "inactive")
+    # The dimmer lists the key itself; one option per distinct gateway value.
+    entity = _select(select, device)
+    assert entity.options == ["channel1", "inactive"]
+    assert entity.unique_id == f"{EAG_ID}_DEV1_{select.translation_key}"
+
+
+@pytest.mark.parametrize("select", [ROCKER_A, ROCKER_B])
+@pytest.mark.parametrize("product_id", ["004000000003", "", "004000000099"])
+def test_other_dimmers_get_no_rocker_select(select, product_id) -> None:
+    device = _dimmer(product_id)
+    # Before the configuration was seen the product ID decides ...
+    assert select.values_for(device) is None
+    # ... and a key the device lists does not change that for an older model.
+    device.reported_settings = frozenset({select.parameter})
+    assert select.values_for(device) is None
+
+
+@pytest.mark.parametrize("select", [ROCKER_A, ROCKER_B])
+def test_a_universal_dimmer_that_does_not_list_the_key_gets_no_select(select) -> None:
+    device = _dimmer(UNIVERSAL_DIMMER)
+    device.reported_settings = frozenset({"rampingTimeSwitch"})
+    assert select.values_for(device) is None
+
+
+@pytest.mark.parametrize("select", [ROCKER_A, ROCKER_B])
+@pytest.mark.parametrize("raw", ["0", "3", "channel2"])
+def test_a_dimmer_rocker_value_outside_the_options_is_unknown(select, raw) -> None:
+    device = _dimmer(UNIVERSAL_DIMMER)
+    device.get_or_create_channel().__setattr__(select.attribute, raw)
+    assert _select(select, device).current_option is None
+    # Shown as reported, nothing is sent by merely looking at it.
+    assert getattr(device.channels[0], select.attribute) == raw
+
+
+@pytest.mark.parametrize("select", [ROCKER_A, ROCKER_B])
+async def test_selecting_a_dimmer_rocker_function_writes_once(select) -> None:
+    coordinator = MagicMock()
+    coordinator.async_set_device_option = AsyncMock()
+    entity = _select(select, _dimmer(UNIVERSAL_DIMMER), coordinator=coordinator)
+    await entity.async_select_option("inactive")
+    coordinator.async_set_device_option.assert_awaited_once_with(
+        "DEV1", select.parameter, "inactive"
+    )
+
+
+def test_the_rocker_functions_of_the_real_devices_are_read() -> None:
+    """A rocker of the D2-01-01 reports the number 0, which is no listed option."""
+    expected = {
+        "d2_01_01": ("D2-01-01", "0", "channel1"),
+        "d2_01_11": ("D2-01-11", "channel1", "channel2"),
+        "d2_05_02": ("D2-05-02", "inactive", "channel1"),
+    }
+    for name, (eep, rocker_a, rocker_b) in expected.items():
+        data = json.loads((FIXTURES / f"configuration_{name}.json").read_text("utf8"))
+        device = EnOceanDevice("DEV1", "Device", [{"eep": eep}])
+        device.update_from_telegram(
+            {"functions": protocol.configuration_state_functions(data)}
+        )
+        channel = device.channels[0]
+        assert (channel.function_rocker_a, channel.function_rocker_b) == (
+            rocker_a,
+            rocker_b,
+        )
+    # The raw 0 is kept as reported but neither mapped nor written back.
+    unknown = EnOceanDevice("DEV1", "Device", [{"eep": "D2-01-01"}])
+    unknown.get_or_create_channel().function_rocker_a = "0"
+    assert _select(ROCKER_A, unknown).current_option is None
+    listed = EnOceanDevice("DEV1", "Device", [{"eep": "D2-01-11"}])
+    listed.get_or_create_channel().function_rocker_b = "channelsAll"
+    assert _select(ROCKER_B, listed).current_option == "channels_all"
 
 
 # ── data model ─────────────────────────────────────────────────────────────

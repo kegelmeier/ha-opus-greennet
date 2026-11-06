@@ -148,6 +148,11 @@ def test_catalog_oddities_are_kept() -> None:
     blind = _catalog("d2_05_02")
     values = [item["value"] for item in blind["functionRockerA"]["values"]]
     assert values.count("inactive") == 3
+    # The dimmer catalog of firmware 1.21.34 repeats it as well.
+    dimmer = _catalog("d2_01_03_fw1_21_34")
+    for key in ("functionRockerA", "functionRockerB"):
+        listed = [item["value"] for item in dimmer[key]["values"]]
+        assert listed == ["channel1", "inactive", "inactive", "inactive"]
     switch = _catalog("d2_01_01")
     # A numeric default and a numeric configured value next to a text list.
     assert switch["functionRockerA"]["defaultValue"] == 3
@@ -207,22 +212,14 @@ EEPS = {
 PRODUCT_IDS = {"d2_01_03_fw1_21_34": "00400000001E"}
 # Catalog parameters without an entity, each with the reason. A new parameter
 # in a catalog fails the coverage test until it gets an entity or is listed here.
-_SWITCH_DEFERRED = {
-    "functionRockerA": "raw value 0 is outside the options; needs a text write test",
-    "functionRockerB": "raw value 0 is outside the options; needs a text write test",
-}
 DEFERRED = {
     "d2_05_02": {
-        "functionRockerA": "same options as the switches; needs a text write test",
-        "functionRockerB": "same options as the switches; needs a text write test",
         "lastVerticalMovementTime": "read only; shown in the diagnostics",
     },
-    "d2_01_01": _SWITCH_DEFERRED,
-    "d2_01_11": _SWITCH_DEFERRED,
+    "d2_01_01": {},
+    "d2_01_11": {},
     "d2_01_03": {},
     "d2_01_03_fw1_21_34": {
-        "functionRockerA": "same options as the switches; needs a text write test",
-        "functionRockerB": "same options as the switches; needs a text write test",
         "ledColor": "the dimmer lists no 'all' option; no select for dimmers yet",
         "routingTime": "unit (10 ms) and the value for 'on' are not verified",
     },

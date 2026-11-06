@@ -375,6 +375,24 @@
           "inactive": "Inaktiv"
         }
       },
+      "function_rocker_a_setting": {
+        "name": "Funktion Wippe A (gespeichert)",
+        "state": {
+          "channel1": "Kanal 1",
+          "channel2": "Kanal 2",
+          "channels_all": "Kanal 1 + 2",
+          "inactive": "Inaktiv"
+        }
+      },
+      "function_rocker_b_setting": {
+        "name": "Funktion Wippe B (gespeichert)",
+        "state": {
+          "channel1": "Kanal 1",
+          "channel2": "Kanal 2",
+          "channels_all": "Kanal 1 + 2",
+          "inactive": "Inaktiv"
+        }
+      },
       "repeater_setting": {
         "name": "Repeater-Modus (gespeichert)",
         "state": {
@@ -396,6 +414,22 @@
           "good": "Gut",
           "sufficient": "Ausreichend",
           "poor": "Schlecht"
+        }
+      },
+      "reman_state": {
+        "name": "Fernverwaltung",
+        "state": {
+          "not_seen": "Nicht gesehen",
+          "no_response": "Keine Antwort",
+          "learned_in": "Eingelernt",
+          "unsupported_eep": "EEP nicht unterstützt",
+          "query_starting": "Abfrage startet",
+          "query_in_progress": "Abfrage läuft",
+          "queried": "Abgefragt",
+          "unsupported_product_id": "Produkt-ID nicht unterstützt",
+          "invalid_product_id": "Ungültige Produkt-ID",
+          "unlock_failed": "Entsperren fehlgeschlagen",
+          "wrong_secure_code": "Falscher Sicherheitscode"
         }
       },
       "device_id": {
@@ -705,6 +739,24 @@
           "inactive": "Inaktiv"
         }
       },
+      "function_rocker_a": {
+        "name": "Funktion Wippe A",
+        "state": {
+          "channel1": "Kanal 1",
+          "channel2": "Kanal 2",
+          "channels_all": "Kanal 1 + 2",
+          "inactive": "Inaktiv"
+        }
+      },
+      "function_rocker_b": {
+        "name": "Funktion Wippe B",
+        "state": {
+          "channel1": "Kanal 1",
+          "channel2": "Kanal 2",
+          "channels_all": "Kanal 1 + 2",
+          "inactive": "Inaktiv"
+        }
+      },
       "repeater": {
         "name": "Repeater-Modus",
         "state": {
@@ -809,7 +861,7 @@
       "message": "Der Wert ist keine gültige Zahl."
     },
     "parameter_write_failed": {
-      "message": "Das Gateway konnte den neuen Wert nicht auf {device_id} schreiben ({reason}). Home Assistant behält den bisherigen Wert. Das Gerät hat ihn vermutlich nicht erhalten; lies vor einem neuen Versuch die Gerätekonfiguration aus."
+      "message": "Das Gateway konnte den neuen Wert nicht auf {device_id} schreiben ({reason}). Ob das Gerät ihn erhalten hat, ist unklar. Home Assistant behält den bisherigen Wert; lies vor einem neuen Versuch die Gerätekonfiguration aus."
     },
     "parameter_read_back_failed": {
       "message": "Das Gateway hat den neuen Wert für {device_id} angenommen, das Zurücklesen ist aber fehlgeschlagen ({reason}). Der Wert kann gespeichert sein; Home Assistant behält den bisherigen. Lies vor einem neuen Versuch die Gerätekonfiguration aus."

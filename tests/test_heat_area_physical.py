@@ -163,8 +163,8 @@ async def test_climate_entity(make_device) -> None:
     assert entity.target_temperature_step == 0.2
     assert entity.supported_features == ClimateEntityFeature.TARGET_TEMPERATURE
     assert entity.hvac_modes == [HVACMode.HEAT, HVACMode.COOL]
-    assert entity.current_temperature == 20.8
-    assert entity.target_temperature == 21.0
+    assert entity.native_current_temperature == 20.8
+    assert entity.native_target_temperature == 21.0
     assert entity.hvac_mode is HVACMode.HEAT
     # The planned valve share is not a report that the actuator is heating.
     assert entity.hvac_action is None

@@ -73,7 +73,7 @@ class OpusGreenNetClimate(OpusGreenNetEntity, ClimateEntity):
     """Representation of an Opus GreenNet HeatArea climate device."""
 
     _attr_has_entity_name = True
-    _attr_temperature_unit = UnitOfTemperature.CELSIUS
+    _attr_native_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_min_temp: float = 0
     _attr_max_temp: float = 40
     _attr_supported_features = (
@@ -113,13 +113,13 @@ class OpusGreenNetClimate(OpusGreenNetEntity, ClimateEntity):
             self._attr_hvac_modes = [HVACMode.HEAT, HVACMode.OFF]
 
     @property
-    def current_temperature(self) -> float | None:
+    def native_current_temperature(self) -> float | None:
         """Return the current temperature."""
         channel = self._device.channels.get(DEFAULT_CHANNEL)
         return channel.temperature if channel else None
 
     @property
-    def target_temperature(self) -> float | None:
+    def native_target_temperature(self) -> float | None:
         """Return the target temperature setpoint."""
         channel = self._device.channels.get(DEFAULT_CHANNEL)
         return channel.temperature_setpoint if channel else None
@@ -211,3 +211,25 @@ class OpusGreenNetClimate(OpusGreenNetEntity, ClimateEntity):
             await self._coordinator.async_set_climate_mode(
                 self._device.device_id, mode_value
             )
+
+
+# Home Assistant 2026.11 reads the native temperature properties and marks the
+# old ones final. Before 2026.11 only the old ones exist: they are added here
+# on those versions so the minimum stays 2026.10.1. Remove this together with
+# raising the minimum to 2026.11.
+if not hasattr(ClimateEntity, "native_current_temperature"):  # pragma: no branch
+    setattr(  # noqa: B010
+        OpusGreenNetClimate,
+        "_attr_temperature_unit",
+        OpusGreenNetClimate._attr_native_temperature_unit,
+    )
+    setattr(  # noqa: B010
+        OpusGreenNetClimate,
+        "current_temperature",
+        property(lambda self: self.native_current_temperature),
+    )
+    setattr(  # noqa: B010
+        OpusGreenNetClimate,
+        "target_temperature",
+        property(lambda self: self.native_target_temperature),
+    )

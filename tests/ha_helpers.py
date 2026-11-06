@@ -10,6 +10,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import restore_state
 
 from custom_components.opus_greennet.const import CONF_ALLOW_SETTING_WRITES, DOMAIN
 from tests.fake_gateway import FakeGateway
@@ -71,3 +72,30 @@ async def wait_until(predicate: Any, timeout: float = 5) -> None:
     async with asyncio.timeout(timeout):
         while not predicate():
             await asyncio.sleep(0.01)
+
+
+def seed_restored_states(
+    hass: HomeAssistant, states: dict[str, restore_state.StoredState]
+) -> None:
+    """Seed what Home Assistant saved for entities before a restart.
+
+    Home Assistant 2026.11 keeps the stored state of a registered entity by its
+    registry ID (``last_states_by_entity_registry_id``) and of an unregistered
+    one by its entity ID (``last_states_by_entity_id``). Earlier releases only
+    know ``last_states``. The helper fills whichever store the release uses.
+    """
+    data: Any = restore_state.async_get(hass)
+    if not hasattr(data, "last_states_by_entity_id"):
+        data.last_states = states
+        return
+    registry = er.async_get(hass)
+    by_entity_id: dict[str, restore_state.StoredState] = {}
+    by_registry_id: dict[str, restore_state.StoredState] = {}
+    for entity_id, stored in states.items():
+        if (entry := registry.async_get(entity_id)) is None:
+            by_entity_id[entity_id] = stored
+        else:
+            stored.entity_registry_id = entry.id
+            by_registry_id[entry.id] = stored
+    data.last_states_by_entity_id = by_entity_id
+    data.last_states_by_entity_registry_id = by_registry_id

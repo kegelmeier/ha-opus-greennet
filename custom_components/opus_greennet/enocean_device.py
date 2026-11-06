@@ -177,6 +177,8 @@ class EnOceanChannel:
     led_color: str | None = None
     led_channel: str | None = None
     function_external_input: str | None = None
+    function_rocker_a: str | None = None
+    function_rocker_b: str | None = None
     # D2-01-03 dimming principle: phaseControlLower (trailing edge, "Phasen-
     # abschnitt") or phaseControlUpper (leading edge, "Phasenanschnitt").
     dimmer_mode: str | None = None
@@ -287,6 +289,9 @@ class EnOceanDevice:
     hardware_revision: str = ""
     first_seen: str = ""
     last_seen: str = ""
+    # Remote management state of the device as an option key of REMAN_STATES;
+    # None while the gateway lists none or a value that is not known.
+    reman_state: str | None = None
     # When the settings shown for the device were last read from it: the time of
     # the gateway's cached configuration, or of the last "Read settings".
     settings_read_at: datetime | None = None
@@ -321,6 +326,7 @@ class EnOceanDevice:
         "hardware_revision",
         "first_seen",
         "last_seen",
+        "reman_state",
         "dbm",
         "link_tables",
     )
@@ -352,6 +358,9 @@ class EnOceanDevice:
             self.last_seen = listed.last_seen
         if listed.dbm is not None and not keep_signal:
             self.dbm = listed.dbm
+        # A list without a usable state keeps the known one.
+        if listed.reman_state is not None:
+            self.reman_state = listed.reman_state
         # The gateway's cache time never moves back past a read made since.
         if listed.settings_read_at is not None and (
             self.settings_read_at is None
@@ -360,10 +369,21 @@ class EnOceanDevice:
             self.settings_read_at = listed.settings_read_at
         # A list without a configuration says nothing about the settings.
         if listed.reported_settings is not None:
-            self.reported_settings = listed.reported_settings
+            self.update_reported_settings(listed.reported_settings)
         # A list without a table says nothing; it never clears a known one.
         if listed.link_tables is not None:
             self.link_tables = listed.link_tables
+
+    def update_reported_settings(self, keys: frozenset[str]) -> None:
+        """Take the setting keys of a newer configuration of the device.
+
+        An empty list never replaces keys that are known: a missing field is no
+        instruction to delete, and a configuration the gateway has not read yet
+        must not strip the settings of a device that had them. An empty list is
+        taken as is while nothing is known, so a device without settings stays so.
+        """
+        if keys or not self.reported_settings:
+            self.reported_settings = keys
 
     def reports_setting(self, key: str) -> bool:
         """Return whether the device has this setting.

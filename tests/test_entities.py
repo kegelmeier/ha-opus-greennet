@@ -309,8 +309,8 @@ async def test_climate_properties_and_commands() -> None:
     )
     entity = OpusGreenNetClimate(coordinator, EAG_ID, GATEWAY_DEVICE_ID, device)
 
-    assert entity.current_temperature == 21.2
-    assert entity.target_temperature == 22.0
+    assert entity.native_current_temperature == 21.2
+    assert entity.native_target_temperature == 22.0
     assert entity.current_humidity == 53
     assert entity.hvac_mode is HVACMode.HEAT_COOL
     assert entity.hvac_action is None
@@ -488,7 +488,7 @@ def test_keeps_single_channel_registry_entity() -> None:
         (async_setup_switches, "D2-01-11", 2),
         (async_setup_covers, "D2-05-00", 1),
         (async_setup_climate, "D1-4B-06", 1),
-        (async_setup_sensors, "D1-4B-07", 6),
+        (async_setup_sensors, "D1-4B-07", 7),
         (async_setup_binary_sensors, "D1-4B-05", 5),
         (async_setup_binary_sensors, "F6-05-01", 1),
         (async_setup_events, "F6-02-01", 1),
@@ -551,6 +551,7 @@ async def test_sensor_setup_deduplicates_discovery_entities() -> None:
         f"{EAG_ID}_DEV1_signal_strength",
         f"{EAG_ID}_DEV1_signal_quality",
         f"{EAG_ID}_DEV1_last_seen",
+        f"{EAG_ID}_DEV1_reman_state",
         f"{EAG_ID}_DEV1_device_id",
         f"{EAG_ID}_DEV1_settings_read",
         # The settings stored on the switch, read only.
@@ -562,6 +563,8 @@ async def test_sensor_setup_deduplicates_discovery_entities() -> None:
         f"{EAG_ID}_DEV1_operation_mode_setting",
         f"{EAG_ID}_DEV1_led_color_setting",
         f"{EAG_ID}_DEV1_function_external_input_setting",
+        f"{EAG_ID}_DEV1_function_rocker_a_setting",
+        f"{EAG_ID}_DEV1_function_rocker_b_setting",
         f"{EAG_ID}_DEV1_routing_setting",
         f"{EAG_ID}_DEV1_repeater_setting",
     ]
@@ -956,3 +959,10 @@ async def test_device_without_profile_gets_entities_once_its_eeps_arrive(
     await wait_until(
         lambda: hass.states.get(entity_id).attributes.get("current_temperature") == 21.5
     )
+    # Home Assistant 2026.11 states the unit of the temperatures; the gateway
+    # reports degrees Celsius, so the default metric system shows them unchanged.
+    # Earlier versions have no such attribute.
+    from homeassistant.components.climate import ClimateEntity
+
+    if hasattr(ClimateEntity, "native_current_temperature"):
+        assert hass.states.get(entity_id).attributes.get("temperature_unit") == "°C"

@@ -1,0 +1,73 @@
+blueprint:
+  name: "Opus GreenNet: window handle opened or tilted, send a notification"
+  description: >-
+    Run a notification when a HOPPE window handle reports open or tilted,
+    optionally only after it has stayed there for a while ("left tilted for
+    30 minutes").
+
+    The handle position sensor keeps its last value; a missing or invalid
+    position stays unknown and a gateway outage shows unavailable, so neither
+    starts the automation.
+  domain: automation
+  author: Opus GreenNet Bridge
+  source_url: https://github.com/kegelmeier/ha-opus-greennet/blob/main/blueprints/automation/opus_greennet/window_handle_notification.yaml
+  homeassistant:
+    min_version: 2026.10.1
+  input:
+    handle_sensor:
+      name: Handle position sensor
+      description: The "Handle position" sensor of the window handle.
+      selector:
+        entity:
+          filter:
+            - integration: opus_greennet
+              domain: sensor
+              device_class: enum
+    handle_states:
+      name: Positions that count
+      default:
+        - tilted
+      selector:
+        select:
+          multiple: true
+          options:
+            - label: Tilted
+              value: tilted
+            - label: Open
+              value: open
+    stays_for:
+      name: Only after this long
+      description: Leave at 0 to notify immediately.
+      default:
+        hours: 0
+        minutes: 0
+        seconds: 0
+      selector:
+        duration:
+    notification:
+      name: Notification
+      description: >-
+        The actions that deliver the message, for example a notify action of
+        your phone. The variable trigger.to_state holds the handle sensor. The
+        default creates a persistent notification.
+      default:
+        - action: persistent_notification.create
+          data:
+            title: Window
+            message: >-
+              {{ trigger.to_state.name }}: {{ state_translated(trigger.entity_id) }}
+      selector:
+        action:
+
+mode: single
+max_exceeded: silent
+
+triggers:
+  - trigger: state
+    entity_id: !input handle_sensor
+    to: !input handle_states
+    for: !input stays_for
+
+actions:
+  - alias: Send the notification
+    sequence: !input notification

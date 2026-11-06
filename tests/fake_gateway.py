@@ -74,7 +74,10 @@ class FakeGateway:
     firmware and writes pretty-printed documents without delimiter, ``"ndjson"``
     writes one document per line ending in CRLF, ``"reject"`` answers
     ``reject_status``, by default HTTP 400) and ``stream_queries`` (the query
-    string of every stream request).
+    string of every stream request) and ``drop_connection`` (paths whose request
+    the gateway reads and records, then answers by closing the connection
+    without a response, like a gateway that goes down right after taking a
+    command).
     """
 
     def __init__(self, eurid: str = EURID, password: str = PASSWORD) -> None:
@@ -94,6 +97,7 @@ class FakeGateway:
         self.http_status: dict[str, int] = {}
         self.redirects: dict[str, str] = {}
         self.chunked: set[str] = set()
+        self.drop_connection: set[str] = set()
         self.requests: list[tuple[str, str, Any]] = []
         self.on_request: Callable[[str, str, Any], Awaitable[None]] | None = None
         self.stream_preamble: list[str] = []
@@ -212,6 +216,9 @@ class FakeGateway:
         path = f"/{request.match_info['path']}"
         body = await request.json() if request.can_read_body else None
         self.requests.append((request.method, path, body))
+        if path in self.drop_connection and request.transport is not None:
+            request.transport.close()
+            return web.Response(status=500)
         if self.on_request is not None:
             await self.on_request(request.method, path, body)
         if not self._authorized(request):

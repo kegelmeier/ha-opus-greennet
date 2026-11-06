@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import MappingProxyType
 from typing import Final
 
 DOMAIN: Final = "opus_greennet"
@@ -273,6 +274,10 @@ KEY_OPERATION_MODE: Final = "operationMode"
 KEY_LED_COLOR: Final = "ledColor"
 KEY_LED_CHANNEL: Final = "ledChannel"
 KEY_FUNCTION_EXTERNAL_INPUT: Final = "functionExternalInput"
+# Function of rocker A and B: the channel a rocker switches, or inactive. A
+# D2-01-01 reported the number 0 for rocker A, which is no listed option.
+KEY_FUNCTION_ROCKER_A: Final = "functionRockerA"
+KEY_FUNCTION_ROCKER_B: Final = "functionRockerB"
 # Routing (configuration parameter) is "off" or a time in seconds. A D2-01-01
 # switch with ViNET on in the OPUS config tool reported 0.3 (device list,
 # 2026-10-31, firmware 1.21.30). It is shown as off/on: any time is "on". "on" is
@@ -284,6 +289,24 @@ KEY_ROUTING_TIME: Final = "routingTime"
 KEY_REPEATER_STATE: Final = "repeaterState"
 ROUTING_ON_SECONDS: Final = 0.3
 # D2-01 switches (catalog read from a D2-01-01 and a D2-01-11).
+# Remote management (ReMan) states a gateway lists as ``remanState``, mapped to
+# the option keys of the diagnostic sensor. The gateway spells two of them
+# "Successfull..."; a value that is not listed here is shown as unknown.
+REMAN_STATES: Final = MappingProxyType(
+    {
+        "NotSeen": "not_seen",
+        "NoResponse": "no_response",
+        "SuccessfullLearnedIn": "learned_in",
+        "UnsupportedEEP": "unsupported_eep",
+        "QueryStarting": "query_starting",
+        "QueryInProgress": "query_in_progress",
+        "SuccessfullQueried": "queried",
+        "UnsupportedProductId": "unsupported_product_id",
+        "InvalidProductId": "invalid_product_id",
+        "UnlockFailed": "unlock_failed",
+        "WrongSecureCode": "wrong_secure_code",
+    }
+)
 # Radio link quality by signal strength (dBm): above GOOD is good, down to
 # POOR (inclusive) sufficient, below it poor (a repeater is recommended).
 SIGNAL_GOOD_DBM: Final = -75
@@ -311,6 +334,8 @@ DEVICE_OPTIONS: Final = {
     KEY_LED_COLOR: "led_color",
     KEY_LED_CHANNEL: "led_channel",
     KEY_FUNCTION_EXTERNAL_INPUT: "function_external_input",
+    KEY_FUNCTION_ROCKER_A: "function_rocker_a",
+    KEY_FUNCTION_ROCKER_B: "function_rocker_b",
     KEY_ROUTING_TIME: "routing",
     KEY_REPEATER_STATE: "repeater",
     KEY_DIMMER_MODE: "dimmer_mode",

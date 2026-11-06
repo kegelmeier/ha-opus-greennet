@@ -1149,6 +1149,7 @@ class OpusGreenNetCoordinator:
             first_seen=protocol.metadata_text(data.get("firstSeen")),
             last_seen=protocol.metadata_text(data.get("lastSeen")),
             dbm=EnOceanDevice._parse_integer(data.get("dbm")),
+            reman_state=protocol.reman_state(data),
             link_tables=protocol.link_tables(data),
             settings_read_at=protocol.configuration_read_time(data),
             reported_settings=protocol.configuration_keys(data),
@@ -2529,7 +2530,7 @@ class OpusGreenNetCoordinator:
         if self.devices.get(device_id) is not device:
             return
         if (keys := protocol.configuration_keys(document)) is not None:
-            device.reported_settings = keys
+            device.update_reported_settings(keys)
         functions = protocol.configuration_state_functions(document)
         if repeater is not None and (
             function := protocol.repeater_state_function(repeater)
@@ -2778,7 +2779,7 @@ class OpusGreenNetCoordinator:
         """Write one setting, read the configuration back and return it.
 
         A rejection by the gateway says different things for the two steps: a
-        rejected write means the device probably did not get the value
+        rejected write means the device may or may not have the value
         (``parameter_write_failed``), a rejected read-back means the write was
         accepted and the value may be stored (``parameter_read_back_failed``).
         A read-back that fails otherwise is ``parameter_not_confirmed``; a
@@ -2792,7 +2793,7 @@ class OpusGreenNetCoordinator:
                     {"configuration": {"parameters": [{"key": key, "value": value}]}},
                 )
             except HomeAssistantError as err:
-                # A rejected write: the device probably did not get the value.
+                # A rejected write: whether the device got the value is unknown.
                 if err.translation_key != "request_rejected":
                     raise
                 raise request_error(

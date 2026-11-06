@@ -375,6 +375,24 @@
           "inactive": "Inactive"
         }
       },
+      "function_rocker_a_setting": {
+        "name": "Rocker A function (stored)",
+        "state": {
+          "channel1": "Channel 1",
+          "channel2": "Channel 2",
+          "channels_all": "Channel 1 + 2",
+          "inactive": "Inactive"
+        }
+      },
+      "function_rocker_b_setting": {
+        "name": "Rocker B function (stored)",
+        "state": {
+          "channel1": "Channel 1",
+          "channel2": "Channel 2",
+          "channels_all": "Channel 1 + 2",
+          "inactive": "Inactive"
+        }
+      },
       "repeater_setting": {
         "name": "Repeater mode (stored)",
         "state": {
@@ -396,6 +414,22 @@
           "good": "Good",
           "sufficient": "Sufficient",
           "poor": "Poor"
+        }
+      },
+      "reman_state": {
+        "name": "Remote management",
+        "state": {
+          "not_seen": "Not seen",
+          "no_response": "No response",
+          "learned_in": "Learned in",
+          "unsupported_eep": "EEP not supported",
+          "query_starting": "Query starting",
+          "query_in_progress": "Query in progress",
+          "queried": "Queried",
+          "unsupported_product_id": "Product ID not supported",
+          "invalid_product_id": "Invalid product ID",
+          "unlock_failed": "Unlock failed",
+          "wrong_secure_code": "Wrong secure code"
         }
       },
       "device_id": {
@@ -705,6 +739,24 @@
           "inactive": "Inactive"
         }
       },
+      "function_rocker_a": {
+        "name": "Rocker A function",
+        "state": {
+          "channel1": "Channel 1",
+          "channel2": "Channel 2",
+          "channels_all": "Channel 1 + 2",
+          "inactive": "Inactive"
+        }
+      },
+      "function_rocker_b": {
+        "name": "Rocker B function",
+        "state": {
+          "channel1": "Channel 1",
+          "channel2": "Channel 2",
+          "channels_all": "Channel 1 + 2",
+          "inactive": "Inactive"
+        }
+      },
       "repeater": {
         "name": "Repeater mode",
         "state": {
@@ -809,7 +861,7 @@
       "message": "The value is not a valid number."
     },
     "parameter_write_failed": {
-      "message": "The gateway could not write the new value to {device_id} ({reason}). Home Assistant kept the previous value. The device may not have received it; read the device configuration before trying again."
+      "message": "The gateway could not write the new value to {device_id} ({reason}). Whether the device received it is unknown. Home Assistant kept the previous value; read the device configuration before trying again."
     },
     "parameter_read_back_failed": {
       "message": "The gateway accepted the new value for {device_id}, but reading it back failed ({reason}). The value may be stored; Home Assistant kept the previous one. Read the device configuration before trying again."
