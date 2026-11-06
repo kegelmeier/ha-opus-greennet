@@ -197,6 +197,32 @@ async def test_timed_out_request_is_sent_exactly_once(
     assert len(gateway.requests_to(method, path)) == 1
 
 
+@pytest.mark.parametrize(
+    ("method", "path"), [("PUT", STATE), ("GET", "/devices/DEV1/configuration")]
+)
+async def test_request_dropped_after_arrival_is_sent_exactly_once(
+    session: aiohttp.ClientSession, gateway: FakeGateway, method: str, path: str
+) -> None:
+    """A connection lost after the gateway took a request is not repeated.
+
+    The gateway may have acted on the request before it went down (a command
+    right before its nightly restart), and a repeat would run a command twice or
+    add radio traffic. aiohttp itself resends idempotent methods, PUT included,
+    when a connection breaks, so the client prevents that for commands and radio
+    reads. The outcome is reported as unknown, like a timeout.
+    """
+    client = _client(session, gateway)
+    await client.async_get("/system/uptime")
+    gateway.drop_connection.add(path)
+    with pytest.raises(OpusTimeoutError):
+        if method == "PUT":
+            await client.async_put(path, BODY)
+        else:
+            await client.async_get(path, timeout=api.RECOM_TIMEOUT)
+    await asyncio.sleep(0.1)
+    assert len(gateway.requests_to(method, path)) == 1
+
+
 async def test_rejected_put_is_sent_exactly_once(
     session: aiohttp.ClientSession, gateway: FakeGateway
 ) -> None:
