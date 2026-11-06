@@ -398,6 +398,22 @@
           "poor": "Slecht"
         }
       },
+      "reman_state": {
+        "name": "Beheer op afstand",
+        "state": {
+          "not_seen": "Niet gezien",
+          "no_response": "Geen antwoord",
+          "learned_in": "Ingeleerd",
+          "unsupported_eep": "EEP niet ondersteund",
+          "query_starting": "Opvraag wordt gestart",
+          "query_in_progress": "Opvraag bezig",
+          "queried": "Opgevraagd",
+          "unsupported_product_id": "Product-ID niet ondersteund",
+          "invalid_product_id": "Ongeldig product-ID",
+          "unlock_failed": "Ontgrendelen mislukt",
+          "wrong_secure_code": "Onjuiste beveiligingscode"
+        }
+      },
       "device_id": {
         "name": "Apparaat-ID"
       },

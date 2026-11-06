@@ -398,6 +398,22 @@
           "poor": "Schlecht"
         }
       },
+      "reman_state": {
+        "name": "Fernverwaltung",
+        "state": {
+          "not_seen": "Nicht gesehen",
+          "no_response": "Keine Antwort",
+          "learned_in": "Eingelernt",
+          "unsupported_eep": "EEP nicht unterstützt",
+          "query_starting": "Abfrage startet",
+          "query_in_progress": "Abfrage läuft",
+          "queried": "Abgefragt",
+          "unsupported_product_id": "Produkt-ID nicht unterstützt",
+          "invalid_product_id": "Ungültige Produkt-ID",
+          "unlock_failed": "Entsperren fehlgeschlagen",
+          "wrong_secure_code": "Falscher Sicherheitscode"
+        }
+      },
       "device_id": {
         "name": "Geräte-ID"
       },

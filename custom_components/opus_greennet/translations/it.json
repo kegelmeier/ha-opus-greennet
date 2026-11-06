@@ -398,6 +398,22 @@
           "poor": "Scarsa"
         }
       },
+      "reman_state": {
+        "name": "Gestione remota",
+        "state": {
+          "not_seen": "Non rilevato",
+          "no_response": "Nessuna risposta",
+          "learned_in": "Appreso",
+          "unsupported_eep": "EEP non supportato",
+          "query_starting": "Interrogazione in avvio",
+          "query_in_progress": "Interrogazione in corso",
+          "queried": "Interrogato",
+          "unsupported_product_id": "ID prodotto non supportato",
+          "invalid_product_id": "ID prodotto non valido",
+          "unlock_failed": "Sblocco non riuscito",
+          "wrong_secure_code": "Codice di sicurezza errato"
+        }
+      },
       "device_id": {
         "name": "ID dispositivo"
       },

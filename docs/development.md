@@ -47,6 +47,15 @@ docs/
 └── quality/              # Quality scale evidence and gateway protocol contract
 ```
 
+## Translations
+
+`strings.json` is the source; `translations/en.json` mirrors it exactly. German
+is maintained by the project. The French, Spanish, Italian and Dutch files are
+machine-generated and have **not been reviewed by native speakers**; corrections
+are welcome as issues or pull requests. Every file in `translations/` must have
+the same keys and placeholders as `strings.json` (`tests/test_translations.py`
+checks every language it finds).
+
 ## Running the checks
 
 Use Python 3.14.

@@ -398,6 +398,22 @@
           "poor": "Mala"
         }
       },
+      "reman_state": {
+        "name": "Gestión remota",
+        "state": {
+          "not_seen": "No visto",
+          "no_response": "Sin respuesta",
+          "learned_in": "Aprendido",
+          "unsupported_eep": "EEP no compatible",
+          "query_starting": "Consulta iniciándose",
+          "query_in_progress": "Consulta en curso",
+          "queried": "Consultado",
+          "unsupported_product_id": "ID de producto no compatible",
+          "invalid_product_id": "ID de producto no válido",
+          "unlock_failed": "Error al desbloquear",
+          "wrong_secure_code": "Código de seguridad incorrecto"
+        }
+      },
       "device_id": {
         "name": "ID del dispositivo"
       },

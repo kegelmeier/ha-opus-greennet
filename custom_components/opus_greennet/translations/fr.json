@@ -398,6 +398,22 @@
           "poor": "Mauvaise"
         }
       },
+      "reman_state": {
+        "name": "Gestion à distance",
+        "state": {
+          "not_seen": "Non vu",
+          "no_response": "Pas de réponse",
+          "learned_in": "Appris",
+          "unsupported_eep": "EEP non pris en charge",
+          "query_starting": "Interrogation en démarrage",
+          "query_in_progress": "Interrogation en cours",
+          "queried": "Interrogé",
+          "unsupported_product_id": "ID de produit non pris en charge",
+          "invalid_product_id": "ID de produit non valide",
+          "unlock_failed": "Échec du déverrouillage",
+          "wrong_secure_code": "Code de sécurité incorrect"
+        }
+      },
       "device_id": {
         "name": "ID de l'appareil"
       },
