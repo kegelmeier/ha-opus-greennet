@@ -7,7 +7,10 @@ payloads and value validation are unchanged from that contract.
 
 Verification legend: **[Code]** read from source, **[Test]** covered by tests,
 **[HW]** observed on a real gateway (OPUS-GW v1.21.31, API 2.6.3.0, 65 devices),
-**[Ref]** per vendor or EnOcean Alliance documentation.
+**[Ref]** per vendor or EnOcean Alliance documentation, **[GW]** read from the
+software, logs and recorded device lists of a gateway with firmware 1.21.30
+(timestamps in some logs are inconsistent and are used with care),
+**[Assumption]** not proven.
 
 ## 1. Transport
 
