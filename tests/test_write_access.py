@@ -13,6 +13,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.exceptions import ServiceValidationError
@@ -88,6 +89,28 @@ async def test_the_options_dialog_enables_and_disables_write_access(
         flow["flow_id"], {CONF_ALLOW_SETTING_WRITES: False}
     )
     assert entry.options[CONF_ALLOW_SETTING_WRITES] is False
+
+
+async def test_the_loaded_coordinator_follows_the_options_dialog_without_a_reload(
+    hass: HomeAssistant, gateway: FakeGateway
+) -> None:
+    """The check wired in at setup reads the stored option on every write."""
+    result = await configure_bridge(hass, gateway, allow_writes=False)
+    entry = result["result"]
+    await hass.async_block_till_done()
+    coordinator = entry.runtime_data.coordinator
+    assert coordinator._write_access_allowed() is False
+
+    for allowed in (True, False):
+        flow = await hass.config_entries.options.async_init(entry.entry_id)
+        await hass.config_entries.options.async_configure(
+            flow["flow_id"], {CONF_ALLOW_SETTING_WRITES: allowed}
+        )
+        await hass.async_block_till_done()
+        # The same coordinator answers with the new value: no reload happened.
+        assert entry.state is ConfigEntryState.LOADED
+        assert entry.runtime_data.coordinator is coordinator
+        assert coordinator._write_access_allowed() is allowed
 
 
 # ── the refusal ────────────────────────────────────────────────────────────
