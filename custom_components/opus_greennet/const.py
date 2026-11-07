@@ -290,20 +290,15 @@ KEY_REPEATER_STATE: Final = "repeaterState"
 ROUTING_ON_SECONDS: Final = 0.3
 # D2-01 switches (catalog read from a D2-01-01 and a D2-01-11).
 # Remote management (ReMan) states a gateway lists as ``remanState``, mapped to
-# the option keys of the diagnostic sensor. The gateway spells two of them
-# "Successfull..."; a value that is not listed here is shown as unknown.
+# the option keys of the diagnostic sensor. Only states that were seen on a
+# gateway are listed; a value that is not listed here is shown as unknown.
+# The gateway spells two of them "Successfull...".
 REMAN_STATES: Final = MappingProxyType(
     {
         "NotSeen": "not_seen",
         "NoResponse": "no_response",
         "SuccessfullLearnedIn": "learned_in",
-        "UnsupportedEEP": "unsupported_eep",
         "QueryStarting": "query_starting",
-        "QueryInProgress": "query_in_progress",
-        "SuccessfullQueried": "queried",
-        "UnsupportedProductId": "unsupported_product_id",
-        "InvalidProductId": "invalid_product_id",
-        "UnlockFailed": "unlock_failed",
         "WrongSecureCode": "wrong_secure_code",
     }
 )
@@ -343,9 +338,10 @@ DEVICE_OPTIONS: Final = {
 DEVICE_SETTING_KEYS: Final = frozenset(DEVICE_SETTINGS) | frozenset(DEVICE_OPTIONS)
 # How long a confirmed setting is protected against the gateway's cached copy of
 # the configuration. The device list carries that cache; the gateway reads the
-# configuration itself only now and then (nightly in the E0 catalog), so a list
-# can repeat the value from before a confirmed write. A list that shows the
-# written value or a third value ends the protection earlier.
+# configuration itself only now and then (seen at night, around 04:08 on one
+# installation), so a list can repeat the value from before a confirmed write.
+# A list that shows the written value or a third value ends the protection
+# earlier.
 SETTING_CACHE_GUARD_SECONDS: Final = 26 * 3600.0
 # Combinations of settings the OPUS config tool warns about: (name, key that
 # should be at least as large, key that should not be larger). A write that
