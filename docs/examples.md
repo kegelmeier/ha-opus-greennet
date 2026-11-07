@@ -17,7 +17,7 @@ create an automation from it under **Settings → Automations & scenes →
 Blueprints**. The pickers list only the matching Opus GreenNet entities, so no
 entity IDs have to be typed. A blueprint is a copy: later changes in this
 repository reach you through **Re-import blueprint** in Home Assistant, not
-through HACS.
+through the Marketplace.
 
 | Blueprint | Import |
 |-----------|--------|

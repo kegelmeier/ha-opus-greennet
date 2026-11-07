@@ -1,5 +1,5 @@
 # CI resolves and pins the latest stable Home Assistant release on every run.
-homeassistant>=2026.10.1
+homeassistant>=2026.11.0
 mypy==2.4.0
 pytest==9.1.1
 pytest-asyncio==1.4.0

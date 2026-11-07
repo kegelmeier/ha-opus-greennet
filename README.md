@@ -8,12 +8,12 @@ Local Home Assistant integration for **OPUS greenNet** EnOcean smart homes.
 Works with both OPUS gateways, the black **OPUS greenNet gateway** and the newer
 **OPUS IQ-DOT**, connected directly to their EnOcean over IP REST API.
 
-[![HACS Default][hacs-shield]][hacs]
+[![Home Assistant Marketplace][marketplace-shield]][marketplace-repo]
 [![GitHub Release][release-shield]][releases]
 [![License][license-shield]][license]
 ![HA Min Version][ha-shield]
 
-[![Open in HACS][hacs-repo-badge]][hacs-repo]
+[![Open in the Marketplace][marketplace-repo-badge]][marketplace-repo]
 
 </div>
 
@@ -83,7 +83,7 @@ Details per device type: [docs/devices.md](docs/devices.md).
 
 | | Requirement |
 |---|---|
-| Home Assistant | 2026.10.1 or newer |
+| Home Assistant | 2026.11.0 or newer |
 | Gateway | Both OPUS gateways: the black OPUS greenNet gateway (reports itself as `OPUS-GW`) and the OPUS IQ-DOT (`OPUS-IQ-DOT`). Before WebUI 2026: REST API on port 8080 (tested with firmware 1.21.30 to 1.21.34). With WebUI 2026: the same REST API over HTTPS on port 443 with a user login (see [Gateways with WebUI 2026](#gateways-with-webui-2026); not yet tested on such a gateway) |
 | Network | Home Assistant and the gateway in the same local network. Discovery uses mDNS; without it (for example Docker without host networking) enter the address once |
 | Devices | Paired with the gateway in the OPUS app |
@@ -92,22 +92,25 @@ No MQTT broker, MQTT integration or Mosquitto bridge is needed.
 
 ## Installation
 
-### HACS (recommended)
+### Marketplace (recommended)
 
-The integration is in the HACS default store.
+The integration is in the Home Assistant Marketplace.
 
-1. Install [HACS](https://hacs.xyz) if you haven't yet.
-2. In HACS, search for **Opus GreenNet Bridge**, or open it directly:
+1. Open **Settings → Marketplace** and search for **Opus GreenNet Bridge**, or
+   open it directly:
 
-   [![Open in HACS][hacs-repo-badge]][hacs-repo]
+   [![Open in the Marketplace][marketplace-repo-badge]][marketplace-repo]
 
-3. Download it and restart Home Assistant.
+2. Install it and restart Home Assistant.
 
-If you added this repository as a custom repository before, you don't need to do
-anything: updates keep coming through HACS as before.
+The first time you open the Marketplace, Home Assistant asks you to confirm a
+notice; installs and updates work only after that.
 
-To try a beta, open the integration in HACS, choose **⋮ → Redownload**, turn on
-**Show beta versions** and select the beta.
+If you installed the integration through HACS before, Home Assistant 2026.11
+moved it into the Marketplace for you, and updates keep coming from there.
+
+To try a beta, open the integration in the Marketplace, choose **Install other
+version** and select the beta.
 
 ### Manual
 
@@ -116,9 +119,8 @@ To try a beta, open the integration in HACS, choose **⋮ → Redownload**, turn
 2. Restart Home Assistant.
 
 > [!IMPORTANT]
-> A manual copy does not check the Home Assistant version. On a version older
-> than 2026.10.1 setup fails with `ImportError: cannot import name
-> 'ATTR_BRIGHTNESS'`.
+> A manual copy does not check the Home Assistant version. Use it only on
+> Home Assistant 2026.11.0 or newer.
 
 ## Configuration
 
@@ -319,7 +321,8 @@ could offer:
 1. **Settings → Devices & services → Opus GreenNet Bridge → ⋮ → Delete** removes
    the entry, its devices and entities. The gateway and the pairing of the
    EnOcean devices are not changed.
-2. Remove the integration in HACS (or delete `custom_components/opus_greennet`)
+2. Remove the integration in the Marketplace (or delete
+   `custom_components/opus_greennet`)
    and restart Home Assistant.
 
 ## Contributing
@@ -336,14 +339,13 @@ greenNet, Jaeger Direkt or the EnOcean Alliance.
 Released under the [MIT License](LICENSE).
 
 <!-- badges -->
-[hacs]: https://hacs.xyz
-[hacs-shield]: https://img.shields.io/badge/HACS-Default-41BDF5.svg?style=for-the-badge
+[marketplace-shield]: https://img.shields.io/badge/Marketplace-Opus%20GreenNet%20Bridge-41BDF5.svg?style=for-the-badge
 [releases]: https://github.com/kegelmeier/ha-opus-greennet/releases
 [release-shield]: https://img.shields.io/github/v/release/kegelmeier/ha-opus-greennet?style=for-the-badge
 [license]: https://github.com/kegelmeier/ha-opus-greennet/blob/main/LICENSE
 [license-shield]: https://img.shields.io/github/license/kegelmeier/ha-opus-greennet?style=for-the-badge
-[ha-shield]: https://img.shields.io/badge/Home%20Assistant-2026.10.1%2B-41BDF5.svg?style=for-the-badge&logo=home-assistant&logoColor=white
-[hacs-repo]: https://my.home-assistant.io/redirect/hacs_repository/?owner=kegelmeier&repository=ha-opus-greennet&category=integration
-[hacs-repo-badge]: https://my.home-assistant.io/badges/hacs_repository.svg
+[ha-shield]: https://img.shields.io/badge/Home%20Assistant-2026.11.0%2B-41BDF5.svg?style=for-the-badge&logo=home-assistant&logoColor=white
+[marketplace-repo]: https://my.home-assistant.io/redirect/marketplace_repository/?owner=kegelmeier&repository=ha-opus-greennet&category=integration
+[marketplace-repo-badge]: https://my.home-assistant.io/badges/marketplace_repository.svg
 [config-flow]: https://my.home-assistant.io/redirect/config_flow_start/?domain=opus_greennet
 [config-flow-badge]: https://my.home-assistant.io/badges/config_flow_start.svg
