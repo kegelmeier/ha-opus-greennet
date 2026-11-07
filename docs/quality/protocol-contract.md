@@ -7,9 +7,7 @@ payloads and value validation are unchanged from that contract.
 
 Verification legend: **[Code]** read from source, **[Test]** covered by tests,
 **[HW]** observed on a real gateway (OPUS-GW v1.21.31, API 2.6.3.0, 65 devices),
-**[Ref]** per vendor or EnOcean Alliance documentation, **[GW]** read from the
-software, logs and recorded device lists of a gateway with firmware 1.21.30
-(timestamps in some logs are inconsistent and are used with care),
+**[Ref]** per vendor or EnOcean Alliance documentation,
 **[Assumption]** not proven.
 
 ## 1. Transport
@@ -337,72 +335,50 @@ checked **[Code][Test]**.
 
 ## 13. Findings from a gateway (firmware 1.21.30)
 
-Source: the software (`core` 1.21.30), logs and recorded device lists of a
-gateway, marked **[GW]**; observations on a running installation are marked
-**[HW]**. Gateway texts and device data are treated as untrusted data.
-No credentials, device addresses or serial numbers belong in this document.
+Source: observations on a running installation and a device list read from a
+gateway with firmware 1.21.30, marked **[HW]**. Gateway texts and device data
+are treated as untrusted data. No credentials, device addresses or serial
+numbers belong in this document.
 
-### 13.1 Daily restart and remote pass
+### 13.1 Nightly outage
 
-- The gateway reboots itself once a day from a scheduled job at a fixed time
-  of day; a marker file on the gateway switches the reboot off. After the start
-  it runs a remote workflow for every device (a few dozen devices), a few
-  minutes in total: ReMan ping threshold, unlock, metadata query, ReCom
-  version, device configuration, inbound and outbound link tables and repeater
-  state, then ReMan lock. The gateway thereby refreshes its configuration cache
-  (`configuration.lastUpdateTime`) itself every night. During the pass the log
-  repeatedly shows `stream closed (Connection reset by peer)`, `remote
-  timeout` and `Failed to update remote information`. **[GW]**
-- Time of day. Logs from 2023 to mid 2025 place the restart between 03:00 and
-  04:00 local time (shifted by the clock change in spring and autumn).
-  **[GW]** On one installation with firmware 1.21.30 the gateway entities
-  were unavailable every night at about the same time between 04:00 and 05:00
-  CET for about five minutes (several consecutive nights observed); the uptime
-  then starts again and the telegram counter falls back. **[HW]**
-- **[Assumption]** The scheduler now runs in UTC instead of local time. The
-  logs end before the change, so a changed fixed offset cannot be excluded.
+- On one installation with firmware 1.21.30 the gateway entities were
+  unavailable every night at about the same time between 04:00 and 05:00 CET
+  for about five minutes (several consecutive nights observed); the uptime then
+  starts again and the telegram counter falls back. **[HW]**
+- **[Assumption]** The cause of the outage and of its time of day is not
+  documented here.
 - Integration behaviour (unchanged): the 60 s health check marks the gateway
   unavailable, the stream is reopened with the bounded back-off of section 4
   and a falling uptime replaces the stream. No request is repeated and no
   command is replayed after the outage. **[Code][Test]**
 
-### 13.2 Stream query parameters and `duplicates`
+### 13.2 Stream query and `duplicates`
 
-- Parameter names (`RequestParameters` of the gateway): `direction`
-  (`from`, `to`, `both`), `delimited` (`length`, `lengthBytes`,
-  `lengthCharacters`, `newLine`, `emptyLine`), `output` (`formatted`,
-  `singleLine`), `duplicates` (`true`, `false`), `levelOfDetail` (`full`,
-  `high`, `medium`, `low`, `minimal`), `id`; for `/devices` `category`. Further
-  names in the same class: `refresh`, `status`, `forceDelete`, `baseId`, `eep`,
-  `variation`, `version`, `organisation`. **[GW]**
-- The help text of the gateway lists `duplicates` as `false`/`true` without a
-  default. The code reads it with the default `false`
-  (`getParameterBooleanValue("duplicates", false, ...)` in `DevicesHandler`).
-  **[GW]**
 - The integration does not set `duplicates`, `direction`, `output` or
   `levelOfDetail` (only `delimited=newLine`, section 3). Reason for
-  `duplicates`: identical button telegrams may be separate events. With the
-  gateway default `false`, repeated identical presses (`buttonB0` `pressed` and
+  `duplicates`: identical button telegrams may be separate events. Without the
+  parameter, repeated identical presses (`buttonB0` `pressed` and
   `released` several times in a row) still arrive one by one in the Home
   Assistant history of the button event entities over several days, so the
   default does not swallow them. **[HW]** Setting `duplicates=true` is not
   needed for this and would change what the stream delivers without a proven
   benefit.
-- **[Assumption]** Which telegrams `duplicates=false` does suppress is not
-  known. The behaviour for repeated identical telegrams other than button
+- **[Assumption]** Which telegrams the stream suppresses without
+  `duplicates=true` is not known. The behaviour for repeated identical telegrams other than button
   presses (for example sensor values) was not examined.
 
 ### 13.3 `transmitModes` per function
 
-- The device list carries `transmitModes` per function key, with the switches
-  `transmitOnConnect`, `transmitOnEvent` and `transmitOnDuplicate`. In more
-  than a hundred recorded device lists every button key (`buttonA0` to
-  `buttonD0`, `buttonAI` to `buttonDI`, `multipleButtons`) has
-  `transmitOnDuplicate` = `true` (`transmitOnConnect` `false`,
-  `transmitOnEvent` `true`); `handle` and `occupancyButton` have
-  `transmitOnDuplicate` = `false`. **[GW]**
-- The profiles define these switches per function (their values are not
-  readable in the gateway software). **[Assumption]** Whether and how the stream applies them, and how
+- The device list carries `transmitModes`, a list with one entry per function
+  key and the switches `transmitOnConnect`, `transmitOnEvent` and
+  `transmitOnDuplicate`. In a device list read on 2026-11-07 (53 devices) every
+  button key (`buttonA0` to `buttonD0`, `buttonAI` to `buttonDI`,
+  `multipleButtons`) has `transmitOnDuplicate` = `true` (`transmitOnConnect`
+  `false`, `transmitOnEvent` `true`); all other keys seen there (for example
+  `switch`, `position`, `handle`, `motionDetected`) have `transmitOnDuplicate`
+  = `false` and `transmitOnConnect` = `true`. **[HW]**
+- **[Assumption]** Whether and how the stream applies these switches, and how
   they relate to the `duplicates` parameter, is not proven.
 - The integration reads `transmitModes` only for the two RWM value slots
   (section 7, `protocol.rwm_transmit_modes`); it does not evaluate the button
@@ -410,9 +386,9 @@ No credentials, device addresses or serial numbers belong in this document.
 
 ### 13.4 `deviceHealth`
 
-- `deviceHealth` (values `Warning`, `Critical`, `Off`) appears in the gateway's
-  `Handle device` log messages. In all of the several hundred such
-  messages it is `Off`, so it carries no usable signal there. **[GW]**
-- **[Assumption]** Its behaviour on other installations with firmware 1.21.30
-  is not known.
+- In the device list read on 2026-11-07 the field `deviceHealth` is present on
+  2 of 53 devices, both with the value `Off`, and absent on the others, so it
+  carries no usable signal there. **[HW]**
+- **[Assumption]** Other values and its behaviour on other installations are
+  not known.
 - The integration does not read `deviceHealth`. **[Code]**
