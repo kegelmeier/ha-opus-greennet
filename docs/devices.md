@@ -705,9 +705,8 @@ way; remove the integration entry instead.
 **Not tested on a real gateway.** The learn mode reads the receive mode with
 `GET /system/receivemode` and sets it with `POST /system/receivemode` and the
 body `{"receiveMode": "learnMode"}` or `{"receiveMode": "normalMode"}`. This
-follows the request handler of the gateway software 1.21.30 (a PUT is not
-accepted for it), not a recording of a request from the OPUS app; the tests use
-a simulated gateway. Please report what your gateway does.
+follows findings for the gateway software 1.21.30 (a PUT does not fit it), not
+a recording of a request from the OPUS app; the tests use a simulated gateway. Please report what your gateway does.
 
 While the gateway is in learn mode it accepts the teach-in telegram of a device
 in radio range, so a device of a neighbour can be taught in too. The integration
@@ -735,8 +734,8 @@ therefore keeps it short and makes sure it ends:
   03:00 to 05:00), when the gateway
   restarts and reads all devices, nor while the gateway is unavailable.
 - The gateway software starts its own timer of 180 seconds when the learn mode
-  is set, and the timer ends the learn mode (read from the code of the software
-  1.21.30, not observed on a gateway). The integration does not rely on it and
+  is set, and the timer ends the learn mode (a finding for the software 1.21.30,
+  not observed on a gateway). The integration does not rely on it and
   ends the learn mode itself after the same time. `POST /system/receivemode`
   also takes an optional boolean query parameter `baseId` (absent means false),
   which the integration does not send.
