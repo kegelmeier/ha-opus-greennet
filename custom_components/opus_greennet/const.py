@@ -338,9 +338,10 @@ DEVICE_OPTIONS: Final = {
 DEVICE_SETTING_KEYS: Final = frozenset(DEVICE_SETTINGS) | frozenset(DEVICE_OPTIONS)
 # How long a confirmed setting is protected against the gateway's cached copy of
 # the configuration. The device list carries that cache; the gateway reads the
-# configuration itself only now and then (nightly in the E0 catalog), so a list
-# can repeat the value from before a confirmed write. A list that shows the
-# written value or a third value ends the protection earlier.
+# configuration itself only now and then (seen at night, around 04:08 on one
+# installation), so a list can repeat the value from before a confirmed write.
+# A list that shows the written value or a third value ends the protection
+# earlier.
 SETTING_CACHE_GUARD_SECONDS: Final = 26 * 3600.0
 # Combinations of settings the OPUS config tool warns about: (name, key that
 # should be at least as large, key that should not be larger). A write that

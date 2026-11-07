@@ -79,12 +79,12 @@ sensor *Settings read* (enabled by default). It shows when the values above were
 last read from the device: the time of the gateway's cached configuration
 (`configuration.lastUpdateTime` of the device list), or the time of your last
 *Read settings* press, whichever is later. The gateway reads the configuration
-itself only now and then (nightly in the E0 catalog), and a device that does
-not answer keeps its old values; on 2026-10-31 (firmware 1.21.30, one installation) 34 of 42
-devices with a configuration time had been read at about 04:08 that night, five
-battery detectors later that morning, and three actuators that did not answer
-still showed the day before. An old time, for
-example after Home Assistant was restored from a backup, is a reason to press
+itself only now and then, and a device that does not answer keeps its old
+values. This was observed on 2026-10-31 (firmware 1.21.30, one installation): of
+42 devices with a configuration time, 34 had been read at about 04:08 that
+night, five battery detectors later that morning, and three actuators that did
+not answer still showed the day before. An old time, for example after Home
+Assistant was restored from a backup, is a reason to press
 *Read settings*. The sensor is unknown while the gateway lists no time. It only
 shows the time: nothing is requested for it, the integration never reads
 settings by itself, and it does not mark a value as wrong.
