@@ -264,7 +264,10 @@ async def test_the_note_is_saved_before_the_request_and_removed_after_the_reset(
     note = saved_when_requested[0]
     assert isinstance(note, dict) and "started_at" in note["learn_mode"]
     await wait_until(lambda: not coordinator.learn_mode.pending)
-    assert "learn_mode" not in (await store.async_load() or {})
+    # ``pending`` ends before the removal of the note is written: wait for it.
+    async with asyncio.timeout(5):
+        while "learn_mode" in (await store.async_load() or {}):
+            await asyncio.sleep(0.01)
 
 
 async def test_a_note_from_before_a_restart_ends_a_learn_mode_that_is_still_on(
