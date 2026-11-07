@@ -110,6 +110,4 @@ async def async_delete_from_gateway(
                 coordinator.config_entry_id,
             )
         ):
-            registry.async_update_device(
-                child.id, remove_config_entry_id=coordinator.config_entry_id
-            )
+            registry.async_remove_device(child.id)
