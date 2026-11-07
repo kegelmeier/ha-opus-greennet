@@ -117,6 +117,16 @@ them is outdated, press *Read settings* and try again. Change the other setting
 first when a value is refused, for example raise the maximum holding time before
 the vertical movement time.
 
+**Holding time and decimals.** The integration writes only the setting you change
+and never changes another one by itself. The OPUS app behaves differently, as
+reported from an analysis of the app (not tested here): when it sets the vertical
+movement time it sends whole seconds and sets the maximum holding time to that
+value plus 3 seconds in the same request. In Home Assistant, set the maximum
+holding time yourself, for example the vertical movement time plus a few
+seconds. Fractions of a second (step 0.01) are written as entered; whether the
+device stores them or rounds them is not verified. If it rounds, Home Assistant
+shows the stored value and reports that it differs from the requested one.
+
 **Names in the OPUS config tool.** The OPUS config tool (JD Config Tool, which
 talks to the devices directly by radio through a USB stick) names the settings
 differently. The texts below are from the tool's own text file (German
