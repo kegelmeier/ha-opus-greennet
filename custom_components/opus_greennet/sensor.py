@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import datetime, timedelta
-from typing import Final
+from typing import Any, Final
 
 from homeassistant.components.sensor import (
     RestoreSensor,
@@ -131,6 +131,7 @@ async def async_setup_entry(
                 OpusGreenNetGatewayNumberSensor(coordinator, eag_id, key)
                 for key in GATEWAY_INFO_NUMBERS
             ),
+            OpusGreenNetGatewayProcessesSensor(coordinator, eag_id),
         ]
     )
 
@@ -1433,6 +1434,107 @@ class OpusGreenNetGatewayInfoSensor(SensorEntity):
     def native_value(self) -> str | None:
         """Return the reading, or None while the gateway did not report it."""
         return self._reading(self._coordinator)
+
+    async def async_added_to_hass(self) -> None:
+        """Show every new reading and every availability change."""
+        await super().async_added_to_hass()
+        for signal in (SIGNAL_GATEWAY_INFO_UPDATE, SIGNAL_AVAILABILITY_UPDATE):
+            self.async_on_remove(
+                async_dispatcher_connect(
+                    self.hass, f"{signal}_{self._eag_id}", self._handle_update
+                )
+            )
+
+    @callback
+    def _handle_update(self) -> None:
+        self.async_write_ha_state()
+
+
+GATEWAY_PROCESSES_KEY: Final = "gateway_processes_not_running"
+# ``state`` the gateway reports for a process that runs; every other value is
+# passed through as text, so an unknown value never raises.
+GATEWAY_PROCESS_RUNNING: Final = "running"
+
+
+def gateway_processes(
+    info: Mapping[str, Any],
+) -> list[dict[str, str | bool | None]] | None:
+    """Return the gateway's processes (``/system/info``), or None if not reported.
+
+    Entries that are not objects or have no ``featureId`` are skipped. The
+    ``state`` is kept as the gateway sent it, ``activated`` is None when the
+    gateway leaves ``isActivated`` out or sends anything but a boolean.
+    """
+    raw = info.get("processes")
+    if not isinstance(raw, list):
+        return None
+    processes: list[dict[str, str | bool | None]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        feature_id = item.get("featureId")
+        if not isinstance(feature_id, str) or not feature_id.strip():
+            continue
+        state = item.get("state")
+        activated = item.get("isActivated")
+        processes.append(
+            {
+                "feature_id": feature_id,
+                "state": state if isinstance(state, str) else None,
+                "activated": activated if isinstance(activated, bool) else None,
+            }
+        )
+    return processes
+
+
+class OpusGreenNetGatewayProcessesSensor(SensorEntity):
+    """Activated gateway processes that do not run (diagnostic, gateway device).
+
+    Taken from the process list of the gateway information (``/system/info``,
+    read at setup and every 30 minutes); nothing is polled by the entity. The
+    value is 0 while every activated process runs. Processes the gateway has
+    switched off (``isActivated`` false) are not counted. All processes with
+    their state stay readable as the ``processes`` attribute. Disabled by
+    default.
+    """
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_translation_key = GATEWAY_PROCESSES_KEY
+
+    def __init__(self, coordinator: OpusGreenNetCoordinator, eag_id: str) -> None:
+        """Initialize the sensor."""
+        self._coordinator = coordinator
+        self._eag_id = eag_id
+        self._attr_unique_id = f"{eag_id}_{GATEWAY_PROCESSES_KEY}"
+        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, eag_id)})
+
+    @property
+    def available(self) -> bool:
+        """Return whether the gateway is reachable."""
+        return self._coordinator.available
+
+    @property
+    def native_value(self) -> int | None:
+        """Return the number of activated processes not running, or None."""
+        processes = gateway_processes(self._coordinator.gateway_info)
+        if processes is None:
+            return None
+        return sum(
+            1
+            for process in processes
+            if process["activated"] is not False
+            and process["state"] != GATEWAY_PROCESS_RUNNING
+        )
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return every process with its state, or None while not reported."""
+        processes = gateway_processes(self._coordinator.gateway_info)
+        return None if processes is None else {"processes": processes}
 
     async def async_added_to_hass(self) -> None:
         """Show every new reading and every availability change."""

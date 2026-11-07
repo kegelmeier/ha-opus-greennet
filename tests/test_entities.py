@@ -545,6 +545,7 @@ async def test_sensor_setup_deduplicates_discovery_entities() -> None:
         f"{EAG_ID}_gateway_ipv6_address",
         f"{EAG_ID}_gateway_receive_counter",
         f"{EAG_ID}_gateway_average_dbm",
+        f"{EAG_ID}_gateway_processes_not_running",
     ]
     initial_entities = async_add_entities.call_args_list[1].args[0]
     assert [entity.unique_id for entity in initial_entities] == [

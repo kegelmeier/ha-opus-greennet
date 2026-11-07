@@ -227,6 +227,9 @@
       "gateway_receive_counter": {
         "default": "mdi:counter"
       },
+      "gateway_processes_not_running": {
+        "default": "mdi:application-cog-outline"
+      },
       "channel_circuit_state": {
         "default": "mdi:help-circle-outline",
         "state": {
