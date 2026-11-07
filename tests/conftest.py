@@ -79,9 +79,8 @@ async def hass(tmp_path: Path) -> AsyncIterator[HomeAssistant]:
     frame.async_setup(hass)
     hass.config_entries = ConfigEntries(hass, {})
     dr.async_setup(hass)
-    # Home Assistant 2026.11 loads the entity registry only after the config
-    # entries are initialized, so initialize them first (older releases do not
-    # care about the order).
+    # Home Assistant loads the entity registry only after the config entries
+    # are initialized, so initialize them first.
     await hass.config_entries.async_initialize()
     await asyncio.gather(
         ar.async_load(hass, load_empty=True),

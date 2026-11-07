@@ -11,7 +11,7 @@ blueprint:
   author: Opus GreenNet Bridge
   source_url: https://github.com/kegelmeier/ha-opus-greennet/blob/main/blueprints/automation/opus_greennet/button_to_light.yaml
   homeassistant:
-    min_version: 2026.10.1
+    min_version: 2026.11.0
   input:
     button_event:
       name: Rocker or button event entity

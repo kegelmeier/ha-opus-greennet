@@ -70,7 +70,7 @@ in-process gateway that serves the REST API and its event stream over real HTTP
 
 - CI tests the latest stable Home Assistant release from PyPI (recorded in the
   workflow summary) and a pinned reference version
-  (`requirements_test_reference.txt`, currently 2026.10.4) with hassfest built
+  (`requirements_test_reference.txt`, currently 2026.11.0) with hassfest built
   from that release; the latest hassfest image runs as an extra signal. If a new release needs a newer Python, CI fails explicitly instead
   of silently testing an older release.
 - It runs on pull requests, pushes to main, every Monday at 06:17 UTC and on
@@ -84,8 +84,8 @@ in-process gateway that serves the REST API and its event stream over real HTTP
 
 ## Beta testing
 
-In HACS, open the integration, choose **⋮ → Redownload**, turn on **Show beta
-versions**, select the beta and restart Home Assistant. Existing entity IDs and rocker event names are kept.
+In the Marketplace, open the integration, choose **Install other version**,
+select the beta and restart Home Assistant. Existing entity IDs and rocker event names are kept.
 
 Please check physical controls, low brightness, both channels of 2-channel
 actuators, cover position and tilt, climate activity and rapid rocker presses.

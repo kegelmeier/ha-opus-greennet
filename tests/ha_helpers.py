@@ -79,15 +79,11 @@ def seed_restored_states(
 ) -> None:
     """Seed what Home Assistant saved for entities before a restart.
 
-    Home Assistant 2026.11 keeps the stored state of a registered entity by its
+    Home Assistant keeps the stored state of a registered entity by its
     registry ID (``last_states_by_entity_registry_id``) and of an unregistered
-    one by its entity ID (``last_states_by_entity_id``). Earlier releases only
-    know ``last_states``. The helper fills whichever store the release uses.
+    one by its entity ID (``last_states_by_entity_id``).
     """
     data: Any = restore_state.async_get(hass)
-    if not hasattr(data, "last_states_by_entity_id"):
-        data.last_states = states
-        return
     registry = er.async_get(hass)
     by_entity_id: dict[str, restore_state.StoredState] = {}
     by_registry_id: dict[str, restore_state.StoredState] = {}

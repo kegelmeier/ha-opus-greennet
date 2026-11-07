@@ -11,7 +11,7 @@ blueprint:
   author: Opus GreenNet Bridge
   source_url: https://github.com/kegelmeier/ha-opus-greennet/blob/main/blueprints/automation/opus_greennet/water_leak_warning.yaml
   homeassistant:
-    min_version: 2026.10.1
+    min_version: 2026.11.0
   input:
     leak_sensors:
       name: Water leak sensors
