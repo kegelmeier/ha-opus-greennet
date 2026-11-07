@@ -97,12 +97,9 @@
         "default": "mdi:lan",
         "state": {
           "learned_in": "mdi:lan-connect",
-          "queried": "mdi:lan-connect",
           "query_starting": "mdi:lan-pending",
-          "query_in_progress": "mdi:lan-pending",
           "no_response": "mdi:lan-disconnect",
           "not_seen": "mdi:lan-disconnect",
-          "unlock_failed": "mdi:lock-alert-outline",
           "wrong_secure_code": "mdi:lock-alert-outline"
         }
       },

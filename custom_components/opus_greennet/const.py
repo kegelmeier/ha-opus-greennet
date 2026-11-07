@@ -290,20 +290,15 @@ KEY_REPEATER_STATE: Final = "repeaterState"
 ROUTING_ON_SECONDS: Final = 0.3
 # D2-01 switches (catalog read from a D2-01-01 and a D2-01-11).
 # Remote management (ReMan) states a gateway lists as ``remanState``, mapped to
-# the option keys of the diagnostic sensor. The gateway spells two of them
-# "Successfull..."; a value that is not listed here is shown as unknown.
+# the option keys of the diagnostic sensor. Only states that were seen on a
+# gateway are listed; a value that is not listed here is shown as unknown.
+# The gateway spells two of them "Successfull...".
 REMAN_STATES: Final = MappingProxyType(
     {
         "NotSeen": "not_seen",
         "NoResponse": "no_response",
         "SuccessfullLearnedIn": "learned_in",
-        "UnsupportedEEP": "unsupported_eep",
         "QueryStarting": "query_starting",
-        "QueryInProgress": "query_in_progress",
-        "SuccessfullQueried": "queried",
-        "UnsupportedProductId": "unsupported_product_id",
-        "InvalidProductId": "invalid_product_id",
-        "UnlockFailed": "unlock_failed",
         "WrongSecureCode": "wrong_secure_code",
     }
 )
