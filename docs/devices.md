@@ -734,8 +734,12 @@ therefore keeps it short and makes sure it ends:
 - It cannot be started if the 180 seconds would touch the night (local time
   03:00 to 05:00), when the gateway
   restarts and reads all devices, nor while the gateway is unavailable.
-- The gateway seems to end the learn mode by itself after about three minutes
-  (a limit found in its software; not verified).
+- The gateway software starts its own timer of 180 seconds when the learn mode
+  is set, and the timer ends the learn mode (read from the code of the software
+  1.21.30, not observed on a gateway). The integration does not rely on it and
+  ends the learn mode itself after the same time. `POST /system/receivemode`
+  also takes an optional boolean query parameter `baseId` (absent means false),
+  which the integration does not send.
 
 Teaching a device in still happens on the device (press its learn button). New
 devices appear through the normal device list of the gateway.
