@@ -569,6 +569,9 @@
       "gateway_receive_counter": {
         "name": "Received telegrams"
       },
+      "gateway_processes_not_running": {
+        "name": "Gateway processes not running"
+      },
       "gateway_average_dbm": {
         "name": "Average signal strength"
       },

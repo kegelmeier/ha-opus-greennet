@@ -115,6 +115,11 @@ Useful fields:
   with the health probe). `receive_counter` (received telegrams) and
   `average_dbm` (mean signal strength) come from the same read, so they are as
   old as `info_read_at`. A field the gateway does not report stays empty.
+  The sensor *Gateway processes not running* (disabled by default) counts the
+  activated processes of the same read (`processes`: `featureId`, `state`,
+  `isActivated`) whose `state` is not `running`; all processes with their
+  state are in its `processes` attribute. Values seen so far are `running`
+  and `notRunning`; any other `state` is shown as sent.
 - `connection` (gateway): `hostname`, `ipv4` and `ipv6` of the configured
   gateway address (IPv6 only if the host name has one), resolved when the download is made. Both are redacted when they have
   a value. An empty value means the name or address could not be resolved; that

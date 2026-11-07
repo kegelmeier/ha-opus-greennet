@@ -253,7 +253,7 @@ is still open is offered the same way once it is safe to write:
 | Switch actuators (D2-01-00/-01, 2-channel D2-01-11) | Function of rocker A and B (channel assignment). Available: timer durations, switch-off warning, its signal duration and illumination threshold are available as numbers; operation mode, LED colour, LED channel, external input function, routing off/on and repeater mode as selects |
 | Blinds (D2-05-02) | Function of rocker A and B (vertical movement time, rotation time and maximum holding time are available as numbers; ViNET routing off/on and repeater mode as selects) |
 | All actuators | Link tables (linked wall switches and their role, e.g. central on/off or up/down) can already be read with the `get_device_link_tables` action, and a diagnostic *Wall switch links* sensor and the diagnostics download show them without a radio request; writing them is not planned |
-| Gateway | Services such as HomeKit, Alexa, MQTT, InfluxDB, scheduler and heating zones. Available as diagnostic sensors: firmware, app and API version, received telegrams and average signal strength |
+| Gateway | Services such as HomeKit, Alexa, MQTT, InfluxDB, scheduler and heating zones. Available as diagnostic sensors: firmware, app and API version, received telegrams and average signal strength, plus (disabled by default) the number of activated gateway processes that do not run |
 
 Settings are written over the radio, so a change can take several seconds and
 needs the actuator to answer. Every device with settings also shows the stored
