@@ -61,7 +61,7 @@ async def _bridge(
 
 def _modes(gateway: FakeGateway, mode: str) -> int:
     return sum(
-        1 for body in gateway.requests_to("PUT", PATH) if body["receiveMode"] == mode
+        1 for body in gateway.requests_to("POST", PATH) if body["receiveMode"] == mode
     )
 
 
@@ -91,7 +91,7 @@ async def test_nothing_is_sent_without_the_option(
         await coordinator.learn_mode.async_start()
 
     assert raised.value.translation_key == "device_management_disabled"
-    assert gateway.requests_to("PUT", PATH) == []
+    assert gateway.requests_to("POST", PATH) == []
     assert gateway.requests_to("GET", PATH) == []
 
 
@@ -107,7 +107,7 @@ async def test_not_in_the_nightly_restart_window(
         await coordinator.learn_mode.async_start()
 
     assert raised.value.translation_key == "learn_mode_night"
-    assert gateway.requests_to("PUT", PATH) == []
+    assert gateway.requests_to("POST", PATH) == []
 
 
 async def test_second_start_while_running_is_refused(
@@ -133,7 +133,7 @@ async def test_a_learn_mode_started_elsewhere_is_not_ended(
         await coordinator.learn_mode.async_start()
 
     assert raised.value.translation_key == "learn_mode_foreign"
-    assert gateway.requests_to("PUT", PATH) == []
+    assert gateway.requests_to("POST", PATH) == []
     await asyncio.sleep(0.3)
     assert gateway.receive_mode == "learnMode"
     assert coordinator.learn_mode.state is True
@@ -149,7 +149,7 @@ async def test_start_needs_a_readable_mode(
         await coordinator.learn_mode.async_start()
 
     assert raised.value.translation_key == "learn_mode_unreadable"
-    assert gateway.requests_to("PUT", PATH) == []
+    assert gateway.requests_to("POST", PATH) == []
     assert not coordinator.learn_mode.pending
 
 
@@ -159,7 +159,7 @@ async def test_a_start_the_gateway_rejects_is_not_repeated_and_is_still_reset(
     _, coordinator = await _bridge(hass, gateway)
 
     async def fail_learn(method: str, path: str, body: object) -> None:
-        if method == "PUT" and path == PATH and body == {"receiveMode": "learnMode"}:
+        if method == "POST" and path == PATH and body == {"receiveMode": "learnMode"}:
             gateway.status[PATH] = 500
 
     gateway.on_request = fail_learn
@@ -181,7 +181,7 @@ async def test_a_reset_that_is_not_confirmed_is_not_repeated_but_reported(
 ) -> None:
     entry, coordinator = await _bridge(hass, gateway)
     await coordinator.learn_mode.async_start()
-    gateway.receive_mode_ignores_put = True
+    gateway.receive_mode_ignores_post = True
 
     assert await coordinator.learn_mode.async_stop() is False
 
@@ -200,10 +200,10 @@ async def test_a_reset_that_works_at_the_next_recovery_clears_the_issue(
 ) -> None:
     _, coordinator = await _bridge(hass, gateway)
     await coordinator.learn_mode.async_start()
-    gateway.receive_mode_ignores_put = True
+    gateway.receive_mode_ignores_post = True
     assert await coordinator.learn_mode.async_stop() is False
 
-    gateway.receive_mode_ignores_put = False
+    gateway.receive_mode_ignores_post = False
     assert await coordinator.learn_mode.async_stop(read_first=True) is True
 
     assert gateway.receive_mode == "normalMode"
@@ -252,7 +252,7 @@ async def test_the_note_is_saved_before_the_request_and_removed_after_the_reset(
     saved_when_requested: list[object] = []
 
     async def look(method: str, path: str, body: object) -> None:
-        if method == "PUT" and body == {"receiveMode": "learnMode"}:
+        if method == "POST" and body == {"receiveMode": "learnMode"}:
             saved_when_requested.append(await store.async_load())
 
     coordinator.async_restore_setting_guards  # the entry already did this
@@ -305,7 +305,7 @@ async def test_a_note_with_the_normal_mode_only_removes_the_note(
     new = hass.config_entries.async_get_entry(entry.entry_id).runtime_data.coordinator
     await wait_until(lambda: not new.learn_mode.pending)
 
-    assert gateway.requests_to("PUT", PATH) == []
+    assert gateway.requests_to("POST", PATH) == []
     assert gateway.receive_mode == "normalMode"
 
 
@@ -393,7 +393,7 @@ async def test_start_is_refused_while_the_gateway_is_unavailable(
         await coordinator.learn_mode.async_start()
 
     assert raised.value.translation_key == "gateway_unavailable"
-    assert gateway.requests_to("PUT", PATH) == []
+    assert gateway.requests_to("POST", PATH) == []
 
 
 async def test_a_start_during_a_start_is_refused_as_busy(
@@ -406,7 +406,7 @@ async def test_a_start_during_a_start_is_refused_as_busy(
             await coordinator.learn_mode.async_start()
 
     assert raised.value.translation_key == "learn_mode_busy"
-    assert gateway.requests_to("PUT", PATH) == []
+    assert gateway.requests_to("POST", PATH) == []
 
 
 async def test_an_answer_without_a_known_mode_is_unreadable(
@@ -419,7 +419,7 @@ async def test_an_answer_without_a_known_mode_is_unreadable(
         await coordinator.learn_mode.async_start()
 
     assert raised.value.translation_key == "learn_mode_unreadable"
-    assert gateway.requests_to("PUT", PATH) == []
+    assert gateway.requests_to("POST", PATH) == []
 
 
 async def test_nothing_is_sent_when_the_note_cannot_be_saved(
@@ -438,7 +438,7 @@ async def test_nothing_is_sent_when_the_note_cannot_be_saved(
         await coordinator.learn_mode.async_start()
 
     assert raised.value.translation_key == "learn_mode_not_saved"
-    assert gateway.requests_to("PUT", PATH) == []
+    assert gateway.requests_to("POST", PATH) == []
     assert not coordinator.learn_mode.pending
 
 
@@ -450,7 +450,7 @@ async def test_stopping_without_a_note_does_nothing(
     assert await coordinator.learn_mode.async_stop() is True
     await coordinator.learn_mode.async_shutdown()
 
-    assert gateway.requests_to("PUT", PATH) == []
+    assert gateway.requests_to("POST", PATH) == []
 
 
 async def test_shutdown_gives_up_after_the_timeout_and_keeps_the_note(
@@ -497,4 +497,4 @@ async def test_a_start_shortly_before_the_nightly_window_is_refused(
         await coordinator.learn_mode.async_start()
 
     assert raised.value.translation_key == "learn_mode_night"
-    assert gateway.requests_to("PUT", PATH) == []
+    assert gateway.requests_to("POST", PATH) == []

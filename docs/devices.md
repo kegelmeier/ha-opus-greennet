@@ -702,10 +702,12 @@ way; remove the integration entry instead.
 
 ## Learn mode (experimental)
 
-**Not tested on a real gateway.** The request and the answer of the gateway's
-receive mode (`/system/receivemode`) were taken from names in the gateway
-software, not from a recording; the tests use a simulated gateway. Please report
-what your gateway does.
+**Not tested on a real gateway.** The learn mode reads the receive mode with
+`GET /system/receivemode` and sets it with `POST /system/receivemode` and the
+body `{"receiveMode": "learnMode"}` or `{"receiveMode": "normalMode"}`. This
+follows the request handler of the gateway software 1.21.30 (a PUT is not
+accepted for it), not a recording of a request from the OPUS app; the tests use
+a simulated gateway. Please report what your gateway does.
 
 While the gateway is in learn mode it accepts the teach-in telegram of a device
 in radio range, so a device of a neighbour can be taught in too. The integration

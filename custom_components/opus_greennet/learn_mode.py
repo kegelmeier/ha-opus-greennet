@@ -18,8 +18,10 @@ the outcome. The mode is read back before it counts as ended; only restoring the
 normal mode, which is idempotent, is tried a limited number of times.
 
 Nothing here is sent unless the user enabled device management in the options.
-The request and answer shape of ``/system/receivemode`` is taken from names in
-the gateway software, not from a recording (see ``docs/devices.md``).
+``GET /system/receivemode`` reads the mode and ``POST /system/receivemode``
+with ``{"receiveMode": "learnMode" | "normalMode"}`` sets it; the gateway answers
+a POST like a GET. This follows the handler in the gateway software, not a
+recording of a request (see ``docs/devices.md``).
 """
 
 from __future__ import annotations
@@ -154,7 +156,7 @@ class LearnModeController:
                     translation_domain=DOMAIN, translation_key="learn_mode_not_saved"
                 )
             try:
-                await coordinator.client.async_put(
+                await coordinator.client.async_post(
                     RECEIVE_MODE_PATH, {RECEIVE_MODE_KEY: RECEIVE_MODE_LEARN}
                 )
             except OpusApiError as err:
@@ -194,7 +196,7 @@ class LearnModeController:
                 await self._async_finish()
                 return True
             try:
-                await self._coordinator.client.async_put(
+                await self._coordinator.client.async_post(
                     RECEIVE_MODE_PATH, {RECEIVE_MODE_KEY: RECEIVE_MODE_NORMAL}
                 )
             except OpusApiError as err:

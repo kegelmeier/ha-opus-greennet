@@ -538,6 +538,16 @@ class OpusGatewayClient:
         """PUT a JSON body and return the acknowledgement document."""
         return await self._async_request("PUT", path, body, timeout)
 
+    async def async_post(
+        self,
+        path: str,
+        body: Mapping[str, object],
+        *,
+        timeout: float = REQUEST_TIMEOUT,
+    ) -> JsonObject:
+        """POST a JSON body and return the answer document."""
+        return await self._async_request("POST", path, body, timeout)
+
     async def _async_request(
         self,
         method: str,
