@@ -54,6 +54,24 @@ get_device_parameters:
         config_entry:
           integration: opus_greennet
 
+delete_device_from_gateway:
+  fields:
+    device_id:
+      required: true
+      example: "AABBCCDD"
+      selector:
+        text:
+    confirm_device_id:
+      required: true
+      example: "AABBCCDD"
+      selector:
+        text:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: opus_greennet
+
 reload_entry:
   fields:
     config_entry_id:

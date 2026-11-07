@@ -14,6 +14,7 @@ profiles see [Supported devices](../README.md#supported-devices).
 - [Sensor values](#sensor-values)
 - [Removing or replacing a device](#removing-or-replacing-a-device)
 - [Learn mode (experimental)](#learn-mode-experimental)
+- [Deleting a device from the gateway (experimental)](#deleting-a-device-from-the-gateway-experimental)
 - [Actions](#actions)
 
 ## Settings entities by device type
@@ -743,6 +744,38 @@ therefore keeps it short and makes sure it ends:
 Teaching a device in still happens on the device (press its learn button). New
 devices appear through the normal device list of the gateway.
 
+## Deleting a device from the gateway (experimental)
+
+**Not tested on a real gateway.** Home Assistant's own **Delete** on a device
+only makes Home Assistant forget it; the gateway keeps it and lists it again.
+The action `opus_greennet.delete_device_from_gateway` (`device_id`,
+`confirm_device_id`, optional `config_entry_id`; admin only) deletes it from the
+gateway with `DELETE /devices/<id>`. This follows findings for the gateway
+software 1.21.30, not a recording of a request from the OPUS app; the tests use
+a simulated gateway. Please report what your gateway does.
+
+- It needs the same option as the learn mode (*Allow the learn mode of the
+  gateway*), off until enabled, for new and existing installations alike.
+- The device ID has to be typed a second time (`confirm_device_id`), because
+  Home Assistant cannot undo the deletion.
+- Nothing is sent for a device the integration does not know, while the
+  gateway is unavailable, or in the night (local time 03:00 to 05:00).
+- The request is sent **once** and never repeated. The optional gateway
+  parameter `forceDelete` is **never** sent: a gateway that refuses (for
+  example for a read-only entry) leaves the decision to you, and you can delete
+  the device in the OPUS app.
+- The answer to the request is not trusted. The device list of the gateway is
+  read afterwards: only when the device is no longer listed, Home Assistant
+  removes the device and its entities. If the gateway still lists it, or the
+  list cannot be read, Home Assistant changes nothing and says so.
+- For a device that answers on the radio, the gateway software first takes
+  itself out of the device's link table, which is a radio request to that
+  device. This is a finding from the software, not something observed here.
+  Delete a device that is linked to an actuator only in daytime, one at a
+  time, and check the actuator afterwards.
+- A device that was taught in and never configured (no name, not operable) has
+  no radio request at all.
+
 ## Actions
 
 Available in **Developer Tools → Actions**. `device_id` is the EURID of the
@@ -756,6 +789,7 @@ device (fictional example: `AABB1122`). Select a gateway with
 | `opus_greennet.set_device_configuration` | `device_id`, `configuration` | Admin only. Write configuration to a device (ReCom). The integration checks only that the object can be sent as JSON (string keys, finite numbers, at most 16 levels and 64 KiB) and refuses anything else before a request is queued; the content is not interpreted |
 | `opus_greennet.get_device_parameters` | `device_id` | Admin only. Read the parameters a device supports (ReCom) |
 | `opus_greennet.get_device_link_tables` | `device_id` | Admin only. Read the link tables stored on a device (ReCom): `inbound` lists the wall switches it listens to (with rocker and central on/off flags), `outbound` the devices it reports to. The gateway's own address is shown as `gateway`. Read only: there is deliberately no action to write link tables, because a wrong table can cut a device off its wall switches |
+| `opus_greennet.delete_device_from_gateway` | `device_id`, `confirm_device_id` | Admin only, **untested**, needs the device management option. Delete a device from the gateway once, never forced, and remove it in Home Assistant only when the gateway no longer lists it. See [Deleting a device](#deleting-a-device-from-the-gateway-experimental) |
 | `opus_greennet.reload_entry` | optional `config_entry_id` | Admin only. Reload the integration without restarting Home Assistant |
 
 The read actions return their data directly as the action response. ReCom

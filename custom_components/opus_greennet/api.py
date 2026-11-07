@@ -548,6 +548,12 @@ class OpusGatewayClient:
         """POST a JSON body and return the answer document."""
         return await self._async_request("POST", path, body, timeout)
 
+    async def async_delete(
+        self, path: str, *, timeout: float = REQUEST_TIMEOUT
+    ) -> JsonObject:
+        """DELETE one resource and return the answer document."""
+        return await self._async_request("DELETE", path, None, timeout)
+
     async def _async_request(
         self,
         method: str,

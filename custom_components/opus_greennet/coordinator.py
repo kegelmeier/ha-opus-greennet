@@ -99,6 +99,7 @@ from .const import (
 )
 from .discovery import async_gateway_address
 from .enocean_device import DeviceProfile, EnOceanDevice
+from .gateway_removal import async_delete_from_gateway
 from .learn_mode import LearnModeController
 from .wire import (
     JsonObject,
@@ -545,6 +546,7 @@ class OpusGreenNetCoordinator:
         self._telegram_metadata_at: dict[str, float] = {}
         # One settings write (with its read-back) per device at a time.
         self._setting_locks: dict[str, asyncio.Lock] = {}
+        self.gateway_removal_lock = asyncio.Lock()
         self._probe_task: asyncio.Task[None] | None = None
         self._refresh_task: asyncio.Task[None] | None = None
         # When ``gateway_info`` was last read from the gateway (ISO, UTC).
@@ -2628,8 +2630,12 @@ class OpusGreenNetCoordinator:
 
         return self._create_task(_run(), name)
 
+    async def async_delete_from_gateway(self, device_id: str) -> None:
+        """Delete one device from the gateway once (see ``gateway_removal``)."""
+        await async_delete_from_gateway(self, device_id)
+
     def device_management_allowed(self) -> bool:
-        """Return whether device management (the learn mode) is switched on."""
+        """Return whether device management (learn mode, deleting) is switched on."""
         return (
             self._device_management_allowed is not None
             and self._device_management_allowed()

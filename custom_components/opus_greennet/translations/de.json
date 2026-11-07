@@ -912,9 +912,42 @@
     },
     "learn_mode_start_unclear": {
       "message": "Das Gateway hat den Lernmodus nicht bestätigt. Er wird nicht erneut angefordert; Home Assistant beendet ihn nach der eingestellten Zeit in jedem Fall."
+    },
+    "device_delete_night": {
+      "message": "Das Gerät kann jetzt nicht gelöscht werden: Das Gateway startet nachts neu und liest alle Geräte. Versuche es später erneut."
+    },
+    "device_delete_busy": {
+      "message": "Eine andere Löschanfrage läuft. Warte, bis sie beendet ist."
+    },
+    "device_delete_confirmation": {
+      "message": "Nicht gelöscht. Gib die Geräte-ID {device_id} im Bestätigungsfeld ein zweites Mal ein."
+    },
+    "device_delete_not_confirmed": {
+      "message": "Das Gateway listet {device_id} weiterhin, deshalb wurde es nicht gelöscht. Die Anfrage wird nicht wiederholt und ein erzwungenes Löschen wird nicht verwendet. Home Assistant behält das Gerät. Entferne es in der OPUS-App, wenn du es nicht brauchst."
+    },
+    "device_delete_unclear": {
+      "message": "Die Geräteliste konnte nach der Löschanfrage für {device_id} nicht gelesen werden, das Ergebnis ist daher unbekannt. Die Anfrage wird nicht wiederholt, Home Assistant behält das Gerät. Prüfe die Geräteliste des Gateways."
     }
   },
   "services": {
+    "delete_device_from_gateway": {
+      "description": "Löscht ein Gerät aus der eigenen Geräteliste des Gateways (experimentell, braucht die Geräteverwaltung in den Optionen). Wird einmal gesendet, nie erzwungen und nie wiederholt. In Home Assistant wird das Gerät nur entfernt, wenn das Gateway es nicht mehr listet.",
+      "fields": {
+        "config_entry_id": {
+          "description": "Zu verwendendes Gateway. Wähle eines, wenn mehrere geladen sind.",
+          "name": "Gateway"
+        },
+        "confirm_device_id": {
+          "description": "Gib die Geräte-ID ein zweites Mal ein. Das Löschen lässt sich von Home Assistant aus nicht rückgängig machen.",
+          "name": "Geräte-ID bestätigen"
+        },
+        "device_id": {
+          "description": "EnOcean-Geräte-ID, die aus dem Gateway gelöscht wird.",
+          "name": "Geräte-ID"
+        }
+      },
+      "name": "Gerät vom Gateway löschen"
+    },
     "get_device_configuration": {
       "description": "Ruft die gespeicherte Konfiguration eines EnOcean-Geräts über die ReCom-API ab.",
       "fields": {

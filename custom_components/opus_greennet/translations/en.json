@@ -912,9 +912,42 @@
     },
     "learn_mode_start_unclear": {
       "message": "The gateway did not confirm the learn mode. It is not requested again; Home Assistant ends it after the set time in any case."
+    },
+    "device_delete_night": {
+      "message": "The device cannot be deleted now: the gateway restarts and reads all devices at night. Try again later."
+    },
+    "device_delete_busy": {
+      "message": "Another delete request is in progress. Wait for it to finish."
+    },
+    "device_delete_confirmation": {
+      "message": "Not deleted. Type the device ID {device_id} a second time in the confirmation field."
+    },
+    "device_delete_not_confirmed": {
+      "message": "The gateway still lists {device_id}, so it was not deleted. The request is not repeated and a forced delete is not used. Home Assistant keeps the device. Remove it in the OPUS app if it is unwanted."
+    },
+    "device_delete_unclear": {
+      "message": "The device list could not be read after the delete request for {device_id}, so the result is unknown. The request is not repeated and Home Assistant keeps the device. Check the device list of the gateway."
     }
   },
   "services": {
+    "delete_device_from_gateway": {
+      "description": "Deletes one device from the gateway's own device list (experimental, needs device management in the options). Sent once, never forced and never repeated. The device is removed in Home Assistant only when the gateway no longer lists it.",
+      "fields": {
+        "config_entry_id": {
+          "description": "Gateway to use. Select one when more than one gateway is loaded.",
+          "name": "Gateway"
+        },
+        "confirm_device_id": {
+          "description": "Type the device ID a second time. Deleting cannot be undone from Home Assistant.",
+          "name": "Confirm device ID"
+        },
+        "device_id": {
+          "description": "EnOcean device ID to delete from the gateway.",
+          "name": "Device ID"
+        }
+      },
+      "name": "Delete device from gateway"
+    },
     "get_device_configuration": {
       "description": "Retrieves the stored configuration for an EnOcean device through the ReCom API.",
       "fields": {

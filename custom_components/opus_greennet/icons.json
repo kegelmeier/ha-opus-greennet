@@ -275,6 +275,9 @@
     "reload_entry": {
       "service": "mdi:reload"
     },
+    "delete_device_from_gateway": {
+      "service": "mdi:delete-forever"
+    },
     "set_device_configuration": {
       "service": "mdi:file-upload-outline"
     },

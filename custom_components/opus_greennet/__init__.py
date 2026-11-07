@@ -100,8 +100,10 @@ SERVICE_SET_DEVICE_CONFIG = "set_device_configuration"
 SERVICE_GET_DEVICE_PARAMS = "get_device_parameters"
 SERVICE_GET_DEVICE_LINK_TABLES = "get_device_link_tables"
 SERVICE_RELOAD_ENTRY = "reload_entry"
+SERVICE_DELETE_DEVICE_FROM_GATEWAY = "delete_device_from_gateway"
 SERVICE_SET_COVER_POSITION = "set_cover_position"
 ATTR_DEVICE_ID = "device_id"
+ATTR_CONFIRM_DEVICE_ID = "confirm_device_id"
 ATTR_POSITION = "position"
 ATTR_REPOSITIONING = "repositioning"
 ATTR_CHANNEL = "channel"
@@ -125,6 +127,15 @@ SERVICE_SET_CONFIG_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_DEVICE_ID): cv.string,
         vol.Required(ATTR_CONFIGURATION): dict,
+        vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string,
+    }
+)
+
+
+SERVICE_DELETE_DEVICE_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_DEVICE_ID): cv.string,
+        vol.Required(ATTR_CONFIRM_DEVICE_ID): cv.string,
         vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string,
     }
 )
@@ -539,6 +550,19 @@ def _register_services(hass: HomeAssistant) -> None:
             ),
         )
 
+    async def handle_delete_device_from_gateway(call: ServiceCall) -> None:
+        coordinator = _coordinator_for_call(hass, call)
+        device_id = call.data[ATTR_DEVICE_ID]
+        # The ID has to be typed a second time: deleting cannot be undone.
+        if call.data[ATTR_CONFIRM_DEVICE_ID].strip().upper() != device_id.upper():
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="device_delete_confirmation",
+                translation_placeholders={"device_id": device_id},
+            )
+        _validate_service_device(coordinator, device_id)
+        await coordinator.async_delete_from_gateway(device_id)
+
     async def handle_reload_entry(call: ServiceCall) -> None:
         config_entry_id = call.data.get(ATTR_CONFIG_ENTRY_ID)
         if config_entry_id:
@@ -585,6 +609,13 @@ def _register_services(hass: HomeAssistant) -> None:
         SERVICE_SET_COVER_POSITION,
         handle_set_cover_position,
         schema=SERVICE_SET_COVER_POSITION_SCHEMA,
+    )
+    async_register_admin_service(
+        hass,
+        DOMAIN,
+        SERVICE_DELETE_DEVICE_FROM_GATEWAY,
+        handle_delete_device_from_gateway,
+        schema=SERVICE_DELETE_DEVICE_SCHEMA,
     )
     async_register_admin_service(
         hass,

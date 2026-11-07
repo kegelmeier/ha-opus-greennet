@@ -113,6 +113,12 @@ class FakeGateway:
         # a write without applying it.
         self.receive_mode = "normalMode"
         self.receive_mode_ignores_post = False
+        # ``DELETE /devices/<id>`` (handler in the gateway software; the answer
+        # shape is an assumption). ``delete_rejection`` is an error header the
+        # gateway answers instead of deleting; ``delete_ignored`` models a
+        # gateway that answers success but keeps the device.
+        self.delete_rejection: dict[str, Any] | None = None
+        self.delete_ignored = False
         # Real gateways stream the device list without ``configuration``
         # (phase 21 hardware diagnostics); GET /devices carries it.
         self.stream_without_configuration = False
@@ -297,6 +303,12 @@ class FakeGateway:
             device = next((d for d in self.devices if d["deviceId"] == parts[1]), None)
             if device is None:
                 return {"header": {"httpStatus": 404, "message": "unknown device"}}
+            if len(parts) == 2 and method == "DELETE":
+                if self.delete_rejection is not None:
+                    return {"header": self.delete_rejection}
+                if not self.delete_ignored:
+                    self.devices.remove(device)
+                return {"header": ok}
             if len(parts) == 2:
                 return {"header": {**ok, "content": "device"}, "device": device}
             if parts[2] == "configuration":
