@@ -7,6 +7,19 @@ blueprint:
     A blind that is already completely open is left alone, so no command is
     sent for it. Nothing happens when the handle sensor is unknown or
     unavailable. The blinds stay up when the handle is closed again.
+
+    **Keep the blinds up (optional).** Pick the "Blockage" switches of the
+    blinds to keep them up as long as the handle is open or tilted: the
+    blockage is released first (a blocked blind does not move), set again once
+    all chosen blinds are completely open, and released when the handle is
+    closed. Blocking a moving blind stops it, so it is set only after the
+    blinds are up; if they do not get there within the time limit, nothing is
+    blocked and a notification says so. After the handle is closed the blinds
+    stay where they are and can be controlled again. The "Blockage" switch is
+    disabled by default and exists only for D2-05 blinds (blinds with position
+    and angle); enable it first. All chosen blockage switches are released
+    when the handle is closed, also ones you blocked on purpose. Leave the
+    picker empty to keep the earlier behaviour.
   domain: automation
   author: Opus GreenNet Bridge
   source_url: https://github.com/kegelmeier/ha-opus-greennet/blob/main/blueprints/automation/opus_greennet/window_handle_blind_up.yaml
@@ -47,16 +60,77 @@ blueprint:
                 - shutter
                 - shade
                 - curtain
+    blockage_switches:
+      name: Blockage switches of these blinds (optional)
+      description: >-
+        The "Blockage" switches (disabled by default, D2-05 blinds only) of
+        the blinds above. They keep the blinds up while the handle is open or
+        tilted. Leave empty to only open the blinds.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - integration: opus_greennet
+              domain: switch
+    open_timeout:
+      name: Time limit for the blinds to open (seconds)
+      description: >-
+        Only used with blockage switches: how long to wait until all chosen
+        blinds are completely open before they are blocked. If the limit
+        passes, nothing is blocked.
+      default: 180
+      selector:
+        number:
+          min: 10
+          max: 900
+          step: 10
+          unit_of_measurement: s
+          mode: box
 
-mode: single
+mode: parallel
+max: 5
 max_exceeded: silent
+
+variables:
+  handle_sensor: !input handle_sensor
+  handle_states: !input handle_states
+  blinds: !input blinds
+  blockage_switches: !input blockage_switches
+  open_timeout: !input open_timeout
 
 triggers:
   - trigger: state
+    id: opened
     entity_id: !input handle_sensor
     to: !input handle_states
+  - trigger: state
+    id: closed
+    entity_id: !input handle_sensor
+    to: closed
 
 actions:
+  - alias: The handle is closed again, release the blockage
+    if:
+      - condition: trigger
+        id: closed
+    then:
+      - if:
+          - condition: template
+            value_template: "{{ blockage_switches | count > 0 }}"
+        then:
+          - action: switch.turn_off
+            target:
+              entity_id: !input blockage_switches
+      - stop: Handle closed
+  - alias: Release the blockage so that the blinds can move
+    if:
+      - condition: template
+        value_template: "{{ blockage_switches | count > 0 }}"
+    then:
+      - action: switch.turn_off
+        target:
+          entity_id: !input blockage_switches
   - alias: Open every blind that is not completely open
     repeat:
       for_each: !input blinds
@@ -71,3 +145,44 @@ actions:
             - action: cover.open_cover
               target:
                 entity_id: "{{ repeat.item }}"
+  - alias: Keep the blinds up while the handle is open or tilted
+    if:
+      - condition: template
+        value_template: "{{ blockage_switches | count > 0 }}"
+    then:
+      - alias: Wait until all chosen blinds are completely open
+        wait_template: >-
+          {% set ns = namespace(open=true) %}
+          {% for blind in blinds %}
+            {% if not (is_state(blind, 'open')
+                       and state_attr(blind, 'current_position') in [none, 100]) %}
+              {% set ns.open = false %}
+            {% endif %}
+          {% endfor %}
+          {{ ns.open }}
+        timeout: "{{ open_timeout | float(180) }}"
+        continue_on_timeout: true
+      - variables:
+          blinds_up: "{{ wait.completed }}"
+      - choose:
+          - alias: All blinds are up and the handle is still open or tilted
+            conditions:
+              - condition: template
+                value_template: "{{ blinds_up }}"
+              - condition: template
+                value_template: "{{ states(handle_sensor) in handle_states }}"
+            sequence:
+              - action: switch.turn_on
+                target:
+                  entity_id: !input blockage_switches
+          - alias: The blinds did not get up in time
+            conditions:
+              - condition: template
+                value_template: "{{ not blinds_up }}"
+            sequence:
+              - action: persistent_notification.create
+                data:
+                  title: Window handle
+                  message: >-
+                    The blinds were not completely open within
+                    {{ open_timeout | int(180) }} seconds. They are not blocked.
