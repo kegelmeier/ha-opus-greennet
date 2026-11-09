@@ -18,7 +18,6 @@ import pytest
 from homeassistant import config_entries
 from homeassistant.components.blueprint.models import Blueprint
 from homeassistant.components.blueprint.schemas import BLUEPRINT_SCHEMA
-from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import CoreState, HomeAssistant, ServiceCall
 from homeassistant.helpers import (
     condition,
@@ -188,9 +187,10 @@ async def _use(
     )
     await hass.async_block_till_done()
     if restart:
-        # The automation starts with Home Assistant: "homeassistant start" fires.
-        hass.set_state(CoreState.running)
-        hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+        # The automation starts with Home Assistant: run the real start sequence.
+        # Since Home Assistant 2026.10 the triggers of an automation set up
+        # before the start are armed by a startup job, which only runs there.
+        await hass.async_start()
         await hass.async_block_till_done()
 
 
@@ -486,10 +486,17 @@ async def test_fire_alarm_opens_blinds_then_blocks_and_releases_when_clear(
 
     _detector(hass, "binary_sensor.hall_smoke_alarm", "on", opus=False)
     # Not async_block_till_done: the script now waits for the blind to get up.
-    await asyncio.sleep(0.1)
+    # Warning and blinds run in parallel: wait for both, do not rely on timing.
+    for _ in range(100):
+        if len(messages) >= 2 and opened:
+            break
+        await asyncio.sleep(0.02)
 
-    assert len(messages) == 2  # the warning and "cover.open_blind cannot be locked"
-    assert "cover.open_blind" in messages[1].data["message"]
+    # The warning and "cover.open_blind cannot be locked", in either order.
+    texts = [call.data["message"] for call in messages]
+    assert len(texts) == 2
+    assert any("cover.open_blind" in text for text in texts)
+    assert any("hall smoke alarm" in text for text in texts)
     assert [call.data["entity_id"] for call in lights] == [["light.hall"]]
     assert lights[0].data["brightness_pct"] == 100
     assert [call.data["entity_id"] for call in unlocked] == [["lock.balcony_autolock"]]
@@ -727,9 +734,7 @@ async def test_only_the_blockage_switch_of_an_opus_blind_is_used(
         "switch",
         "other",
         "foreign",
-        device_id=dr.async_get(hass)
-        .async_get_device(identifiers={("opus_greennet", "cover.a")})
-        .id,
+        device_id=_device(hass, "cover.a"),
         suggested_object_id="foreign",
     )
     hass.states.async_set("switch.foreign", "off")
