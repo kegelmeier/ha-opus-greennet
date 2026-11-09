@@ -50,6 +50,7 @@ def _version(text: str) -> tuple[int, ...]:
 
 def test_the_expected_blueprints_exist() -> None:
     names = {
+        "absence_simulation",
         "button_to_light",
         "fire_alarm_response",
         "water_leak_warning",
