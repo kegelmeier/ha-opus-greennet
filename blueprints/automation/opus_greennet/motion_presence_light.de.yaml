@@ -1,0 +1,499 @@
+blueprint:
+  name: "Opus GreenNet: Bewegungs- und Präsenzlicht mit optionalem Nachtlicht"
+  description: |-
+    **Was das macht.** Das Licht geht an, wenn ein Bewegungs- oder Präsenzmelder jemanden meldet. Es geht wieder aus, wenn der letzte Melder die von Ihnen gewählte Zeit lang ruhig war.
+
+    **Einrichten in drei Schritten** (Abschnitt 1 unten). Mehr ist nicht nötig:
+    1. Melder wählen.
+    2. Lichter wählen.
+    3. Wählen, wie lange das Licht anbleibt.
+
+    **Eine Automation pro Raum.** Eine Automation kann viele Melder und viele Lichter nutzen. Für den nächsten Raum nutzen Sie das Blueprint noch einmal.
+
+    **Wie lange bleibt das Licht an?** Die Nachlaufzeit beginnt, wenn ALLE gewählten Melder ruhig sind. Viele Melder haben eine eigene Haltezeit. Die echte Zeit ist die Haltezeit des Melders plus die Zeit, die Sie hier einstellen.
+
+    **Freiwillige Teile** (Abschnitte 2 bis 5, am Anfang eingeklappt): eine feste Helligkeit, „nur bei Dunkelheit“, ein Nachtlicht mit anderen Lichtern oder anderer Helligkeit und eine Sperre. Lassen Sie sie in Ruhe, wenn Sie sie nicht brauchen. Die Felder eines freiwilligen Teils zählen nur, wenn Sie diesen Teil einschalten.
+
+    **Gut zu wissen**
+    - Die Automation schaltet nur Lichter aus, die sie selbst eingeschaltet hat. Ein Licht, das schon an war, bleibt, wie es ist.
+    - Schalten Sie ein Licht von Hand aus, während jemand im Raum ist, wird es nicht wieder eingeschaltet. Erst wenn der Raum die Nachlaufzeit lang leer war, startet das Licht wieder normal.
+    - Startet Home Assistant neu oder wird diese Automation gespeichert oder neu geladen, vergisst sie, welche Lichter sie eingeschaltet hat. Diese Lichter bleiben dann an, bis Sie sie ausschalten.
+    - Die Melder und die Lichter müssen schon in Home Assistant vorhanden sein. Melder und Lichter verschiedener Hersteller können gemischt werden.
+  domain: automation
+  author: Opus GreenNet Bridge
+  source_url: https://github.com/kegelmeier/ha-opus-greennet/blob/main/blueprints/automation/opus_greennet/motion_presence_light.de.yaml
+  homeassistant:
+    min_version: 2026.10.1
+  input:
+    basic_section:
+      name: "1. Grundeinstellungen"
+      icon: mdi:motion-sensor
+      description: Füllen Sie diese drei Dinge aus. Dann funktioniert das Licht.
+      input:
+        motion_sensors:
+          name: Bewegungs- oder Präsenzmelder
+          description: >-
+            Welche Melder sollen das Licht schalten? Sie können mehrere wählen.
+            Das Licht bleibt an, solange mindestens einer von ihnen Bewegung
+            oder Präsenz meldet.
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - domain: binary_sensor
+                  device_class:
+                    - motion
+                    - occupancy
+                    - presence
+        lights:
+          name: Lichter
+          description: >-
+            Die Lichter, die eingeschaltet werden. Lassen Sie das Feld leer,
+            wenn Sie nur Licht-Schaltaktoren nutzen (nächstes Feld). Füllen Sie
+            mindestens eines der beiden Felder aus. Das Formular kann das nicht
+            prüfen: Ohne Licht schreibt die Automation einen Fehler in ihr
+            Ablaufprotokoll.
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - domain: light
+        extra_switches:
+          name: Weitere Licht-Schaltaktoren
+          description: >-
+            Für Beleuchtung, die in Home Assistant als Schalter angezeigt wird.
+            Wählen Sie nur Schalter, die wirklich ein Licht schalten.
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - domain: switch
+        off_delay:
+          name: Nachlaufzeit nach der letzten Bewegung
+          description: >-
+            Wie lange das Licht anbleibt, nachdem alle Melder ruhig sind. 0
+            heißt: ausschalten, sobald alle Melder ruhig sind. Stunden, Minuten
+            und Sekunden.
+          default:
+            hours: 0
+            minutes: 2
+            seconds: 0
+          selector:
+            duration:
+    brightness_section:
+      name: "2. Helligkeit einstellen (freiwillig)"
+      icon: mdi:brightness-6
+      description: >-
+        Nur ausfüllen, wenn Sie eine feste Helligkeit möchten. Ohne sie werden
+        die Lichter nur eingeschaltet.
+      collapsed: true
+      input:
+        set_brightness:
+          name: Helligkeit vorgeben
+          description: >-
+            Aus: Die Lichter werden nur eingeschaltet, es wird keine Helligkeit
+            vorgegeben. Ein: Dimmbare Lichter bekommen die Helligkeit von
+            unten. Lichter, die sich nicht dimmen lassen, und Schaltaktoren
+            werden nur eingeschaltet.
+          default: false
+          selector:
+            boolean:
+        brightness:
+          name: Helligkeit in Prozent
+          description: >-
+            Nur ausfüllen, wenn „Helligkeit vorgeben“ eingeschaltet ist. Das
+            ist die Helligkeit der Lampe, nicht die des Raums.
+          default: 80
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: "%"
+              mode: slider
+    darkness_section:
+      name: "3. Nur bei Dunkelheit (freiwillig)"
+      icon: mdi:weather-night
+      description: >-
+        Nur ausfüllen, wenn das Licht nur im Dunkeln angehen soll. Sie brauchen
+        einen Sensor, der die Helligkeit des Raums in Lux misst.
+      collapsed: true
+      input:
+        only_when_dark:
+          name: Nur bei Dunkelheit einschalten
+          description: >-
+            Aus: Das Licht geht an, sobald jemand da ist. Ein: Zusätzlich muss
+            die Helligkeitsprüfung von unten erfüllt sein.
+          default: false
+          selector:
+            boolean:
+        lux_sensor:
+          name: Helligkeitssensor
+          description: >-
+            Nur ausfüllen, wenn „Nur bei Dunkelheit einschalten“ eingeschaltet
+            ist. Ein Sensor, der die Helligkeit des Raums in Lux misst, nicht
+            die Helligkeit der Lampe.
+          default: ""
+          selector:
+            entity:
+              filter:
+                - domain: sensor
+                  device_class: illuminance
+        lux_threshold:
+          name: Einschalten unter dieser Helligkeit (Lux)
+          description: >-
+            Unterhalb dieses Werts darf das Licht automatisch eingeschaltet
+            werden. Genau dieser Wert zählt nicht als darunter: Das Licht bleibt
+            aus. Die Prüfung findet statt, wenn das Licht angehen würde. Ein
+            Licht, das schon an ist, wird nicht ausgeschaltet, wenn der Raum
+            heller wird. Ein fehlender oder kaputter Messwert zählt als dunkel,
+            damit das Licht trotzdem funktioniert.
+          default: 50
+          selector:
+            number:
+              min: 1
+              max: 10000
+              step: 1
+              unit_of_measurement: lx
+              mode: box
+    night_section:
+      name: "4. Nachtlicht (freiwillig)"
+      icon: mdi:lightbulb-night
+      description: >-
+        Nur ausfüllen, wenn das Licht nachts anders arbeiten soll. Das
+        Nachtlicht wird gewählt, wenn das Licht angeht, und bleibt, bis der Raum
+        wieder leer ist.
+      collapsed: true
+      input:
+        night_mode:
+          name: Nachtlicht
+          description: >-
+            Kein Nachtlicht: Nachts ändert sich nichts. Dieselben Lichter:
+            Nachts werden die Lichter von oben mit der Nachthelligkeit und der
+            Nacht-Nachlaufzeit von unten genutzt. Andere Lichter: Nachts werden
+            die Nachtlichter von unten genutzt. Wählen Sie keine Nachtlichter,
+            werden die normalen Lichter genutzt.
+          default: none
+          selector:
+            select:
+              mode: dropdown
+              options:
+                - label: Kein Nachtlicht
+                  value: none
+                - label: Nachts dieselben Lichter verwenden
+                  value: same
+                - label: Nachts andere Lichter verwenden
+                  value: other
+        night_start:
+          name: Die Nacht beginnt um
+          description: >-
+            Nur ausfüllen, wenn Sie ein Nachtlicht nutzen. Die Nacht kann über
+            Mitternacht gehen. Sind Beginn und Ende gleich, gibt es keine Nacht.
+          default: "22:00:00"
+          selector:
+            time:
+        night_end:
+          name: Die Nacht endet um
+          description: Nur ausfüllen, wenn Sie ein Nachtlicht nutzen.
+          default: "06:00:00"
+          selector:
+            time:
+        night_lights:
+          name: Nachtlichter
+          description: >-
+            Nur ausfüllen für „Nachts andere Lichter verwenden“. Leer lassen,
+            um die normalen Lichter zu nutzen.
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - domain: light
+        night_switches:
+          name: Weitere Nachtlicht-Schaltaktoren
+          description: >-
+            Nur ausfüllen für „Nachts andere Lichter verwenden“. Für
+            Beleuchtung, die in Home Assistant als Schalter angezeigt wird.
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - domain: switch
+        night_set_brightness:
+          name: Nachthelligkeit vorgeben
+          description: >-
+            Aus: Nachts werden die Lichter nur eingeschaltet, es wird keine
+            Helligkeit vorgegeben. Ein: Dimmbare Lichter bekommen die
+            Nachthelligkeit.
+          default: false
+          selector:
+            boolean:
+        night_brightness:
+          name: Nachthelligkeit in Prozent
+          description: >-
+            Nur ausfüllen, wenn „Nachthelligkeit vorgeben“ eingeschaltet ist.
+          default: 20
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: "%"
+              mode: slider
+        night_off_delay:
+          name: Nachlaufzeit nachts nach der letzten Bewegung
+          description: >-
+            Nur ausfüllen, wenn Sie ein Nachtlicht nutzen. Gilt nachts anstelle
+            der Zeit aus Abschnitt 1.
+          default:
+            hours: 0
+            minutes: 1
+            seconds: 0
+          selector:
+            duration:
+    advanced_section:
+      name: "5. Erweiterte Einstellungen (freiwillig)"
+      icon: mdi:cog
+      description: Die meisten Nutzer brauchen diese Einstellungen nicht.
+      collapsed: true
+      input:
+        lock_entity:
+          name: Sperre (freiwillig)
+          description: >-
+            Wählen Sie einen Schalter oder Sensor, der als Sperre dient.
+            Solange er an ist, schaltet die Automation keine weiteren Lichter
+            ein. Lichter, die sie vorher eingeschaltet hat, werden wie üblich
+            ausgeschaltet. Leer lassen, wenn Sie das nicht brauchen. Eine Sperre,
+            die aus, unbekannt oder nicht verfügbar ist, sperrt nicht.
+          default: ""
+          selector:
+            entity:
+              filter:
+                - domain:
+                    - binary_sensor
+                    - input_boolean
+                    - switch
+        night_source:
+          name: Woher kommt die Nacht?
+          description: >-
+            Wählen Sie genau eines. Zeiten: die Zeiten aus Abschnitt 4. Eigener
+            Schalter: Es ist Nacht, solange der Schalter von unten an ist. Wird
+            nur genutzt, wenn Sie in Abschnitt 4 ein Nachtlicht gewählt haben.
+          default: time
+          selector:
+            select:
+              mode: dropdown
+              options:
+                - label: Die Zeiten aus Abschnitt 4 verwenden
+                  value: time
+                - label: Meinen eigenen Nachtmodus-Schalter verwenden
+                  value: helper
+        night_helper:
+          name: Eigener Nachtmodus-Schalter
+          description: >-
+            Nur ausfüllen für „Meinen eigenen Nachtmodus-Schalter verwenden“.
+            An bedeutet Nacht. Ist er aus, unbekannt, nicht verfügbar oder nicht
+            gewählt, ist es nicht Nacht.
+          default: ""
+          selector:
+            entity:
+              filter:
+                - domain:
+                    - binary_sensor
+                    - input_boolean
+                    - switch
+
+# Ein Ablauf pro Raum ist das Gedächtnis der Automation. Er weiß, welche
+# Lichter er eingeschaltet hat, und kann nur diese ausschalten. Ein zweiter
+# Start, während ein Ablauf läuft, wird ignoriert. Ein Neustart würde dieses
+# Gedächtnis löschen, darum wird „single“ verwendet.
+mode: single
+max_exceeded: silent
+
+triggers:
+  - trigger: state
+    id: sensor_active
+    entity_id: !input motion_sensors
+    to: "on"
+  - trigger: homeassistant
+    id: ha_started
+    event: start
+
+variables:
+  sensors: !input motion_sensors
+  lights: !input lights
+  switches: !input extra_switches
+  delay_day: !input off_delay
+  use_brightness: !input set_brightness
+  brightness_day: !input brightness
+  lux_enabled: !input only_when_dark
+  lux_entity: !input lux_sensor
+  lux_limit: !input lux_threshold
+  night_mode: !input night_mode
+  night_start: !input night_start
+  night_end: !input night_end
+  night_lights: !input night_lights
+  night_switches: !input night_switches
+  night_use_brightness: !input night_set_brightness
+  night_brightness_value: !input night_brightness
+  delay_night: !input night_off_delay
+  lock_entity: !input lock_entity
+  night_source: !input night_source
+  night_helper: !input night_helper
+
+actions:
+  - alias: Mit Fehler stoppen, wenn die Einrichtung unvollständig ist
+    if:
+      - condition: template
+        value_template: >-
+          {{ (lights | count) + (switches | count) == 0
+             or (lux_enabled and lux_entity == '') }}
+    then:
+      - stop: >-
+          Einrichtung unvollständig: Wählen Sie mindestens ein Licht oder einen
+          Licht-Schaltaktor und, wenn „Nur bei Dunkelheit einschalten“ an ist,
+          einen Helligkeitssensor.
+        error: true
+
+  - alias: Nichts tun, wenn kein Melder Aktivität meldet
+    condition: template
+    value_template: >-
+      {{ expand(sensors) | selectattr('state', 'eq', 'on') | list | count > 0 }}
+
+  - alias: Warten, bis das Licht starten darf oder alle gegangen sind
+    wait_template: >-
+      {% set active = expand(sensors) | selectattr('state', 'eq', 'on') | list | count > 0 %}
+      {% set locked = lock_entity != '' and is_state(lock_entity, 'on') %}
+      {% set lux = states(lux_entity) if (lux_enabled and lux_entity != '') else '' %}
+      {% set dark = (not lux_enabled) or (not is_number(lux)) or ((lux | float) < (lux_limit | float)) %}
+      {{ (not active) or ((not locked) and dark) }}
+
+  - alias: Stoppen, wenn alle gegangen sind, bevor das Licht gebraucht wurde
+    if:
+      - condition: template
+        value_template: >-
+          {{ expand(sensors) | selectattr('state', 'eq', 'on') | list | count == 0 }}
+    then:
+      - stop: Alle sind gegangen, bevor das Licht gebraucht wurde.
+
+  - alias: Tag oder Nacht einmal für diesen Ablauf wählen
+    variables:
+      night_active: >-
+        {% set now_hm = now().strftime('%H:%M') %}
+        {% set s = night_start[:5] %}
+        {% set e = night_end[:5] %}
+        {% if night_mode == 'none' %}{% set r = false %}
+        {% elif night_source == 'helper' %}{% set r = night_helper != '' and is_state(night_helper, 'on') %}
+        {% elif s == e %}{% set r = false %}
+        {% elif s < e %}{% set r = s <= now_hm < e %}
+        {% else %}{% set r = now_hm >= s or now_hm < e %}
+        {% endif %}
+        {{ r }}
+      use_night_targets: >-
+        {{ night_active and night_mode == 'other'
+           and ((night_lights | count) + (night_switches | count)) > 0 }}
+      run_lights: "{{ night_lights if use_night_targets else lights }}"
+      run_switches: "{{ night_switches if use_night_targets else switches }}"
+      run_set_brightness: "{{ night_use_brightness if night_active else use_brightness }}"
+      run_brightness: "{{ night_brightness_value if night_active else brightness_day }}"
+      run_delay: >-
+        {{ timedelta(**(delay_night if night_active else delay_day)).total_seconds() }}
+      owned_lights: >-
+        {{ run_lights | reject('is_state', 'on') | reject('is_state', 'unavailable') | list }}
+      owned_switches: >-
+        {{ run_switches | reject('is_state', 'on') | reject('is_state', 'unavailable') | list }}
+      dimmable_lights: >-
+        {% set ns = namespace(found=[]) %}
+        {% for entity in owned_lights %}
+          {% set modes = state_attr(entity, 'supported_color_modes') or [] %}
+          {% if (modes | reject('in', ['onoff', 'unknown']) | list | count) > 0 %}
+            {% set ns.found = ns.found + [entity] %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.found }}
+      dim_lights: "{{ dimmable_lights if run_set_brightness else [] }}"
+      plain_lights: "{{ owned_lights | reject('in', dim_lights) | list }}"
+
+  - alias: Dimmbare Lichter mit der gewählten Helligkeit einschalten
+    if:
+      - condition: template
+        value_template: "{{ dim_lights | count > 0 }}"
+    then:
+      - action: light.turn_on
+        target:
+          entity_id: "{{ dim_lights }}"
+        data:
+          brightness_pct: "{{ run_brightness | int }}"
+        continue_on_error: true
+
+  - alias: Die übrigen Lichter einschalten
+    if:
+      - condition: template
+        value_template: "{{ plain_lights | count > 0 }}"
+    then:
+      - action: light.turn_on
+        target:
+          entity_id: "{{ plain_lights }}"
+        continue_on_error: true
+
+  - alias: Die Licht-Schaltaktoren einschalten
+    if:
+      - condition: template
+        value_template: "{{ owned_switches | count > 0 }}"
+    then:
+      - action: switch.turn_on
+        target:
+          entity_id: "{{ owned_switches }}"
+        continue_on_error: true
+
+  # Der Ablauf bleibt am Leben, bis der Raum leer und die Nachlaufzeit vorbei
+  # ist. Das verhindert, dass ein von Hand ausgeschaltetes Licht im selben
+  # Besuch wieder eingeschaltet wird. Jede Runde wartet auf ein Ereignis.
+  # „count“ wird verwendet, weil Home Assistant „while“-Schleifen nach 10000
+  # Runden abbricht; das Ende des Ablaufs ist die „stop“-Aktion unten.
+  - alias: Licht anlassen, bis alle gegangen sind und die Nachlaufzeit vorbei ist
+    repeat:
+      count: 1000000
+      sequence:
+        - alias: Warten, bis alle Melder ruhig sind
+          wait_template: >-
+            {{ expand(sensors) | selectattr('state', 'eq', 'on') | list | count == 0 }}
+        - alias: Nachlaufzeit (neue Aktivität bricht sie ab)
+          wait_for_trigger:
+            - trigger: state
+              entity_id: !input motion_sensors
+              to: "on"
+          timeout: "{{ [run_delay | float, 0.1] | max }}"
+          continue_on_timeout: true
+        - alias: "Zeit abgelaufen und alle Melder weiter ruhig: ausschalten"
+          if:
+            - condition: template
+              value_template: >-
+                {{ wait.trigger is none
+                   and expand(sensors) | selectattr('state', 'eq', 'on') | list | count == 0 }}
+          then:
+            - variables:
+                off_lights: >-
+                  {{ owned_lights | select('is_state', ['on', 'unknown']) | list }}
+                off_switches: >-
+                  {{ owned_switches | select('is_state', ['on', 'unknown']) | list }}
+            - if:
+                - condition: template
+                  value_template: "{{ off_lights | count > 0 }}"
+              then:
+                - action: light.turn_off
+                  target:
+                    entity_id: "{{ off_lights }}"
+                  continue_on_error: true
+            - if:
+                - condition: template
+                  value_template: "{{ off_switches | count > 0 }}"
+              then:
+                - action: switch.turn_off
+                  target:
+                    entity_id: "{{ off_switches }}"
+                  continue_on_error: true
+            - stop: Raum leer, die Lichter dieses Ablaufs sind ausgeschaltet.

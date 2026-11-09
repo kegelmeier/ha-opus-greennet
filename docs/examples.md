@@ -12,7 +12,7 @@ Bridge**). How each device type behaves is described in
 
 ## Blueprints
 
-Five blueprints cover common automations. Each one also exists in German (`*.de.yaml`, same file name with `.de` before `.yaml`); import that file instead if your Home Assistant is in German. Home Assistant cannot translate blueprints by itself. Import one with the button, then
+Six blueprints cover common automations. Each one also exists in German (`*.de.yaml`, same file name with `.de` before `.yaml`); import that file instead if your Home Assistant is in German. Home Assistant cannot translate blueprints by itself. Import one with the button, then
 create an automation from it under **Settings → Automations & scenes →
 Blueprints**. The pickers list only the matching Opus GreenNet entities, so no
 entity IDs have to be typed. A blueprint is a copy: later changes in this
@@ -25,6 +25,7 @@ through HACS.
 | Window handle opened or tilted, send a notification | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fwindow_handle_notification.yaml) | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fwindow_handle_notification.de.yaml) |
 | Window handle opened or tilted, blinds move up | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fwindow_handle_blind_up.yaml) | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fwindow_handle_blind_up.de.yaml) |
 | Water leak, warn | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fwater_leak_warning.yaml) | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fwater_leak_warning.de.yaml) |
+| Motion and presence light, with optional night light | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fmotion_presence_light.yaml) | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fmotion_presence_light.de.yaml) |
 | Fire alarm (smoke or heat), light, open blinds and keep them up | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Ffire_alarm_response.yaml) | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Ffire_alarm_response.de.yaml) |
 
 - **Rocker button controls a light.** Toggles, switches on or off lights when
@@ -45,6 +46,11 @@ through HACS.
 - **Water leak, warn.** Runs your warning actions when a leak sensor reports
   water and can repeat them every few minutes until the sensor reports dry. A
   gateway outage (*unavailable*) does not count as dry.
+- **Motion and presence light.** Switches lights on when any of the chosen
+  motion or presence sensors reports someone and off again after the last one
+  has been quiet for the time you set. Basic set-up: sensors, lights, extra
+  time. Optional: a fixed brightness, "only when it is dark", a night light and
+  a lock. Details below.
 - **Fire alarm (smoke or heat).** When a detector reports an alarm, runs your
   warning actions (optionally repeated until the alarm is over), switches on
   lights, opens blinds and can unlock AutoLock window handles. Every part is
@@ -68,6 +74,87 @@ action of your phone, a siren or lights. The files are in
 [`blueprints/automation/opus_greennet`](../blueprints/automation/opus_greennet).
 To use them without the import button, copy them to
 `<config>/blueprints/automation/opus_greennet/`.
+
+### Motion and presence light blueprint: what happens and where it stops
+
+Create **one automation per room** (or per group of lights that belong
+together). One automation takes many sensors and many lights; it never needs a
+helper, a sensor group or one automation per sensor. Sensors, lights, switches
+and brightness sensors of any maker can be mixed with Opus GreenNet devices;
+nothing in the blueprint is tied to this integration. The sensors and lights
+must already exist in Home Assistant. Choosing or removing them in the
+automation does not teach in or delete anything at the gateway.
+
+**How a visit works**
+
+1. A visit starts when a chosen sensor turns `on` (or when Home Assistant
+   starts and a sensor is already `on`). One run of the automation lives for the
+   whole visit and keeps the list of lights it switched on.
+2. The light is switched on once the checks pass: a sensor is active, the lock
+   (if used) is not on, and, if "only when it is dark" is used, the room is
+   dark. If the checks fail, the run waits. It starts the light as soon as they
+   pass, without new movement: for example when it gets dark, or when the lock
+   is switched off, while someone is still there. It ends if everyone leaves
+   first.
+3. Only lights that were off (or unknown) are switched on and owned by the run.
+   A light that was already on is never touched and never switched off by the
+   blueprint.
+4. When all sensors are quiet, the extra time runs. Any new activity restarts
+   it. After the full time, with all sensors still quiet, the lights of the run
+   are switched off, but only those that are not already off.
+5. The day or night profile (lights, brightness, extra time) is chosen when the
+   light comes on and kept until the visit ends.
+
+**Rules the blueprint follows**
+
+- *Active* means the sensor state is `on`. `off`, `unavailable` and `unknown`
+  count as quiet; `unavailable` or `unknown` turning to `on` counts as new
+  activity. Attribute changes (battery, diagnostics) are not activity.
+- The extra time begins when the last sensor is quiet. The real on-time is the
+  hold time of the sensor plus the extra time. Opus presence detectors keep
+  their own hold time (*PIR off time*), and `motionDetected = false` only
+  means "uncertain of occupancy", so a short extra time is usually enough.
+- "Only when it is dark" compares the lux value with *below* the limit; exactly
+  the limit does not switch on. It limits the start of a visit only. A room
+  that gets brighter, for example because of the light itself, does not switch a
+  running light off. A reading that is `unknown`, `unavailable` or not a number
+  counts as dark (the light still works). It is never converted to 0 lx.
+- Brightness is sent only to lights whose `supported_color_modes` contain more
+  than `onoff`; other lights and switches are just switched on. Without the
+  brightness option nothing but "on" is sent.
+- A target that is switched off by hand during the visit is not switched on
+  again, not by lower lux, a second sensor or the next impulse. The visit ends
+  when the room has been quiet for the extra time; the next visit starts
+  normally.
+- The lock stops new switch-ons only. Lights the run already switched on are
+  switched off as usual. A lock that is `off`, `unknown`, `unavailable` or not
+  chosen does not lock.
+- Night light: *none*, *same lights* (night brightness and night extra time) or
+  *other lights*. With *other lights* and no night target chosen, the normal
+  lights are used. The night comes from the two times (they may reach past
+  midnight; equal times mean no night) or, in the advanced section, from your
+  own on/off helper (`on` = night; `off`, `unknown`, `unavailable` or none
+  chosen = day). Exactly one source is used.
+
+**Limits (please read)**
+
+- The run lives in memory. A restart of Home Assistant, or saving, reloading or
+  switching off the automation, ends it and it forgets which lights it switched
+  on. Those lights then stay on until you switch them off. After a restart a
+  sensor that is already `on` starts a new visit; after a reload or a change
+  of the automation the next sensor change starts it.
+- The blueprint does not recognise who switched a light off. A light that is
+  switched off by another automation, the Opus app or a direct rocker link counts
+  as switched off by hand. Opus lights report an assumed state: a late or missing
+  feedback can make Home Assistant show a state that differs from the lamp.
+- The form cannot check that a light or switch is chosen. Without a target the
+  automation writes an error to its trace at the next movement.
+- Only binary sensors of the device class `motion`, `occupancy` or `presence`
+  and brightness sensors of the class `illuminance` are offered; a sensor
+  without a class (for example a template sensor) has to get one first.
+- Works with Home Assistant 2026.10.1 or newer (like the other blueprints).
+  Sections that start collapsed need 2024.6, the `triggers`/`actions` syntax
+  2024.10.
 
 ### Fire alarm blueprint: what happens and how to set it up
 
