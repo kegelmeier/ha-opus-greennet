@@ -19,6 +19,7 @@ from homeassistant.components.blueprint.models import Blueprint
 from homeassistant.components.blueprint.schemas import BLUEPRINT_SCHEMA
 from homeassistant.core import CoreState, HomeAssistant, ServiceCall
 from homeassistant.helpers import condition, template, translation, trigger
+from homeassistant.helpers.entity import EntityInfo, entity_sources
 from homeassistant.setup import async_setup_component
 from homeassistant.util.yaml import extract_inputs, load_yaml_dict
 
@@ -41,6 +42,7 @@ def _version(text: str) -> tuple[int, ...]:
 def test_the_expected_blueprints_exist() -> None:
     assert {path.name for path in BLUEPRINTS} == {
         "button_to_light.yaml",
+        "fire_alarm_response.yaml",
         "water_leak_warning.yaml",
         "window_handle_blind_up.yaml",
         "window_handle_notification.yaml",
@@ -70,7 +72,8 @@ def test_entity_pickers_are_limited_to_this_integration(path: Path) -> None:
     inputs = load_yaml_dict(str(path))["blueprint"]["input"]
     for name, definition in inputs.items():
         entity = (definition.get("selector") or {}).get("entity")
-        if entity is None or name == "blinds":  # blinds may come from any brand
+        # Lights and blinds may come from any brand.
+        if entity is None or name in {"blinds", "lights", "extra_detectors"}:
             continue
         assert all(f.get("integration") == "opus_greennet" for f in entity["filter"])
 
@@ -260,3 +263,309 @@ async def test_water_leak_warns_once_and_not_on_an_outage(
     await hass.async_block_till_done()
     assert len(messages) == 1
     assert messages[0].data["title"] == "Water leak"
+
+
+# ── fire alarm ─────────────────────────────────────────────────────────────
+
+FIRE = "fire_alarm_response.yaml"
+
+
+def _detector(
+    hass: HomeAssistant,
+    entity_id: str,
+    state: str = "off",
+    device_class: str = "smoke",
+    *,
+    opus: bool = True,
+) -> None:
+    """Create a detector; Opus detectors are known as entities of the integration."""
+    if opus:
+        entity_sources(hass)[entity_id] = EntityInfo(
+            domain="opus_greennet", custom_component=True, source="config_entry"
+        )
+    hass.states.async_set(entity_id, state, {"device_class": device_class})
+
+
+def _fire_inputs(**override: Any) -> dict[str, Any]:
+    inputs: dict[str, Any] = {
+        "include_opus": True,
+        "excluded_detectors": [],
+        "extra_detectors": [],
+        "repeat_minutes": 0,
+        "lights": ["light.hall"],
+        "blinds": ["cover.closed_blind", "cover.open_blind"],
+        "blockage_switches": ["switch.closed_blind_blockage"],
+        "open_timeout": 10,
+        "locks": ["lock.balcony_autolock"],
+    }
+    inputs.update(override)
+    return inputs
+
+
+def _fire_states(hass: HomeAssistant) -> None:
+    _detector(hass, "binary_sensor.hall_smoke_alarm")
+    hass.states.async_set("cover.closed_blind", "closed", {"current_position": 0})
+    hass.states.async_set("cover.open_blind", "open", {"current_position": 100})
+
+
+async def test_fire_alarm_with_nothing_chosen_only_warns(
+    hass: HomeAssistant,
+) -> None:
+    messages = _record(hass, "persistent_notification", "create")
+    lights = _record(hass, "light", "turn_on")
+    opened = _record(hass, "cover", "open_cover")
+    blocked = _record(hass, "switch", "turn_on")
+    released = _record(hass, "switch", "turn_off")
+    unlocked = _record(hass, "lock", "unlock")
+    _fire_states(hass)
+    await _use(hass, FIRE, {})
+
+    hass.states.async_set(
+        "binary_sensor.hall_smoke_alarm", "unavailable", {"device_class": "smoke"}
+    )
+    await hass.async_block_till_done()
+    assert not messages
+
+    hass.states.async_set(
+        "binary_sensor.hall_smoke_alarm", "on", {"device_class": "smoke"}
+    )
+    await hass.async_block_till_done()
+    assert [message.data["title"] for message in messages] == ["Fire alarm"]
+    assert "hall_smoke_alarm" in messages[0].data["message"] or (
+        "hall smoke" in messages[0].data["message"].lower()
+    )
+    assert not (lights or opened or blocked or released or unlocked)
+
+
+async def test_fire_alarm_opens_blinds_then_blocks_and_releases_when_clear(
+    hass: HomeAssistant,
+) -> None:
+    messages = _record(hass, "persistent_notification", "create")
+    lights = _record(hass, "light", "turn_on")
+    opened = _record(hass, "cover", "open_cover")
+    blocked = _record(hass, "switch", "turn_on")
+    released = _record(hass, "switch", "turn_off")
+    unlocked = _record(hass, "lock", "unlock")
+    _fire_states(hass)
+    await _use(hass, FIRE, _fire_inputs())
+
+    _detector(hass, "binary_sensor.hall_smoke_alarm", "on", opus=False)
+    # Not async_block_till_done: the script now waits for the blind to get up.
+    await asyncio.sleep(0.1)
+
+    assert len(messages) == 1
+    assert [call.data["entity_id"] for call in lights] == [["light.hall"]]
+    assert lights[0].data["brightness_pct"] == 100
+    assert [call.data["entity_id"] for call in unlocked] == [["lock.balcony_autolock"]]
+    # The blockage is released first, the blind already open gets no command.
+    assert [call.data["entity_id"] for call in released] == [
+        ["switch.closed_blind_blockage"]
+    ]
+    assert [call.data["entity_id"] for call in opened] == [["cover.closed_blind"]]
+    # A moving blind must not be blocked: wait until it is up.
+    assert not blocked
+
+    hass.states.async_set("cover.closed_blind", "open", {"current_position": 100})
+    await hass.async_block_till_done()
+    assert [call.data["entity_id"] for call in blocked] == [
+        ["switch.closed_blind_blockage"]
+    ]
+
+    # The alarm is over: the blockage is released again, nothing moves back.
+    _detector(hass, "binary_sensor.hall_smoke_alarm", "off", opus=False)
+    await hass.async_block_till_done()
+    assert len(released) == 2
+    assert [call.data["entity_id"] for call in opened] == [["cover.closed_blind"]]
+
+
+async def test_fire_alarm_does_not_block_blinds_that_did_not_get_up(
+    hass: HomeAssistant,
+) -> None:
+    messages = _record(hass, "persistent_notification", "create")
+    _record(hass, "cover", "open_cover")
+    blocked = _record(hass, "switch", "turn_on")
+    _record(hass, "switch", "turn_off")
+    _fire_states(hass)
+    await _use(hass, FIRE, _fire_inputs(open_timeout=0.05, locks=[], lights=[]))
+
+    _detector(hass, "binary_sensor.hall_smoke_alarm", "on", opus=False)
+    await asyncio.sleep(0.3)  # the blind never reaches the top
+    await hass.async_block_till_done()
+
+    assert not blocked
+    assert len(messages) == 2
+    assert "not blocked" in messages[1].data["message"]
+
+
+async def test_fire_alarm_waits_for_every_detector_and_warns_for_later_ones(
+    hass: HomeAssistant,
+) -> None:
+    messages = _record(hass, "persistent_notification", "create")
+    blocked = _record(hass, "switch", "turn_on")
+    released = _record(hass, "switch", "turn_off")
+    _detector(hass, "binary_sensor.hall_smoke_alarm")
+    _detector(hass, "binary_sensor.kitchen_smoke_alarm")
+    await _use(
+        hass,
+        FIRE,
+        {"blockage_switches": ["switch.closed_blind_blockage"]},
+    )
+
+    _detector(hass, "binary_sensor.kitchen_smoke_alarm", "on", opus=False)
+    await hass.async_block_till_done()
+    assert len(messages) == 1
+    assert len(blocked) == 1  # no blinds chosen: nothing to wait for
+    assert len(released) == 1  # the release before the blinds move
+
+    # A second detector raises the alarm: another warning, nothing else.
+    _detector(hass, "binary_sensor.hall_smoke_alarm", "on", opus=False)
+    await hass.async_block_till_done()
+    assert len(messages) == 2
+    assert len(blocked) == 1
+
+    _detector(hass, "binary_sensor.hall_smoke_alarm", "off", opus=False)
+    await hass.async_block_till_done()
+    assert len(released) == 1  # the kitchen detector still reports an alarm
+
+    _detector(hass, "binary_sensor.kitchen_smoke_alarm", "off", opus=False)
+    await hass.async_block_till_done()
+    assert len(released) == 2
+
+
+async def test_fire_alarm_ignores_excluded_opus_detectors_and_non_opus_ones(
+    hass: HomeAssistant,
+) -> None:
+    messages = _record(hass, "persistent_notification", "create")
+    _detector(hass, "binary_sensor.hall_smoke_alarm")
+    _detector(hass, "binary_sensor.kitchen_smoke_alarm")
+    _detector(hass, "binary_sensor.other_brand_smoke", opus=False)
+    await _use(
+        hass,
+        FIRE,
+        {"excluded_detectors": ["binary_sensor.kitchen_smoke_alarm"]},
+    )
+
+    # Left out, and not an Opus Greennet device: neither starts the automation.
+    _detector(hass, "binary_sensor.kitchen_smoke_alarm", "on", opus=False)
+    _detector(hass, "binary_sensor.other_brand_smoke", "on", opus=False)
+    await hass.async_block_till_done()
+    assert not messages
+
+    # An Opus detector is used without being picked.
+    _detector(hass, "binary_sensor.hall_smoke_alarm", "on", opus=False)
+    await hass.async_block_till_done()
+    assert len(messages) == 1
+
+
+async def test_fire_alarm_takes_additional_smoke_and_heat_detectors_of_any_brand(
+    hass: HomeAssistant,
+) -> None:
+    messages = _record(hass, "persistent_notification", "create")
+    _detector(hass, "binary_sensor.hall_smoke_alarm")
+    _detector(hass, "binary_sensor.attic_heat", device_class="heat", opus=False)
+    await _use(
+        hass,
+        FIRE,
+        {
+            "include_opus": False,
+            "extra_detectors": ["binary_sensor.attic_heat"],
+        },
+    )
+
+    # Opus detectors switched off.
+    _detector(hass, "binary_sensor.hall_smoke_alarm", "on", opus=False)
+    await hass.async_block_till_done()
+    assert not messages
+
+    _detector(hass, "binary_sensor.attic_heat", "on", "heat", opus=False)
+    await hass.async_block_till_done()
+    assert len(messages) == 1
+    assert "attic" in messages[0].data["message"].lower()
+
+
+# ── window handle keeps the blinds up ──────────────────────────────────────
+
+
+def _keep_up_inputs() -> dict[str, Any]:
+    return {
+        "handle_sensor": "sensor.window_handle_position",
+        "handle_states": ["open", "tilted"],
+        "blinds": ["cover.closed_blind"],
+        "blockage_switches": ["switch.closed_blind_blockage"],
+        "open_timeout": 10,
+    }
+
+
+async def test_open_handle_blocks_the_blind_once_it_is_up_and_releases_on_close(
+    hass: HomeAssistant,
+) -> None:
+    opened = _record(hass, "cover", "open_cover")
+    blocked = _record(hass, "switch", "turn_on")
+    released = _record(hass, "switch", "turn_off")
+    _record(hass, "persistent_notification", "create")
+    hass.states.async_set("sensor.window_handle_position", "closed")
+    hass.states.async_set("cover.closed_blind", "closed", {"current_position": 0})
+    await _use(hass, "window_handle_blind_up.yaml", _keep_up_inputs())
+
+    hass.states.async_set("sensor.window_handle_position", "tilted")
+    # Not async_block_till_done: the script waits for the blind to get up.
+    await asyncio.sleep(0.1)
+    assert len(released) == 1  # the blockage goes first, or the blind stays
+    assert [call.data["entity_id"] for call in opened] == [["cover.closed_blind"]]
+    assert not blocked  # blocking a moving blind would stop it
+
+    hass.states.async_set("cover.closed_blind", "open", {"current_position": 100})
+    await hass.async_block_till_done()
+    assert [call.data["entity_id"] for call in blocked] == [
+        ["switch.closed_blind_blockage"]
+    ]
+
+    hass.states.async_set("sensor.window_handle_position", "closed")
+    await hass.async_block_till_done()
+    assert len(released) == 2
+    # The blind is not moved back; it can be controlled again.
+    assert len(opened) == 1
+
+
+async def test_a_handle_closed_while_the_blind_moves_leaves_it_unblocked(
+    hass: HomeAssistant,
+) -> None:
+    _record(hass, "cover", "open_cover")
+    blocked = _record(hass, "switch", "turn_on")
+    _record(hass, "switch", "turn_off")
+    _record(hass, "persistent_notification", "create")
+    hass.states.async_set("sensor.window_handle_position", "closed")
+    hass.states.async_set("cover.closed_blind", "closed", {"current_position": 0})
+    await _use(hass, "window_handle_blind_up.yaml", _keep_up_inputs())
+
+    hass.states.async_set("sensor.window_handle_position", "open")
+    await asyncio.sleep(0.1)
+    hass.states.async_set("sensor.window_handle_position", "closed")
+    await asyncio.sleep(0.1)
+    hass.states.async_set("cover.closed_blind", "open", {"current_position": 100})
+    await hass.async_block_till_done()
+    assert not blocked
+
+
+async def test_blind_that_does_not_get_up_is_not_blocked(
+    hass: HomeAssistant,
+) -> None:
+    messages = _record(hass, "persistent_notification", "create")
+    _record(hass, "cover", "open_cover")
+    blocked = _record(hass, "switch", "turn_on")
+    _record(hass, "switch", "turn_off")
+    hass.states.async_set("sensor.window_handle_position", "closed")
+    hass.states.async_set("cover.closed_blind", "closed", {"current_position": 0})
+    await _use(
+        hass,
+        "window_handle_blind_up.yaml",
+        _keep_up_inputs() | {"open_timeout": 0.05},
+    )
+
+    hass.states.async_set("sensor.window_handle_position", "open")
+    await asyncio.sleep(0.3)
+    await hass.async_block_till_done()
+
+    assert not blocked
+    assert len(messages) == 1
+    assert "not blocked" in messages[0].data["message"]

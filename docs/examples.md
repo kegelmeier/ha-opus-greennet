@@ -12,7 +12,7 @@ Bridge**). How each device type behaves is described in
 
 ## Blueprints
 
-Four blueprints cover common automations. Import one with the button, then
+Five blueprints cover common automations. Import one with the button, then
 create an automation from it under **Settings → Automations & scenes →
 Blueprints**. The pickers list only the matching Opus GreenNet entities, so no
 entity IDs have to be typed. A blueprint is a copy: later changes in this
@@ -25,6 +25,7 @@ through HACS.
 | Window handle opened or tilted, send a notification | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fwindow_handle_notification.yaml) |
 | Window handle opened or tilted, blinds move up | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fwindow_handle_blind_up.yaml) |
 | Water leak, warn | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fwater_leak_warning.yaml) |
+| Fire alarm (smoke or heat), light, open blinds and keep them up | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Ffire_alarm_response.yaml) |
 
 - **Rocker button controls a light.** Toggles, switches on or off lights when
   the chosen button is pressed. Every press counts, also the same button twice
@@ -34,16 +35,84 @@ through HACS.
   Unknown and unavailable positions do nothing.
 - **Window handle, blinds move up.** Opens the chosen blinds when the handle is
   tilted or open, for example to keep the way free at a balcony door. Blinds
-  that are already completely open get no command.
+  that are already completely open get no command. Optionally pick the
+  *Blockage* switches of the blinds (disabled by default, D2-05 blinds only) to
+  keep them up while the handle is open or tilted: the blockage is released
+  first, set once all chosen blinds are completely open (never on a moving
+  blind), and released when the handle is closed. The blinds stay where they
+  are afterwards and can be controlled again.
 - **Water leak, warn.** Runs your warning actions when a leak sensor reports
   water and can repeat them every few minutes until the sensor reports dry. A
   gateway outage (*unavailable*) does not count as dry.
+- **Fire alarm (smoke or heat).** When a detector reports an alarm, runs your
+  warning actions (optionally repeated until the alarm is over), switches on
+  lights, opens blinds and can unlock AutoLock window handles. Every part is
+  optional. All Opus GreenNet smoke detectors (RWM) are used automatically,
+  also ones added later; switch that off or leave single ones out. Detectors of
+  any other brand (smoke or heat, as a binary sensor of that device class) are
+  added by hand. If you also pick the *Blockage* switches of the blinds
+  (disabled by default, D2-05 blinds only), the blockage is released first, set
+  again once all chosen blinds are completely open, and released when no
+  detector reports an alarm any more. Blocking is never done on a blind that is
+  still moving, and not at all if the blinds do not get up within the time
+  limit. The blinds stay open afterwards and are not moved back. Unlocking a
+  handle only changes the answer the gateway gives at the next button press on
+  the handle; it does not open the window. Not a replacement for certified
+  alarm equipment: test it with the detector's test button.
+
 
 The notification and warning inputs take any actions, for example the notify
 action of your phone, a siren or lights. The files are in
 [`blueprints/automation/opus_greennet`](../blueprints/automation/opus_greennet).
 To use them without the import button, copy them to
 `<config>/blueprints/automation/opus_greennet/`.
+
+### Fire alarm blueprint: what happens and how to set it up
+
+**What happens when a detector reports an alarm**
+
+1. **Warning.** Your warning actions run (phone, siren, TTS, ...). They can
+   repeat every few minutes until the alarm is over.
+2. **Lights.** The chosen lights switch on at full brightness.
+3. **Blinds go up and are then blocked.** The chosen blinds open. As soon as
+   all of them are completely open, the blinds are **blocked** through their
+   *Blockage* switch. While an alarm lasts, a schedule, a sun-protection
+   automation or a voice command is not meant to lower them again: the
+   actuator holds the blind up. The blockage is set only after the blinds have
+   reached the top, because blocking a moving blind would stop it halfway. If
+   they do not get up in time, nothing is blocked and you get a notification.
+4. **Window handles.** AutoLock handles are released: the next press of the
+   button on the handle is answered with "allowed". The window does not open
+   by itself.
+5. **The alarm is over.** When no detector reports an alarm any more, the
+   blockage is released. The blinds stay open where they are and can be
+   controlled again.
+
+Whether a blocked blind actuator also ignores the wall rocker has not been
+confirmed on hardware; try it once before you rely on it.
+
+**How to set it up**
+
+1. Import the blueprint with the button above and create an automation from it.
+2. *Detectors:* nothing to pick. All Opus GreenNet smoke detectors are used
+   automatically, including ones you add later. Leave single ones out under
+   *Opus GreenNet smoke detectors to leave out*, or switch the automatic use
+   off. Add smoke or heat detectors of other brands under *Additional
+   detectors*.
+3. *Lights* and *Blinds to open:* pick what should react, or leave a picker
+   empty to skip that part.
+4. *Keep the blinds up:* enable the **Blockage** entities of your blinds first
+   (they are switched off by default, diagnostic, and exist only for D2-05
+   blinds), then pick them under *Blockage switches of these blinds*. Leave the
+   picker empty to only open the blinds.
+5. *Warning:* choose your actions and, if you like, a repeat interval. The
+   variable `active_names` lists the detectors that report an alarm.
+6. *AutoLock window handles to unlock:* optional.
+7. Test with the test button of a detector. The lights and blinds really move.
+
+If Home Assistant restarts during an alarm, the blockage is still released when
+the detectors report no alarm again; at that moment all blockage switches you
+chose are released, also ones you blocked on purpose.
 
 ## Examples
 

@@ -1,0 +1,383 @@
+blueprint:
+  name: "Opus GreenNet: fire alarm, light, open blinds and keep them up"
+  description: >-
+    React when a smoke or heat detector reports an alarm: run a warning,
+    switch on lights, move blinds up and keep them up, and allow AutoLock
+    window handles to be unlocked. Every part is optional; leave a picker
+    empty to skip that part.
+
+    **Detectors.** All Opus GreenNet smoke detectors (RWM) are used
+    automatically, also ones that are added later. Switch that off or leave
+    single ones out below. Add detectors of any other brand (smoke or heat,
+    for example a heat detector) with "Additional detectors". The detectors
+    must be Home Assistant binary sensors of the device class smoke or heat.
+    A smoke detector of another brand does not have to be an Opus device.
+
+    **Blinds.** Blinds that are not completely open are opened. If you also
+    pick the "Blockage" switches of these blinds, the blockage is released
+    first (a blocked blind does not move), and set again once all chosen
+    blinds are completely open, so that no automation or timer can lower them
+    while an alarm is reported. Blocking a moving blind stops it, therefore the
+    blockage is set only after the blinds have reached the top. If they do not
+    get there within the time limit, nothing is blocked and a notification
+    says so. The blockage is released when no detector reports an alarm any
+    more. The blinds then stay open where they are: they are not moved back to
+    their earlier position, but can be controlled again. The "Blockage" switch
+    is disabled by default and exists only for D2-05 blinds (blinds with
+    position and angle); enable it first. If Home Assistant restarts during an
+    alarm, the release still happens when the detectors report no alarm again,
+    but all blockage switches you chose are released at that time, also ones
+    you blocked on purpose.
+
+    **Window handles.** Unlocking an AutoLock handle only changes the answer
+    the gateway gives the next time somebody presses the button on the handle.
+    The handle stays closed until it is pressed and turned, and the answer can
+    take effect with a delay (the integration waits about 10 seconds before it
+    sends it). This does not open a window by itself.
+
+    **Warning.** The warning runs when the first detector reports an alarm
+    and once more when a second and a third one follow. It can repeat every
+    few minutes until no detector reports an alarm. The alarm ends when no
+    detector reports it and at least one reports "off": a detector that is
+    unavailable is not treated as "off". The variable active_names lists the
+    detectors that report an alarm.
+
+    Not a replacement for certified alarm equipment. Test it with the
+    detector's test button before relying on it.
+  domain: automation
+  author: Opus GreenNet Bridge
+  source_url: https://github.com/kegelmeier/ha-opus-greennet/blob/main/blueprints/automation/opus_greennet/fire_alarm_response.yaml
+  homeassistant:
+    min_version: 2026.10.1
+  input:
+    include_opus:
+      name: Use all Opus GreenNet smoke detectors
+      description: >-
+        All smoke detectors of the integration are used automatically. Switch
+        off to use only the detectors listed under "Additional detectors".
+      default: true
+      selector:
+        boolean:
+    excluded_detectors:
+      name: Opus GreenNet smoke detectors to leave out
+      description: Opus GreenNet smoke detectors that should not start this automation.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - integration: opus_greennet
+              domain: binary_sensor
+              device_class: smoke
+    extra_detectors:
+      name: Additional detectors (any brand)
+      description: >-
+        Smoke or heat detectors of any brand, for example a heat detector.
+        They are used in the same way as the Opus GreenNet smoke detectors.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: binary_sensor
+              device_class:
+                - smoke
+                - heat
+    warning:
+      name: Warning
+      description: >-
+        The actions that deliver the warning, for example a notify action of
+        your phone, a siren or TTS. The variable active_names lists the
+        detectors that report an alarm. The default creates a persistent
+        notification.
+      default:
+        - action: persistent_notification.create
+          data:
+            title: Fire alarm
+            message: "Alarm reported by: {{ active_names }}"
+      selector:
+        action:
+    repeat_minutes:
+      name: Repeat the warning every (minutes)
+      description: Repeat the warning while a detector still reports an alarm. 0 warns once.
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 240
+          step: 1
+          unit_of_measurement: min
+          mode: box
+    lights:
+      name: Lights to switch on
+      description: Switched on at full brightness. Leave empty to skip.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: light
+    blinds:
+      name: Blinds to open
+      description: Blinds that are not completely open get an open command. Leave empty to skip.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: cover
+              device_class:
+                - blind
+                - shutter
+                - shade
+                - curtain
+    blockage_switches:
+      name: Blockage switches of these blinds
+      description: >-
+        The "Blockage" switches (disabled by default, D2-05 blinds only) of
+        the blinds above. They are released before the blinds open and set
+        again once the blinds are completely open, and released when the alarm
+        is over. Leave empty to only open the blinds.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - integration: opus_greennet
+              domain: switch
+    open_timeout:
+      name: Time limit for the blinds to open (seconds)
+      description: >-
+        How long to wait until all chosen blinds are completely open before
+        the blockage is set. If the limit passes, nothing is blocked.
+      default: 180
+      selector:
+        number:
+          min: 10
+          max: 900
+          step: 10
+          unit_of_measurement: s
+          mode: box
+    locks:
+      name: AutoLock window handles to unlock
+      description: >-
+        HOPPE SecureConnect AutoLock handles. Unlocking changes the answer
+        for the next button press on the handle; it does not open the window.
+        Leave empty to skip.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - integration: opus_greennet
+              domain: lock
+
+mode: parallel
+max: 10
+max_exceeded: silent
+
+trigger_variables:
+  include_opus: !input include_opus
+  excluded_detectors: !input excluded_detectors
+  extra_detectors: !input extra_detectors
+
+variables:
+  include_opus: !input include_opus
+  excluded_detectors: !input excluded_detectors
+  extra_detectors: !input extra_detectors
+  repeat_minutes: !input repeat_minutes
+  lights: !input lights
+  blinds: !input blinds
+  blockage_switches: !input blockage_switches
+  open_timeout: !input open_timeout
+  locks: !input locks
+  detectors: >-
+    {% set opus = integration_entities('opus_greennet')
+      | select('match', 'binary_sensor[.]')
+      | select('is_state_attr', 'device_class', 'smoke')
+      | list if include_opus else [] %}
+    {% set ids = (opus + extra_detectors)
+      | reject('in', excluded_detectors) | unique | list %}
+    {{ ids }}
+  active_detectors: >-
+    {{ expand(detectors) | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}
+  active_names: >-
+    {{ expand(detectors) | selectattr('state', 'eq', 'on') | map(attribute='name') | join(', ') }}
+
+triggers:
+  # The detectors are looked up when the template is evaluated, so Opus
+  # GreenNet detectors added later are included. A second and a third
+  # detector raising the alarm start the warning again.
+  - trigger: template
+    id: alarm
+    value_template: >-
+                {% set opus = integration_entities('opus_greennet')
+                  | select('match', 'binary_sensor[.]')
+                  | select('is_state_attr', 'device_class', 'smoke')
+                  | list if include_opus else [] %}
+                {% set ids = (opus + extra_detectors)
+                  | reject('in', excluded_detectors) | unique | list %}
+                {{ expand(ids) | selectattr('state', 'eq', 'on') | list | count >= 1 }}
+  - trigger: template
+    id: more
+    value_template: >-
+                {% set opus = integration_entities('opus_greennet')
+                  | select('match', 'binary_sensor[.]')
+                  | select('is_state_attr', 'device_class', 'smoke')
+                  | list if include_opus else [] %}
+                {% set ids = (opus + extra_detectors)
+                  | reject('in', excluded_detectors) | unique | list %}
+                {{ expand(ids) | selectattr('state', 'eq', 'on') | list | count >= 2 }}
+  - trigger: template
+    id: more
+    value_template: >-
+                {% set opus = integration_entities('opus_greennet')
+                  | select('match', 'binary_sensor[.]')
+                  | select('is_state_attr', 'device_class', 'smoke')
+                  | list if include_opus else [] %}
+                {% set ids = (opus + extra_detectors)
+                  | reject('in', excluded_detectors) | unique | list %}
+                {{ expand(ids) | selectattr('state', 'eq', 'on') | list | count >= 3 }}
+  - trigger: template
+    id: clear
+    value_template: >-
+                {% set opus = integration_entities('opus_greennet')
+                  | select('match', 'binary_sensor[.]')
+                  | select('is_state_attr', 'device_class', 'smoke')
+                  | list if include_opus else [] %}
+                {% set ids = (opus + extra_detectors)
+                  | reject('in', excluded_detectors) | unique | list %}
+                {% set reported = expand(ids) | map(attribute='state') | list %}
+                {{ 'on' not in reported and 'off' in reported }}
+
+actions:
+  - choose:
+      - alias: No detector reports an alarm any more
+        conditions:
+          - condition: trigger
+            id: clear
+        sequence:
+          - alias: Release the blockage of the blinds
+            if:
+              - condition: template
+                value_template: "{{ blockage_switches | count > 0 }}"
+            then:
+              - action: switch.turn_off
+                target:
+                  entity_id: !input blockage_switches
+      - alias: Another detector raises the alarm, warn once more
+        conditions:
+          - condition: trigger
+            id: more
+        sequence: !input warning
+    default:
+      - parallel:
+          - alias: Warn
+            sequence:
+              - repeat:
+                  sequence:
+                    - alias: Run the warning
+                      sequence: !input warning
+                    - alias: Wait before repeating
+                      if:
+                        - condition: template
+                          value_template: "{{ repeat_minutes | int(0) > 0 }}"
+                      then:
+                        - delay:
+                            minutes: "{{ repeat_minutes | int(0) }}"
+                  until:
+                    - alias: Warned once, or the alarm is over
+                      condition: template
+                      value_template: >-
+                        {% set reported = expand(detectors) | map(attribute='state') | list %}
+                        {{ repeat_minutes | int(0) <= 0
+                           or ('on' not in reported and 'off' in reported) }}
+
+          - alias: Lights on
+            sequence:
+              - if:
+                  - condition: template
+                    value_template: "{{ lights | count > 0 }}"
+                then:
+                  - action: light.turn_on
+                    target:
+                      entity_id: !input lights
+                    data:
+                      brightness_pct: 100
+
+          - alias: Blinds up, then keep them up
+            sequence:
+              - alias: Release the blockage so that the blinds can move
+                if:
+                  - condition: template
+                    value_template: "{{ blockage_switches | count > 0 }}"
+                then:
+                  - action: switch.turn_off
+                    target:
+                      entity_id: !input blockage_switches
+              - alias: Open every blind that is not completely open
+                repeat:
+                  for_each: !input blinds
+                  sequence:
+                    - if:
+                        - alias: Not completely open
+                          condition: template
+                          value_template: >-
+                            {{ not (is_state(repeat.item, 'open')
+                                    and state_attr(repeat.item, 'current_position') in [none, 100]) }}
+                      then:
+                        - action: cover.open_cover
+                          target:
+                            entity_id: "{{ repeat.item }}"
+              - alias: Wait until all chosen blinds are completely open
+                wait_template: >-
+                  {% set ns = namespace(open=true) %}
+                  {% for blind in blinds %}
+                    {% if not (is_state(blind, 'open')
+                               and state_attr(blind, 'current_position') in [none, 100]) %}
+                      {% set ns.open = false %}
+                    {% endif %}
+                  {% endfor %}
+                  {{ ns.open }}
+                timeout: "{{ open_timeout | float(180) }}"
+                continue_on_timeout: true
+              - variables:
+                  blinds_up: "{{ wait.completed }}"
+              - alias: Block the blinds while an alarm is reported
+                if:
+                  - condition: template
+                    value_template: "{{ blockage_switches | count > 0 }}"
+                then:
+                  - choose:
+                      - alias: All blinds are up and a detector still reports an alarm
+                        conditions:
+                          - condition: template
+                            value_template: "{{ blinds_up }}"
+                          - condition: template
+                            value_template: >-
+                              {{ expand(detectors) | selectattr('state', 'eq', 'on') | list | count > 0 }}
+                        sequence:
+                          - action: switch.turn_on
+                            target:
+                              entity_id: !input blockage_switches
+                      - alias: The blinds did not get up in time
+                        conditions:
+                          - condition: template
+                            value_template: "{{ not blinds_up }}"
+                        sequence:
+                          - action: persistent_notification.create
+                            data:
+                              title: Fire alarm
+                              message: >-
+                                The blinds were not completely open within
+                                {{ open_timeout | int(180) }} seconds. They are not blocked.
+
+          - alias: Allow AutoLock handles to be unlocked
+            sequence:
+              - if:
+                  - condition: template
+                    value_template: "{{ locks | count > 0 }}"
+                then:
+                  - action: lock.unlock
+                    target:
+                      entity_id: !input locks
