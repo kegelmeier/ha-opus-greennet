@@ -63,7 +63,16 @@ def test_the_expected_blueprints_exist() -> None:
 
 
 # Texts a user reads. Everything else must be identical in both languages.
-_TEXT_KEYS = {"name", "description", "alias", "title", "message", "label", "source_url"}
+_TEXT_KEYS = {
+    "name",
+    "description",
+    "alias",
+    "title",
+    "message",
+    "label",
+    "source_url",
+    "stop",
+}
 
 
 def _without_texts(node: Any) -> Any:

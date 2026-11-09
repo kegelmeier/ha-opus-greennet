@@ -26,6 +26,7 @@ through HACS.
 | Window handle opened or tilted, blinds move up | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fwindow_handle_blind_up.yaml) | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fwindow_handle_blind_up.de.yaml) |
 | Water leak, warn | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fwater_leak_warning.yaml) | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fwater_leak_warning.de.yaml) |
 | Fire alarm (smoke or heat), light, open blinds and keep them up | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Ffire_alarm_response.yaml) | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Ffire_alarm_response.de.yaml) |
+| Absence simulation for lighting | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fabsence_simulation.yaml) | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fabsence_simulation.de.yaml) |
 
 - **Rocker button controls a light.** Toggles, switches on or off lights when
   the chosen button is pressed. Every press counts, also the same button twice
@@ -64,6 +65,14 @@ through HACS.
   handle only changes the answer the gateway gives at the next button press on
   the handle; it does not open the window. Not a replacement for certified
   alarm equipment: test it with the detector's test button.
+- **Absence simulation for lighting.** While you are away, switches the
+  lights you choose on and off at changing times inside a time period. You
+  say when you are away by choosing people (all of them must be away) or, if
+  you choose no people, an absence switch. Optional brightness sensors (lux)
+  from any rooms can hold back the start (for example only when it is dark)
+  and end the simulation early (for example when it is bright). A brightness
+  value only applies to dimmable lights. Lights that were already on are never
+  touched. It makes the home look lived in and is not a burglary protection.
 
 
 The notification and warning inputs take any actions, for example the notify
