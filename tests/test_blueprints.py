@@ -18,7 +18,6 @@ import pytest
 from homeassistant import config_entries
 from homeassistant.components.blueprint.models import Blueprint
 from homeassistant.components.blueprint.schemas import BLUEPRINT_SCHEMA
-from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import CoreState, HomeAssistant, ServiceCall
 from homeassistant.helpers import (
     condition,
@@ -187,9 +186,10 @@ async def _use(
     )
     await hass.async_block_till_done()
     if restart:
-        # The automation starts with Home Assistant: "homeassistant start" fires.
-        hass.set_state(CoreState.running)
-        hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+        # The automation arms its triggers in a startup job that Home Assistant
+        # (2026.10) runs before it fires EVENT_HOMEASSISTANT_STARTED, so run the
+        # real startup instead of only firing the event.
+        await hass.async_start()
         await hass.async_block_till_done()
 
 
@@ -488,7 +488,8 @@ async def test_fire_alarm_opens_blinds_then_blocks_and_releases_when_clear(
     await asyncio.sleep(0.1)
 
     assert len(messages) == 2  # the warning and "cover.open_blind cannot be locked"
-    assert "cover.open_blind" in messages[1].data["message"]
+    # The branches run in parallel; the order of the two messages is not fixed.
+    assert any("cover.open_blind" in m.data["message"] for m in messages)
     assert [call.data["entity_id"] for call in lights] == [["light.hall"]]
     assert lights[0].data["brightness_pct"] == 100
     assert [call.data["entity_id"] for call in unlocked] == [["lock.balcony_autolock"]]
@@ -535,7 +536,7 @@ async def test_fire_alarm_does_not_block_blinds_that_did_not_get_up(
 
     assert not blocked
     assert len(messages) == 2
-    assert "not locked" in messages[1].data["message"]
+    assert any("not locked" in m.data["message"] for m in messages)
 
 
 async def test_fire_alarm_waits_for_every_detector_and_warns_for_later_ones(
@@ -727,7 +728,7 @@ async def test_only_the_blockage_switch_of_an_opus_blind_is_used(
         "other",
         "foreign",
         device_id=dr.async_get(hass)
-        .async_get_device(identifiers={("opus_greennet", "cover.a")})
+        .async_get_devices(identifiers={("opus_greennet", "cover.a")})[0]
         .id,
         suggested_object_id="foreign",
     )
