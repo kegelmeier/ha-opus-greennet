@@ -128,7 +128,12 @@ def test_entity_pickers_are_limited_to_this_integration(path: Path) -> None:
     for name, definition in inputs.items():
         entity = (definition.get("selector") or {}).get("entity")
         # Lights, blinds, extra detectors and leak sensors may come from any brand.
-        if entity is None or name in {"blinds", "lights", "extra_detectors", "leak_sensors"}:
+        if entity is None or name in {
+            "blinds",
+            "lights",
+            "extra_detectors",
+            "leak_sensors",
+        }:
             continue
         assert all(f.get("integration") == "opus_greennet" for f in entity["filter"])
 
