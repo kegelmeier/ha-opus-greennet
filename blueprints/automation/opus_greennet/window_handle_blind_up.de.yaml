@@ -1,0 +1,264 @@
+blueprint:
+  name: "Opus GreenNet: Fenstergriff offen, Rollos fahren hoch und bleiben oben"
+  description: |-
+    **Was das macht.** Sie öffnen oder kippen einen Fenstergriff. Dann
+    fahren die gewählten Rollos hoch. So bleibt der Weg frei, zum Beispiel an
+    einer Balkontür.
+
+    - Ein Rollo, das schon ganz offen ist, wird nicht angefasst.
+    - Hat der Griffsensor keinen Wert, passiert nichts.
+    - Schließen Sie den Griff, bleiben die Rollos, wo sie sind.
+
+    **Rollos sperren (freiwillig).** Schalten Sie das ein, dann werden die
+    Rollos gesperrt, wenn sie offen sind. Solange der Griff offen oder gekippt
+    ist, kann sie nichts zufahren. Schließen Sie den Griff, wird die Sperre
+    gelöst. Die Rollos bleiben offen. Sie können sie wieder bedienen.
+
+    **Gut zu wissen**
+    - Das geht nur bei Opus-Rollos. Die „Blockage“-Entity jedes Rollos muss
+      vorher eingeschaltet werden. Sie ist am Anfang aus. Siehe die Hilfe bei
+      „Rollos sperren, wenn sie offen sind“.
+    - Die Rollos werden erst gesperrt, wenn sie ganz offen sind. Ein Rollo,
+      das noch fährt, würde sonst auf halber Höhe stehen bleiben.
+    - Ein gesperrtes Rollo reagiert auch nicht auf den Wandtaster. Darum wird
+      die Sperre gelöst, wenn der Griff geschlossen wird, und auch nach einem
+      Neustart von Home Assistant.
+    - Sind die Rollos nicht rechtzeitig offen, wird nichts gesperrt. Sie
+      bekommen eine Meldung.
+    - Beim Schließen des Griffs werden alle gesperrten Rollos gelöst, die Sie
+      hier gewählt haben, auch solche, die Sie selbst gesperrt haben.
+  domain: automation
+  author: Opus GreenNet Bridge
+  source_url: https://github.com/kegelmeier/ha-opus-greennet/blob/main/blueprints/automation/opus_greennet/window_handle_blind_up.de.yaml
+  homeassistant:
+    min_version: 2026.10.1
+  input:
+    handle_sensor:
+      name: Sensor für die Griffstellung
+      description: Der Sensor „Griffstellung“ des Fenstergriffs.
+      selector:
+        entity:
+          filter:
+            - integration: opus_greennet
+              domain: sensor
+              device_class: enum
+    handle_states:
+      name: Stellungen, die zählen
+      default:
+        - open
+        - tilted
+      selector:
+        select:
+          multiple: true
+          options:
+            - label: Offen
+              value: open
+            - label: Gekippt
+              value: tilted
+    blinds:
+      name: Rollos
+      description: Diese Rollos fahren hoch, wenn der Griff offen oder gekippt ist.
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: cover
+              device_class:
+                - blind
+                - shutter
+                - shade
+                - curtain
+    keep_blinds_up:
+      name: Rollos sperren, wenn sie offen sind
+      description: |-
+        Eingeschaltet: Wenn die Rollos offen sind, werden sie gesperrt, bis der
+        Griff geschlossen wird. Das geht nur bei Opus-Rollos. Die Sperre jedes
+        Rollos wird von selbst gefunden.
+
+        **Vorher nötig:** Die „Blockage“-Entity jedes Rollos muss eingeschaltet
+        sein. Sie ist am Anfang aus.
+        1. Öffnen Sie **Einstellungen, Geräte & Dienste, Entitäten**.
+        2. Suchen Sie nach *Blockage*. Klicken Sie auf die Entity Ihres Rollos.
+        3. Klicken Sie auf das Zahnrad. Schalten Sie **Aktiviert** ein.
+           Speichern.
+
+        Ein Rollo ohne aktive „Blockage“-Entity wird nicht gesperrt. Sie
+        bekommen eine Meldung. Hat ein Gerät mehrere Rollos, müssen Sie alle
+        davon wählen.
+      default: false
+      selector:
+        boolean:
+    open_timeout:
+      name: Wartezeit für die Rollos (Sekunden)
+      description: >-
+        Nur wichtig, wenn die Rollos gesperrt werden. Sie werden erst gesperrt,
+        wenn alle offen sind. So lange wartet der Blueprint darauf. Dauert es
+        länger, wird nichts gesperrt.
+      default: 180
+      selector:
+        number:
+          min: 10
+          max: 900
+          step: 10
+          unit_of_measurement: s
+          mode: box
+
+mode: parallel
+max: 5
+max_exceeded: silent
+
+variables:
+  handle_sensor: !input handle_sensor
+  handle_states: !input handle_states
+  blinds: !input blinds
+  keep_blinds_up: !input keep_blinds_up
+  # The lock ("Blockage" switch) of a blind is found through the device of the
+  # blind. Only switches of this integration that are switched on count, and
+  # only if every blind of that device is chosen: locking a device also locks
+  # its other blinds, and one of them might not be up.
+  lock_plan: >-
+    {% set opus = integration_entities('opus_greennet') %}
+    {% set ns = namespace(found=[], missing=[]) %}
+    {% if keep_blinds_up %}
+      {% for blind in blinds %}
+        {% set dev = device_entities(device_id(blind) or '') %}
+        {% set covers = expand(dev | select('match', 'cover[.]') | list)
+           | map(attribute='entity_id') | list %}
+        {% set locks = expand(dev | select('match', 'switch[.]') | select('in', opus) | list)
+           | map(attribute='entity_id') | list %}
+        {% if locks and covers | reject('in', blinds) | list | count == 0 %}
+          {% set ns.found = ns.found + locks %}
+        {% else %}
+          {% set ns.missing = ns.missing + [blind] %}
+        {% endif %}
+      {% endfor %}
+    {% endif %}
+    {{ {'switches': ns.found | unique | list, 'missing': ns.missing} }}
+  blockage_switches: "{{ lock_plan.switches }}"
+  blinds_without_lock: "{{ lock_plan.missing }}"
+  open_timeout: !input open_timeout
+
+triggers:
+  - trigger: state
+    id: opened
+    entity_id: !input handle_sensor
+    to: !input handle_states
+  - trigger: state
+    id: closed
+    entity_id: !input handle_sensor
+    to: closed
+  # After a restart the handle may be closed: the blinds must not stay locked.
+  - trigger: homeassistant
+    event: start
+    id: started
+
+actions:
+  - alias: The handle is closed again, or Home Assistant started
+    if:
+      - condition: template
+        value_template: "{{ trigger.id in ['closed', 'started'] }}"
+    then:
+      - if:
+          - condition: template
+            value_template: "{{ blockage_switches | count > 0 }}"
+          - alias: The handle is not open or tilted now
+            condition: template
+            value_template: "{{ states(handle_sensor) not in handle_states }}"
+        then:
+          - action: switch.turn_off
+            target:
+              entity_id: "{{ blockage_switches }}"
+      - stop: Nothing more to do
+  - alias: Tell which blinds cannot be locked
+    if:
+      - condition: template
+        value_template: "{{ blinds_without_lock | count > 0 }}"
+    then:
+      - action: persistent_notification.create
+        data:
+          title: Fenstergriff
+          message: >-
+            Diese Rollos können nicht gesperrt werden: {{ blinds_without_lock | join(', ') }}.
+            Schalten Sie ihre „Blockage“-Entity ein und wählen Sie alle Rollos desselben Geräts. Siehe die Hilfe im Blueprint.
+  - alias: Release the blockage so that the blinds can move
+    if:
+      - condition: template
+        value_template: "{{ blockage_switches | count > 0 }}"
+    then:
+      - action: switch.turn_off
+        target:
+          entity_id: "{{ blockage_switches }}"
+  - alias: Open every blind that is not completely open
+    repeat:
+      for_each: !input blinds
+      sequence:
+        - if:
+            - alias: Not completely open
+              condition: template
+              value_template: >-
+                {{ not (is_state(repeat.item, 'open')
+                        and state_attr(repeat.item, 'current_position') in [none, 100]) }}
+          then:
+            - action: cover.open_cover
+              target:
+                entity_id: "{{ repeat.item }}"
+  - alias: Keep the blinds up while the handle is open or tilted
+    if:
+      - condition: template
+        value_template: "{{ blockage_switches | count > 0 }}"
+    then:
+      - alias: Wait until all chosen blinds are completely open
+        wait_template: >-
+          {% set ns = namespace(open=true) %}
+          {% for blind in blinds %}
+            {% if not (is_state(blind, 'open')
+                       and state_attr(blind, 'current_position') in [none, 100]) %}
+              {% set ns.open = false %}
+            {% endif %}
+          {% endfor %}
+          {{ ns.open }}
+        timeout: "{{ open_timeout | float(180) }}"
+        continue_on_timeout: true
+      - variables:
+          blinds_up: "{{ wait.completed }}"
+      - choose:
+          - alias: All blinds are up and the handle is still open or tilted
+            conditions:
+              - condition: template
+                value_template: "{{ blinds_up }}"
+              - alias: The blinds are still completely open
+                condition: template
+                value_template: >-
+                  {% set ns = namespace(open=true) %}
+                  {% for blind in blinds %}
+                    {% if not (is_state(blind, 'open')
+                               and state_attr(blind, 'current_position') in [none, 100]) %}
+                      {% set ns.open = false %}
+                    {% endif %}
+                  {% endfor %}
+                  {{ ns.open }}
+              - condition: template
+                value_template: "{{ states(handle_sensor) in handle_states }}"
+            sequence:
+              - action: switch.turn_on
+                target:
+                  entity_id: "{{ blockage_switches }}"
+              - alias: The handle was closed in the meantime, release again
+                if:
+                  - condition: template
+                    value_template: "{{ states(handle_sensor) not in handle_states }}"
+                then:
+                  - action: switch.turn_off
+                    target:
+                      entity_id: "{{ blockage_switches }}"
+          - alias: The blinds did not get up in time
+            conditions:
+              - condition: template
+                value_template: "{{ not blinds_up }}"
+            sequence:
+              - action: persistent_notification.create
+                data:
+                  title: Fenstergriff
+                  message: >-
+                    Die Rollos waren nach
+                    {{ open_timeout | int(180) }} Sekunden nicht ganz offen. Sie sind nicht gesperrt.

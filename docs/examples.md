@@ -12,20 +12,20 @@ Bridge**). How each device type behaves is described in
 
 ## Blueprints
 
-Five blueprints cover common automations. Import one with the button, then
+Five blueprints cover common automations. Each one also exists in German (`*.de.yaml`, same file name with `.de` before `.yaml`); import that file instead if your Home Assistant is in German. Home Assistant cannot translate blueprints by itself. Import one with the button, then
 create an automation from it under **Settings → Automations & scenes →
 Blueprints**. The pickers list only the matching Opus GreenNet entities, so no
 entity IDs have to be typed. A blueprint is a copy: later changes in this
 repository reach you through **Re-import blueprint** in Home Assistant, not
 through HACS.
 
-| Blueprint | Import |
-|-----------|--------|
-| Rocker button controls a light | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fbutton_to_light.yaml) |
-| Window handle opened or tilted, send a notification | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fwindow_handle_notification.yaml) |
-| Window handle opened or tilted, blinds move up | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fwindow_handle_blind_up.yaml) |
-| Water leak, warn | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fwater_leak_warning.yaml) |
-| Fire alarm (smoke or heat), light, open blinds and keep them up | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Ffire_alarm_response.yaml) |
+| Blueprint | Import | Deutsch |
+|-----------|--------|---------|
+| Rocker button controls a light | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fbutton_to_light.yaml) | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fbutton_to_light.de.yaml) |
+| Window handle opened or tilted, send a notification | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fwindow_handle_notification.yaml) | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fwindow_handle_notification.de.yaml) |
+| Window handle opened or tilted, blinds move up | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fwindow_handle_blind_up.yaml) | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fwindow_handle_blind_up.de.yaml) |
+| Water leak, warn | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fwater_leak_warning.yaml) | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fwater_leak_warning.de.yaml) |
+| Fire alarm (smoke or heat), light, open blinds and keep them up | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Ffire_alarm_response.yaml) | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Ffire_alarm_response.de.yaml) |
 
 - **Rocker button controls a light.** Toggles, switches on or off lights when
   the chosen button is pressed. Every press counts, also the same button twice
@@ -35,10 +35,11 @@ through HACS.
   Unknown and unavailable positions do nothing.
 - **Window handle, blinds move up.** Opens the chosen blinds when the handle is
   tilted or open, for example to keep the way free at a balcony door. Blinds
-  that are already completely open get no command. Optionally pick the
-  *Blockage* switches of the blinds (disabled by default, D2-05 blinds only) to
-  keep them up while the handle is open or tilted: the blockage is released
-  first, set once all chosen blinds are completely open (never on a moving
+  that are already completely open get no command. Optionally switch on
+  *Lock the blinds when they are open* to keep them up while the handle is
+  open or tilted. The blueprint finds the *Blockage* switch of each Opus blind
+  itself (it is disabled by default and exists for D2-05 blinds only, so enable
+  it first): the blockage is released first, set once all chosen blinds are completely open (never on a moving
   blind), and released when the handle is closed. The blinds stay where they
   are afterwards and can be controlled again.
 - **Water leak, warn.** Runs your warning actions when a leak sensor reports
@@ -50,8 +51,9 @@ through HACS.
   optional. All Opus GreenNet smoke detectors (RWM) are used automatically,
   also ones added later; switch that off or leave single ones out. Detectors of
   any other brand (smoke or heat, as a binary sensor of that device class) are
-  added by hand. If you also pick the *Blockage* switches of the blinds
-  (disabled by default, D2-05 blinds only), the blockage is released first, set
+  added by hand. With *Lock the blinds when they are open* (on by default) the
+  *Blockage* switch of each Opus blind is found automatically (disabled by
+  default, D2-05 blinds only, so enable it first); the blockage is released first, set
   again once all chosen blinds are completely open, and released when no
   detector reports an alarm any more. Blocking is never done on a blind that is
   still moving, and not at all if the blinds do not get up within the time
@@ -88,8 +90,11 @@ To use them without the import button, copy them to
    blockage is released. The blinds stay open where they are and can be
    controlled again.
 
-Whether a blocked blind actuator also ignores the wall rocker has not been
-confirmed on hardware; try it once before you rely on it.
+A locked blind does not react to the wall rocker either. That is why the lock
+is released as soon as the alarm is over, and also after a restart of Home
+Assistant. A blind is locked only when it is completely open and a detector
+still reports an alarm; a device with several blinds is locked only if you
+chose all of them.
 
 **How to set it up**
 
@@ -101,12 +106,20 @@ confirmed on hardware; try it once before you rely on it.
    detectors*.
 3. *Lights* and *Blinds to open:* pick what should react, or leave a picker
    empty to skip that part.
-4. *Keep the blinds up:* enable the **Blockage** entities of your blinds first
-   (they are switched off by default, diagnostic, and exist only for D2-05
-   blinds), then pick them under *Blockage switches of these blinds*. Leave the
-   picker empty to only open the blinds.
-5. *Warning:* choose your actions and, if you like, a repeat interval. The
-   variable `active_names` lists the detectors that report an alarm.
+4. *Lock the blinds when they are open:* enable the **Blockage** entities of
+   your blinds first (Settings, Devices & services, Entities, search
+   *Blockage*, gear, *Enabled*; they are off by default and exist only for D2-05
+   blinds). Nothing else to pick: the lock of each blind is found by itself, so
+   no light or other switch can be chosen by mistake. Blinds without an enabled
+   *Blockage* entity are not locked and you get a notification. Switch the
+   option off to only open the blinds.
+5. *Warning:* the first step shows a message in Home Assistant. For a message
+   on your phone: install the Home Assistant app and sign in, click *Add
+   action*, search *notification*, choose *Send a notification via
+   mobile_app_...* with your phone, and write a message such as
+   `Fire alarm! {{ active_names }}`. `active_names` is replaced by the
+   detectors that report an alarm. You can add a siren or a spoken message the
+   same way. Choose a repeat interval if you like.
 6. *AutoLock window handles to unlock:* optional.
 7. Test with the test button of a detector. The lights and blinds really move.
 

@@ -1,0 +1,76 @@
+blueprint:
+  name: "Opus GreenNet: Fenstergriff offen oder gekippt, Nachricht senden"
+  description: >-
+    Sendet eine Nachricht, wenn ein HOPPE-Fenstergriff „offen“ oder „gekippt“
+    meldet. Auf Wunsch erst, nachdem er eine Weile so geblieben ist („seit 30
+    Minuten gekippt“).
+
+    Der Sensor für die Griffstellung behält seinen letzten Wert. Fehlt die
+    Stellung oder ist sie ungültig, bleibt sie „unbekannt“. Bei einem Ausfall
+    des Gateways zeigt er „nicht verfügbar“. Beides startet die Automation
+    nicht.
+  domain: automation
+  author: Opus GreenNet Bridge
+  source_url: https://github.com/kegelmeier/ha-opus-greennet/blob/main/blueprints/automation/opus_greennet/window_handle_notification.de.yaml
+  homeassistant:
+    min_version: 2026.10.1
+  input:
+    handle_sensor:
+      name: Sensor für die Griffstellung
+      description: Der Sensor „Griffstellung“ des Fenstergriffs.
+      selector:
+        entity:
+          filter:
+            - integration: opus_greennet
+              domain: sensor
+              device_class: enum
+    handle_states:
+      name: Stellungen, die zählen
+      default:
+        - tilted
+      selector:
+        select:
+          multiple: true
+          options:
+            - label: Gekippt
+              value: tilted
+            - label: Offen
+              value: open
+    stays_for:
+      name: Erst nach dieser Zeit
+      description: Bei 0 wird sofort benachrichtigt.
+      default:
+        hours: 0
+        minutes: 0
+        seconds: 0
+      selector:
+        duration:
+    notification:
+      name: Nachricht
+      description: >-
+        Die Aktionen, die die Nachricht senden. Die Variable trigger.to_state
+        enthält den Griffsensor. Der erste Schritt zeigt eine Meldung in Home
+        Assistant. Für eine Nachricht aufs Handy: Aktion hinzufügen,
+        „Benachrichtigung“ suchen, „Benachrichtigung senden über mobile_app_…“
+        mit Ihrem Handy wählen und eine Nachricht schreiben.
+      default:
+        - action: persistent_notification.create
+          data:
+            title: Fenster
+            message: >-
+              {{ trigger.to_state.name }}: {{ state_translated(trigger.entity_id) }}
+      selector:
+        action:
+
+mode: single
+max_exceeded: silent
+
+triggers:
+  - trigger: state
+    entity_id: !input handle_sensor
+    to: !input handle_states
+    for: !input stays_for
+
+actions:
+  - alias: Send the notification
+    sequence: !input notification
