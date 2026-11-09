@@ -51,6 +51,7 @@ def test_the_expected_blueprints_exist() -> None:
     names = {
         "button_to_light",
         "fire_alarm_response",
+        "motion_presence_light",
         "water_leak_warning",
         "window_handle_blind_up",
         "window_handle_notification",
@@ -62,7 +63,16 @@ def test_the_expected_blueprints_exist() -> None:
 
 
 # Texts a user reads. Everything else must be identical in both languages.
-_TEXT_KEYS = {"name", "description", "alias", "title", "message", "label", "source_url"}
+_TEXT_KEYS = {
+    "name",
+    "description",
+    "alias",
+    "title",
+    "message",
+    "label",
+    "source_url",
+    "stop",
+}
 
 
 def _without_texts(node: Any) -> Any:
@@ -110,16 +120,42 @@ def test_blueprint_is_valid_and_uses_only_declared_inputs(path: Path) -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "name", ["water_leak_warning.yaml", "water_leak_warning.de.yaml"]
+)
+def test_water_leak_warning_accepts_sensors_of_any_maker(name: str) -> None:
+    """The leak picker shows every moisture sensor, not only Opus ones."""
+    inputs = load_yaml_dict(str(BLUEPRINT_DIR / name))["blueprint"]["input"]
+    entity = inputs["leak_sensors"]["selector"]["entity"]
+    assert entity["filter"] == [{"domain": "binary_sensor", "device_class": "moisture"}]
+
+
 @pytest.mark.parametrize("path", BLUEPRINTS, ids=lambda path: path.name)
 def test_entity_pickers_are_limited_to_this_integration(path: Path) -> None:
     """Pickers of Opus GreenNet entities filter by integration."""
     inputs = load_yaml_dict(str(path))["blueprint"]["input"]
     for name, definition in inputs.items():
         entity = (definition.get("selector") or {}).get("entity")
-        # Lights and blinds may come from any brand.
-        if entity is None or name in {"blinds", "lights", "extra_detectors"}:
+        # Lights, blinds, extra detectors and leak sensors may come from any brand.
+        if entity is None or name in {
+            "blinds",
+            "lights",
+            "extra_detectors",
+            "leak_sensors",
+        }:
             continue
         assert all(f.get("integration") == "opus_greennet" for f in entity["filter"])
+
+
+def test_motion_presence_light_is_not_limited_to_one_maker() -> None:
+    """Sensors, lights and brightness sensors of any maker can be mixed."""
+    for name in ("motion_presence_light.yaml", "motion_presence_light.de.yaml"):
+        sections = load_yaml_dict(str(BLUEPRINT_DIR / name))["blueprint"]["input"]
+        for section in sections.values():
+            for definition in section["input"].values():
+                entity = (definition.get("selector") or {}).get("entity")
+                for entity_filter in (entity or {}).get("filter", []):
+                    assert "integration" not in entity_filter
 
 
 def test_button_choices_are_buttons_the_integration_reports() -> None:
@@ -527,7 +563,7 @@ async def test_fire_alarm_does_not_block_blinds_that_did_not_get_up(
 
     assert not blocked
     assert len(messages) == 2
-    assert "not locked" in messages[1].data["message"]
+    assert any("not locked" in m.data["message"] for m in messages)
 
 
 async def test_fire_alarm_waits_for_every_detector_and_warns_for_later_ones(

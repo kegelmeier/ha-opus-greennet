@@ -79,12 +79,12 @@ sensor *Settings read* (enabled by default). It shows when the values above were
 last read from the device: the time of the gateway's cached configuration
 (`configuration.lastUpdateTime` of the device list), or the time of your last
 *Read settings* press, whichever is later. The gateway reads the configuration
-itself only now and then (nightly in the E0 catalog), and a device that does
-not answer keeps its old values; on 2026-10-31 (firmware 1.21.30, one installation) 34 of 42
-devices with a configuration time had been read at about 04:08 that night, five
-battery detectors later that morning, and three actuators that did not answer
-still showed the day before. An old time, for
-example after Home Assistant was restored from a backup, is a reason to press
+itself only now and then, and a device that does not answer keeps its old
+values. This was observed on 2026-10-31 (firmware 1.21.30, one installation): of
+42 devices with a configuration time, 34 had been read at about 04:08 that
+night, five battery detectors later that morning, and three actuators that did
+not answer still showed the day before. An old time, for example after Home
+Assistant was restored from a backup, is a reason to press
 *Read settings*. The sensor is unknown while the gateway lists no time. It only
 shows the time: nothing is requested for it, the integration never reads
 settings by itself, and it does not mark a value as wrong.
@@ -116,6 +116,16 @@ yet is never compared. The check uses the values Home Assistant shows; if one of
 them is outdated, press *Read settings* and try again. Change the other setting
 first when a value is refused, for example raise the maximum holding time before
 the vertical movement time.
+
+**Holding time and decimals.** The integration writes only the setting you change
+and never changes another one by itself. The OPUS app behaves differently, as
+reported from an analysis of the app (not tested here): when it sets the vertical
+movement time it sends whole seconds and sets the maximum holding time to that
+value plus 3 seconds in the same request. In Home Assistant, set the maximum
+holding time yourself, for example the vertical movement time plus a few
+seconds. Fractions of a second (step 0.01) are written as entered; whether the
+device stores them or rounds them is not verified. If it rounds, Home Assistant
+shows the stored value and reports that it differs from the requested one.
 
 **Names in the OPUS config tool.** The OPUS config tool (JD Config Tool, which
 talks to the devices directly by radio through a USB stick) names the settings
@@ -660,15 +670,14 @@ battery percentage is invented when the gateway publishes none.
 - Every device also has a diagnostic **Remote management** sensor (disabled by
   default): the state of the gateway's remote management (ReMan) for the device
   as the device list gives it (`remanState`): *Not seen*, *No response*,
-  *Learned in*, *EEP not supported*, *Query starting*, *Query in progress*,
-  *Queried*, *Product ID not supported*, *Invalid product ID*, *Unlock failed*
-  or *Wrong secure code*. It explains why *Read settings* fails for a device (for
+  *Learned in*, *Query starting* or *Wrong secure code*. It explains why *Read settings* fails for a device (for
   example no answer, or a secure code the gateway does not have). It is the
   outcome of the gateway's last attempt, not a health verdict, and only changes
   when the gateway lists the device again; nothing is requested for it. A
   value the integration does not know, or a list without the field, leaves the
-  sensor unchanged (unknown until a known value was listed). The names are
-  those of gateway firmware 1.21.30. The meaning of each state is derived from
+  sensor unchanged (unknown until a known value was listed). Only these five
+  states were seen in the device list of a gateway (firmware 1.21.30); any
+  other value is shown as unknown. The meaning of each state is derived from
   its name and was not checked on hardware.
 - Actuators whose device list contains a link table also have a diagnostic
   **Wall switch links** sensor (disabled by default): the number of wall
