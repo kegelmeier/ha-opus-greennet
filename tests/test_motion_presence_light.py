@@ -10,6 +10,7 @@ one run alive per visit; tests therefore wait with short sleeps and never call
 from __future__ import annotations
 
 import asyncio
+import logging
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -17,7 +18,6 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import CoreState, HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import condition, template, translation, trigger
@@ -87,8 +87,9 @@ async def _use(
     )
     await hass.async_block_till_done()
     if restart:
-        hass.set_state(CoreState.running)
-        hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
+        # Run the real start sequence: since Home Assistant 2026.10 the triggers
+        # of an automation set up before the start are armed by a startup job.
+        await hass.async_start()
         await asyncio.sleep(0.05)
 
 
@@ -296,6 +297,7 @@ async def test_light_that_was_switched_off_by_hand_is_not_switched_on_again(
 async def test_nothing_chosen_writes_an_error_and_switches_nothing(
     hass: HomeAssistant, caplog: pytest.LogCaptureFixture
 ) -> None:
+    caplog.set_level(logging.INFO)  # the script logs the stop error at INFO
     calls = _world(hass)
     await _use(hass, EN, _inputs(lights=[]))
     await _set(hass, MOTION, "on")
@@ -358,6 +360,7 @@ async def test_without_the_brightness_option_no_brightness_is_sent(
 async def test_brightness_option_without_lights_is_a_setup_error(
     hass: HomeAssistant, caplog: pytest.LogCaptureFixture
 ) -> None:
+    caplog.set_level(logging.INFO)  # the script logs the stop error at INFO
     calls = _world(hass)
     await _use(hass, EN, _inputs(lights=[DIM], set_brightness=True))
     await _set(hass, MOTION, "on")
@@ -472,6 +475,7 @@ async def test_a_light_switched_off_by_hand_stays_off_when_it_gets_darker(
 async def test_dark_option_without_a_sensor_is_a_setup_error(
     hass: HomeAssistant, caplog: pytest.LogCaptureFixture
 ) -> None:
+    caplog.set_level(logging.INFO)  # the script logs the stop error at INFO
     calls = _world(hass)
     await _use(hass, EN, _inputs(only_when_dark=True, dark_lights=[PLAIN]))
     await _set(hass, MOTION, "on")
@@ -482,6 +486,7 @@ async def test_dark_option_without_a_sensor_is_a_setup_error(
 async def test_dark_option_without_lights_is_a_setup_error(
     hass: HomeAssistant, caplog: pytest.LogCaptureFixture
 ) -> None:
+    caplog.set_level(logging.INFO)  # the script logs the stop error at INFO
     calls = _world(hass)
     await _use(hass, EN, _inputs(only_when_dark=True, lux_sensor=LUX))
     await _set(hass, MOTION, "on")
@@ -599,6 +604,7 @@ async def test_night_lights_replace_the_normal_ones_and_switch_off_again(
 async def test_night_option_without_night_lights_is_a_setup_error(
     hass: HomeAssistant, caplog: pytest.LogCaptureFixture
 ) -> None:
+    caplog.set_level(logging.INFO)  # the script logs the stop error at INFO
     calls = _world(hass)
     await _use(hass, EN, _night(night_lights=[]))
     with _at(23, 0):

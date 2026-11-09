@@ -45,7 +45,10 @@ through HACS.
   are afterwards and can be controlled again.
 - **Water leak, warn.** Runs your warning actions when a leak sensor reports
   water and can repeat them every few minutes until the sensor reports dry. A
-  gateway outage (*unavailable*) does not count as dry.
+  gateway outage (*unavailable*) does not count as dry. Water leak sensors of
+  other makers work too: the picker shows every binary sensor of the type
+  *moisture*. The *Warning* field explains step by step how to get a message on
+  your phone.
 - **Motion and presence light.** Switches lights on when any of the chosen
   motion or presence sensors reports someone and off again after the last one
   has been quiet for the time you set. Basic set-up: sensors, lights, extra

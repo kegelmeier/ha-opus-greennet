@@ -1,13 +1,24 @@
 blueprint:
   name: "Opus GreenNet: Wasseralarm, warnen"
-  description: >-
-    Führt eine Warnung aus, wenn ein Wassermelder Wasser meldet. Auf Wunsch
-    wird die Warnung wiederholt, bis der Melder wieder „trocken“ meldet.
+  description: |-
+    **Was passiert hier?** Ein Wassermelder meldet Wasser. Dann warnt diese
+    Automation Sie, zum Beispiel mit einer Nachricht auf dem Handy. Die
+    Warnung kann sich wiederholen, bis der Melder wieder „trocken“ meldet.
 
-    Der Wassermelder meldet nur, wenn sich sein Zustand ändert. Bei einem
-    Ausfall des Gateways zeigt er „nicht verfügbar“. Das zählt nicht als
-    trocken: Eine wiederholte Warnung läuft weiter, bis der Melder „trocken“
-    meldet.
+    **Melder.** Opus-Melder und Wassermelder anderer Hersteller gehen beide.
+    Sie wählen die Melder selbst aus. Es werden nur Sensoren vom Typ
+    „Feuchtigkeit“ angezeigt. Fehlt Ihr Melder in der Liste, prüfen Sie die
+    Geräteklasse des Sensors (Einstellungen, Geräte & Dienste, Entitäten,
+    Zahnrad, *Anzeigen als*).
+
+    **Gut zu wissen**
+    - Ein Melder meldet nur, wenn sich sein Zustand ändert.
+    - „Nicht verfügbar“ (zum Beispiel bei einem Ausfall des Gateways) zählt
+      nicht als trocken. Eine wiederholte Warnung läuft weiter, bis der Melder
+      „trocken“ meldet.
+    - Diese Automation schließt kein Ventil. Sie warnt nur.
+    - Zum Testen: Feuchten Sie den Melder an oder nutzen Sie seine Prüftaste,
+      falls er eine hat.
   domain: automation
   author: Opus GreenNet Bridge
   source_url: https://github.com/kegelmeier/ha-opus-greennet/blob/main/blueprints/automation/opus_greennet/water_leak_warning.de.yaml
@@ -15,23 +26,39 @@ blueprint:
     min_version: 2026.10.1
   input:
     leak_sensors:
-      name: Wassermelder
+      name: Wassermelder (jeder Hersteller)
+      description: >-
+        Wählen Sie die Melder, die die Warnung auslösen sollen. Opus-Melder und
+        Melder anderer Hersteller gehen beide. Es werden nur Sensoren vom Typ
+        „Feuchtigkeit“ angezeigt.
       selector:
         entity:
           multiple: true
           filter:
-            - integration: opus_greennet
-              domain: binary_sensor
+            - domain: binary_sensor
               device_class: moisture
     warning:
-      name: Warnung
-      description: >-
-        Die Aktionen, die warnen, zum Beispiel eine Benachrichtigung auf Ihr
-        Handy, eine Sirene oder Lichter. Die Variable trigger.to_state enthält
-        den Wassermelder. Der erste Schritt zeigt eine Meldung in Home
-        Assistant. Für eine Nachricht aufs Handy: Aktion hinzufügen,
-        „Benachrichtigung“ suchen, „Benachrichtigung senden über mobile_app_…“
-        mit Ihrem Handy wählen und eine Nachricht schreiben.
+      name: Warnung (zum Beispiel eine Nachricht auf dem Handy)
+      description: |-
+        Hier legen Sie fest, wie Sie gewarnt werden. Ein erster Schritt ist
+        schon da: Er zeigt eine Meldung in Home Assistant.
+
+        **So bekommen Sie eine Nachricht auf das Handy**
+        1. Installieren Sie die Home-Assistant-App auf dem Handy. Melden Sie
+           sich einmal an.
+        2. Klicken Sie unten auf **Aktion hinzufügen**.
+        3. Tippen Sie *Benachrichtigung* in die Suche. Wählen Sie
+           **Benachrichtigungen: Eine Benachrichtigung senden über
+           mobile_app_...** mit dem Namen Ihres Handys.
+        4. Schreiben Sie eine **Nachricht**, zum Beispiel:
+           `Wasseralarm! {{ trigger.to_state.name }}`
+           (`trigger.to_state.name` wird durch den Namen des Melders ersetzt).
+        5. Klicken Sie am Ende auf **Speichern**.
+
+        Sie können weitere Schritte hinzufügen: eine Sirene, eine Ansage, ein
+        Licht und so weiter. Tipp: Für eine laute Nachricht, auch wenn das
+        Handy auf lautlos steht, lesen Sie „Kritische Benachrichtigungen“ in
+        der Dokumentation der Home-Assistant-Companion-App.
       default:
         - action: persistent_notification.create
           data:
@@ -40,8 +67,10 @@ blueprint:
       selector:
         action:
     repeat_minutes:
-      name: Wiederholen alle (Minuten)
-      description: Wiederholt die Warnung, solange der Melder Wasser meldet. 0 warnt nur einmal.
+      name: Warnung wiederholen alle (Minuten)
+      description: >-
+        Die Warnung wird wiederholt, bis der Melder wieder „trocken“ meldet. 0
+        bedeutet: nur einmal warnen.
       default: 0
       selector:
         number:
