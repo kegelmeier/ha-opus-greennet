@@ -1,0 +1,452 @@
+blueprint:
+  name: "Opus GreenNet: Brandalarm, Licht an, Rollos hoch und offen halten"
+  description: |-
+    **Was das macht.** Ein Rauchmelder oder Hitzemelder schlägt Alarm. Dann:
+
+    1. warnt Sie diese Automation, zum Beispiel mit einer Nachricht auf dem Handy,
+    2. gehen Lichter an,
+    3. fahren die Rollos hoch und werden dann **offen gesperrt**, damit sie nicht wieder zufahren,
+    4. werden Fenstergriffe mit AutoLock freigegeben.
+
+    Der Alarm ist vorbei, wenn kein Melder mehr Alarm meldet. Dann wird die Sperre der Rollos gelöst. Die Rollos bleiben offen. Sie können sie wieder bedienen.
+
+    **Jeder Teil ist freiwillig.** Lassen Sie ein Feld leer, dann passiert dort nichts.
+
+    **Melder.** Alle Opus-Rauchmelder sind automatisch dabei. Sie können auch Rauchmelder und Hitzemelder anderer Hersteller hinzufügen.
+
+    **Gut zu wissen**
+    - Die Rollos werden erst gesperrt, wenn sie ganz offen sind. Ein Rollo, das noch fährt, würde sonst auf halber Höhe stehen bleiben.
+    - Ein gesperrtes Rollo reagiert auch nicht auf den Wandtaster. Darum wird die Sperre gelöst, sobald der Alarm vorbei ist, und auch nach einem Neustart von Home Assistant.
+    - Sind die Rollos nicht rechtzeitig offen, wird nichts gesperrt. Sie bekommen eine Meldung.
+    - Das Sperren geht nur bei Opus-Rollos. Die „Blockage“-Entity jedes Rollos muss vorher eingeschaltet werden. Sie ist am Anfang aus. Siehe die Hilfe bei „Rollos sperren, wenn sie offen sind“.
+    - Ein AutoLock-Griff wird nur für den nächsten Tastendruck freigegeben. Das Fenster geht nicht von selbst auf.
+    - Startet Home Assistant während eines Alarms neu, wird die Sperre nach dem Alarm trotzdem gelöst. Dann werden alle gesperrten Rollos gelöst, die Sie hier gewählt haben, auch solche, die Sie selbst gesperrt haben.
+    - Das ersetzt keine geprüfte Alarmanlage. Testen Sie es mit der Prüftaste eines Melders. Lichter und Rollos bewegen sich wirklich.
+  domain: automation
+  author: Opus GreenNet Bridge
+  source_url: https://github.com/kegelmeier/ha-opus-greennet/blob/main/blueprints/automation/opus_greennet/fire_alarm_response.de.yaml
+  homeassistant:
+    min_version: 2026.10.1
+  input:
+    include_opus:
+      name: Alle Opus-Rauchmelder benutzen
+      description: >-
+        Eingeschaltet: Jeder Opus-Rauchmelder wird benutzt. Neue Melder auch.
+        Sie müssen sie nicht auswählen.
+      default: true
+      selector:
+        boolean:
+    excluded_detectors:
+      name: Opus-Rauchmelder weglassen
+      description: >-
+        Wählen Sie hier Melder, die keinen Alarm auslösen sollen.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - integration: opus_greennet
+              domain: binary_sensor
+              device_class: smoke
+    extra_detectors:
+      name: Weitere Melder (jeder Hersteller)
+      description: >-
+        Fügen Sie hier Rauchmelder oder Hitzemelder anderer Hersteller hinzu.
+        Es werden nur Sensoren vom Typ „Rauch“ oder „Hitze“ angezeigt. Sie
+        arbeiten wie die Opus-Rauchmelder.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: binary_sensor
+              device_class:
+                - smoke
+                - heat
+    warning:
+      name: Warnung (zum Beispiel eine Nachricht auf dem Handy)
+      description: |-
+        Hier legen Sie fest, wie Sie gewarnt werden. Ein erster Schritt ist
+        schon da: Er zeigt eine Meldung in Home Assistant.
+
+        **So bekommen Sie eine Nachricht auf das Handy**
+        1. Installieren Sie die Home-Assistant-App auf dem Handy. Melden Sie
+           sich einmal an.
+        2. Klicken Sie unten auf **Aktion hinzufügen**.
+        3. Tippen Sie *Benachrichtigung* in die Suche. Wählen Sie
+           **Benachrichtigungen: Eine Benachrichtigung senden über
+           mobile_app_...** mit dem Namen Ihres Handys.
+        4. Schreiben Sie eine **Nachricht**, zum Beispiel:
+           `Feueralarm! {{ active_names }}`
+           (`active_names` wird durch den Namen des Melders ersetzt).
+        5. Klicken Sie am Ende auf **Speichern**.
+
+        Sie können weitere Schritte hinzufügen: eine Sirene, eine Ansage und so
+        weiter. Tipp: Für eine laute Nachricht, auch wenn das Handy auf lautlos
+        steht, lesen Sie „Kritische Benachrichtigungen“ in der Dokumentation der
+        Home-Assistant-Companion-App.
+      default:
+        - action: persistent_notification.create
+          data:
+            title: Feueralarm
+            message: "Alarm gemeldet von: {{ active_names }}"
+      selector:
+        action:
+    repeat_minutes:
+      name: Warnung wiederholen nach (Minuten)
+      description: >-
+        Die Warnung wird wiederholt, bis der Alarm vorbei ist. 0 heißt: nur
+        einmal warnen.
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 240
+          step: 1
+          unit_of_measurement: min
+          mode: box
+    lights:
+      name: Lichter, die angehen sollen
+      description: >-
+        Diese Lichter gehen mit voller Helligkeit an. Lassen Sie das Feld leer,
+        wenn Sie das nicht möchten.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: light
+    blinds:
+      name: Rollos, die hochfahren sollen
+      description: >-
+        Diese Rollos fahren hoch. Ein Rollo, das schon ganz offen ist, wird
+        nicht angefasst. Lassen Sie das Feld leer, wenn Sie das nicht möchten.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - domain: cover
+              device_class:
+                - blind
+                - shutter
+                - shade
+                - curtain
+    keep_blinds_up:
+      name: Rollos sperren, wenn sie offen sind
+      description: |-
+        Eingeschaltet: Wenn die Rollos offen sind, werden sie gesperrt. Bis der
+        Alarm vorbei ist, kann sie nichts mehr zufahren. Das geht nur bei
+        Opus-Rollos. Die Sperre jedes Rollos wird von selbst gefunden.
+
+        **Vorher nötig:** Die „Blockage“-Entity jedes Rollos muss eingeschaltet
+        sein. Sie ist am Anfang aus.
+        1. Öffnen Sie **Einstellungen, Geräte & Dienste, Entitäten**.
+        2. Suchen Sie nach *Blockage*. Klicken Sie auf die Entity Ihres Rollos.
+        3. Klicken Sie auf das Zahnrad. Schalten Sie **Aktiviert** ein.
+           Speichern.
+
+        Ein Rollo ohne aktive „Blockage“-Entity wird nicht gesperrt. Sie
+        bekommen eine Meldung. Hat ein Gerät mehrere Rollos, müssen Sie alle
+        davon wählen.
+      default: true
+      selector:
+        boolean:
+    open_timeout:
+      name: Wartezeit für die Rollos (Sekunden)
+      description: >-
+        Die Rollos werden erst gesperrt, wenn alle offen sind. So lange wartet
+        der Blueprint darauf. Dauert es länger, wird nichts gesperrt.
+      default: 180
+      selector:
+        number:
+          min: 10
+          max: 900
+          step: 10
+          unit_of_measurement: s
+          mode: box
+    locks:
+      name: Fenstergriffe mit AutoLock freigeben
+      description: >-
+        HOPPE-SecureConnect-AutoLock-Griffe. Sie werden für den nächsten
+        Tastendruck am Griff freigegeben. Das Fenster geht nicht von selbst
+        auf. Lassen Sie das Feld leer, wenn Sie das nicht möchten.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            - integration: opus_greennet
+              domain: lock
+
+mode: parallel
+max: 10
+max_exceeded: silent
+
+trigger_variables:
+  include_opus: !input include_opus
+  excluded_detectors: !input excluded_detectors
+  extra_detectors: !input extra_detectors
+
+variables:
+  include_opus: !input include_opus
+  excluded_detectors: !input excluded_detectors
+  extra_detectors: !input extra_detectors
+  repeat_minutes: !input repeat_minutes
+  lights: !input lights
+  blinds: !input blinds
+  keep_blinds_up: !input keep_blinds_up
+  # The lock ("Blockage" switch) of a blind is found through the device of the
+  # blind. Only switches of this integration that are switched on count, and
+  # only if every blind of that device is chosen: locking a device also locks
+  # its other blinds, and one of them might not be up.
+  lock_plan: >-
+    {% set opus = integration_entities('opus_greennet') %}
+    {% set ns = namespace(found=[], missing=[]) %}
+    {% if keep_blinds_up %}
+      {% for blind in blinds %}
+        {% set dev = device_entities(device_id(blind) or '') %}
+        {% set covers = expand(dev | select('match', 'cover[.]') | list)
+           | map(attribute='entity_id') | list %}
+        {% set locks = expand(dev | select('match', 'switch[.]') | select('in', opus) | list)
+           | map(attribute='entity_id') | list %}
+        {% if locks and covers | reject('in', blinds) | list | count == 0 %}
+          {% set ns.found = ns.found + locks %}
+        {% else %}
+          {% set ns.missing = ns.missing + [blind] %}
+        {% endif %}
+      {% endfor %}
+    {% endif %}
+    {{ {'switches': ns.found | unique | list, 'missing': ns.missing} }}
+  blockage_switches: "{{ lock_plan.switches }}"
+  blinds_without_lock: "{{ lock_plan.missing }}"
+  open_timeout: !input open_timeout
+  locks: !input locks
+  detectors: >-
+    {% set opus = integration_entities('opus_greennet')
+      | select('match', 'binary_sensor[.]')
+      | select('is_state_attr', 'device_class', 'smoke')
+      | list if include_opus else [] %}
+    {% set ids = (opus + extra_detectors)
+      | reject('in', excluded_detectors) | unique | list %}
+    {{ ids }}
+  active_detectors: >-
+    {{ expand(detectors) | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}
+  active_names: >-
+    {{ expand(detectors) | selectattr('state', 'eq', 'on') | map(attribute='name') | join(', ') }}
+
+triggers:
+  # The detectors are looked up when the template is evaluated, so Opus
+  # GreenNet detectors added later are included. A second and a third
+  # detector raising the alarm start the warning again.
+  - trigger: template
+    id: alarm
+    value_template: >-
+                {% set opus = integration_entities('opus_greennet')
+                  | select('match', 'binary_sensor[.]')
+                  | select('is_state_attr', 'device_class', 'smoke')
+                  | list if include_opus else [] %}
+                {% set ids = (opus + extra_detectors)
+                  | reject('in', excluded_detectors) | unique | list %}
+                {{ expand(ids) | selectattr('state', 'eq', 'on') | list | count >= 1 }}
+  - trigger: template
+    id: more
+    value_template: >-
+                {% set opus = integration_entities('opus_greennet')
+                  | select('match', 'binary_sensor[.]')
+                  | select('is_state_attr', 'device_class', 'smoke')
+                  | list if include_opus else [] %}
+                {% set ids = (opus + extra_detectors)
+                  | reject('in', excluded_detectors) | unique | list %}
+                {{ expand(ids) | selectattr('state', 'eq', 'on') | list | count >= 2 }}
+  - trigger: template
+    id: more
+    value_template: >-
+                {% set opus = integration_entities('opus_greennet')
+                  | select('match', 'binary_sensor[.]')
+                  | select('is_state_attr', 'device_class', 'smoke')
+                  | list if include_opus else [] %}
+                {% set ids = (opus + extra_detectors)
+                  | reject('in', excluded_detectors) | unique | list %}
+                {{ expand(ids) | selectattr('state', 'eq', 'on') | list | count >= 3 }}
+  # After a restart the alarm may be over: the blinds must not stay locked.
+  - trigger: homeassistant
+    event: start
+    id: started
+  - trigger: template
+    id: clear
+    value_template: >-
+                {% set opus = integration_entities('opus_greennet')
+                  | select('match', 'binary_sensor[.]')
+                  | select('is_state_attr', 'device_class', 'smoke')
+                  | list if include_opus else [] %}
+                {% set ids = (opus + extra_detectors)
+                  | reject('in', excluded_detectors) | unique | list %}
+                {% set reported = expand(ids) | map(attribute='state') | list %}
+                {{ 'on' not in reported and 'off' in reported }}
+
+actions:
+  - choose:
+      - alias: No detector reports an alarm any more
+        conditions:
+          - condition: template
+            value_template: "{{ trigger.id in ['clear', 'started'] }}"
+        sequence:
+          - alias: Release the blockage of the blinds, if really no alarm now
+            if:
+              - condition: template
+                value_template: "{{ blockage_switches | count > 0 }}"
+              - condition: template
+                value_template: >-
+                  {{ expand(detectors) | selectattr('state', 'eq', 'on') | list | count == 0 }}
+            then:
+              - action: switch.turn_off
+                target:
+                  entity_id: "{{ blockage_switches }}"
+      - alias: Another detector raises the alarm, warn once more
+        conditions:
+          - condition: trigger
+            id: more
+        sequence: !input warning
+    default:
+      - parallel:
+          - alias: Warn
+            sequence:
+              - repeat:
+                  sequence:
+                    - alias: Run the warning
+                      sequence: !input warning
+                    - alias: Wait before repeating
+                      if:
+                        - condition: template
+                          value_template: "{{ repeat_minutes | int(0) > 0 }}"
+                      then:
+                        - delay:
+                            minutes: "{{ repeat_minutes | int(0) }}"
+                  until:
+                    - alias: Warned once, or the alarm is over
+                      condition: template
+                      value_template: >-
+                        {% set reported = expand(detectors) | map(attribute='state') | list %}
+                        {{ repeat_minutes | int(0) <= 0
+                           or ('on' not in reported and 'off' in reported) }}
+
+          - alias: Lights on
+            sequence:
+              - if:
+                  - condition: template
+                    value_template: "{{ lights | count > 0 }}"
+                then:
+                  - action: light.turn_on
+                    target:
+                      entity_id: !input lights
+                    data:
+                      brightness_pct: 100
+
+          - alias: Blinds up, then keep them up
+            sequence:
+              - alias: Tell which blinds cannot be locked
+                if:
+                  - condition: template
+                    value_template: "{{ blinds_without_lock | count > 0 }}"
+                then:
+                  - action: persistent_notification.create
+                    data:
+                      title: Feueralarm
+                      message: >-
+                        Diese Rollos können nicht gesperrt werden: {{ blinds_without_lock | join(', ') }}.
+                        Schalten Sie ihre „Blockage“-Entity ein und wählen Sie alle Rollos desselben Geräts. Siehe die Hilfe im Blueprint.
+              - alias: Release the blockage so that the blinds can move
+                if:
+                  - condition: template
+                    value_template: "{{ blockage_switches | count > 0 }}"
+                then:
+                  - action: switch.turn_off
+                    target:
+                      entity_id: "{{ blockage_switches }}"
+              - alias: Open every blind that is not completely open
+                repeat:
+                  for_each: !input blinds
+                  sequence:
+                    - if:
+                        - alias: Not completely open
+                          condition: template
+                          value_template: >-
+                            {{ not (is_state(repeat.item, 'open')
+                                    and state_attr(repeat.item, 'current_position') in [none, 100]) }}
+                      then:
+                        - action: cover.open_cover
+                          target:
+                            entity_id: "{{ repeat.item }}"
+              - alias: Wait until all chosen blinds are completely open
+                wait_template: >-
+                  {% set ns = namespace(open=true) %}
+                  {% for blind in blinds %}
+                    {% if not (is_state(blind, 'open')
+                               and state_attr(blind, 'current_position') in [none, 100]) %}
+                      {% set ns.open = false %}
+                    {% endif %}
+                  {% endfor %}
+                  {{ ns.open }}
+                timeout: "{{ open_timeout | float(180) }}"
+                continue_on_timeout: true
+              - variables:
+                  blinds_up: "{{ wait.completed }}"
+              - alias: Block the blinds while an alarm is reported
+                if:
+                  - condition: template
+                    value_template: "{{ blockage_switches | count > 0 }}"
+                then:
+                  - choose:
+                      - alias: All blinds are up and a detector still reports an alarm
+                        conditions:
+                          - condition: template
+                            value_template: "{{ blinds_up }}"
+                          - alias: The blinds are still completely open
+                            condition: template
+                            value_template: >-
+                              {% set ns = namespace(open=true) %}
+                              {% for blind in blinds %}
+                                {% if not (is_state(blind, 'open')
+                                           and state_attr(blind, 'current_position') in [none, 100]) %}
+                                  {% set ns.open = false %}
+                                {% endif %}
+                              {% endfor %}
+                              {{ ns.open }}
+                          - condition: template
+                            value_template: >-
+                              {{ expand(detectors) | selectattr('state', 'eq', 'on') | list | count > 0 }}
+                        sequence:
+                          - action: switch.turn_on
+                            target:
+                              entity_id: "{{ blockage_switches }}"
+                          - alias: The alarm ended in the meantime, release again
+                            if:
+                              - condition: template
+                                value_template: >-
+                                  {{ expand(detectors) | selectattr('state', 'eq', 'on') | list | count == 0 }}
+                            then:
+                              - action: switch.turn_off
+                                target:
+                                  entity_id: "{{ blockage_switches }}"
+                      - alias: The blinds did not get up in time
+                        conditions:
+                          - condition: template
+                            value_template: "{{ not blinds_up }}"
+                        sequence:
+                          - action: persistent_notification.create
+                            data:
+                              title: Feueralarm
+                              message: >-
+                                Die Rollos waren nach
+                                {{ open_timeout | int(180) }} Sekunden nicht ganz offen. Sie sind nicht gesperrt.
+
+          - alias: Allow AutoLock handles to be unlocked
+            sequence:
+              - if:
+                  - condition: template
+                    value_template: "{{ locks | count > 0 }}"
+                then:
+                  - action: lock.unlock
+                    target:
+                      entity_id: !input locks

@@ -1,12 +1,31 @@
 blueprint:
-  name: "Opus GreenNet: window handle opened or tilted, blinds move up"
-  description: >-
-    Move blinds or shutters up when a HOPPE window handle reports open or
-    tilted, for example to keep the way free at a balcony door.
+  name: "Opus GreenNet: window handle open, blinds go up and stay up"
+  description: |-
+    **What this does.** You open or tilt a window handle. Then the blinds you
+    chose go up. This keeps the way free, for example at a balcony door.
 
-    A blind that is already completely open is left alone, so no command is
-    sent for it. Nothing happens when the handle sensor is unknown or
-    unavailable. The blinds stay up when the handle is closed again.
+    - A blind that is already completely open is not touched.
+    - Nothing happens if the handle sensor has no value.
+    - When you close the handle, the blinds stay where they are.
+
+    **Lock the blinds (optional).** Switch this on, and the blinds are locked
+    when they are open. Nothing can close them as long as the handle is open
+    or tilted. When you close the handle, they are unlocked. They stay open.
+    You can use them again.
+
+    **Good to know**
+    - This works for Opus blinds only. The "Blockage" entity of each blind
+      must be switched on first. It is off at the start. See the help text at
+      "Lock the blinds".
+    - The blinds are locked only after they are completely open. A blind that
+      is still moving would stop halfway.
+    - A locked blind does not react to the wall rocker either. That is why the
+      lock is released when the handle is closed, and also after a restart of
+      Home Assistant.
+    - If the blinds are not open in time, nothing is locked. You get a
+      message.
+    - When the handle is closed, all locked blinds you chose are unlocked, also
+      ones you locked on purpose.
   domain: automation
   author: Opus GreenNet Bridge
   source_url: https://github.com/kegelmeier/ha-opus-greennet/blob/main/blueprints/automation/opus_greennet/window_handle_blind_up.yaml
@@ -37,6 +56,7 @@ blueprint:
               value: tilted
     blinds:
       name: Blinds
+      description: These blinds go up when the handle is open or tilted.
       selector:
         entity:
           multiple: true
@@ -47,16 +67,124 @@ blueprint:
                 - shutter
                 - shade
                 - curtain
+    keep_blinds_up:
+      name: Lock the blinds when they are open
+      description: |-
+        Switch on: after the blinds are open, they are locked until the handle
+        is closed. This works for Opus blinds only. The blueprint finds the
+        lock of each blind by itself.
 
-mode: single
+        **Before you use this:** the "Blockage" entity of each blind must be
+        switched on. It is off at the start.
+        1. Go to **Settings, Devices & services, Entities**.
+        2. Search for *Blockage*. Click the entity of your blind.
+        3. Click the gear. Switch on **Enabled**. Save.
+
+        A blind without an active "Blockage" entity is not locked. You get a
+        message.
+      default: false
+      selector:
+        boolean:
+    open_timeout:
+      name: Time to wait for the blinds (seconds)
+      description: >-
+        Only used when the blinds are locked. The blinds are locked only when
+        all of them are open. This is how long the blueprint waits for that.
+        If it takes longer, nothing is locked.
+      default: 180
+      selector:
+        number:
+          min: 10
+          max: 900
+          step: 10
+          unit_of_measurement: s
+          mode: box
+
+mode: parallel
+max: 5
 max_exceeded: silent
+
+variables:
+  handle_sensor: !input handle_sensor
+  handle_states: !input handle_states
+  blinds: !input blinds
+  keep_blinds_up: !input keep_blinds_up
+  # The lock ("Blockage" switch) of a blind is found through the device of the
+  # blind. Only switches of this integration that are switched on count, and
+  # only if every blind of that device is chosen: locking a device also locks
+  # its other blinds, and one of them might not be up.
+  lock_plan: >-
+    {% set opus = integration_entities('opus_greennet') %}
+    {% set ns = namespace(found=[], missing=[]) %}
+    {% if keep_blinds_up %}
+      {% for blind in blinds %}
+        {% set dev = device_entities(device_id(blind) or '') %}
+        {% set covers = expand(dev | select('match', 'cover[.]') | list)
+           | map(attribute='entity_id') | list %}
+        {% set locks = expand(dev | select('match', 'switch[.]') | select('in', opus) | list)
+           | map(attribute='entity_id') | list %}
+        {% if locks and covers | reject('in', blinds) | list | count == 0 %}
+          {% set ns.found = ns.found + locks %}
+        {% else %}
+          {% set ns.missing = ns.missing + [blind] %}
+        {% endif %}
+      {% endfor %}
+    {% endif %}
+    {{ {'switches': ns.found | unique | list, 'missing': ns.missing} }}
+  blockage_switches: "{{ lock_plan.switches }}"
+  blinds_without_lock: "{{ lock_plan.missing }}"
+  open_timeout: !input open_timeout
 
 triggers:
   - trigger: state
+    id: opened
     entity_id: !input handle_sensor
     to: !input handle_states
+  - trigger: state
+    id: closed
+    entity_id: !input handle_sensor
+    to: closed
+  # After a restart the handle may be closed: the blinds must not stay locked.
+  - trigger: homeassistant
+    event: start
+    id: started
 
 actions:
+  - alias: The handle is closed again, or Home Assistant started
+    if:
+      - condition: template
+        value_template: "{{ trigger.id in ['closed', 'started'] }}"
+    then:
+      - if:
+          - condition: template
+            value_template: "{{ blockage_switches | count > 0 }}"
+          - alias: The handle is not open or tilted now
+            condition: template
+            value_template: "{{ states(handle_sensor) not in handle_states }}"
+        then:
+          - action: switch.turn_off
+            target:
+              entity_id: "{{ blockage_switches }}"
+      - stop: Nothing more to do
+  - alias: Tell which blinds cannot be locked
+    if:
+      - condition: template
+        value_template: "{{ blinds_without_lock | count > 0 }}"
+    then:
+      - action: persistent_notification.create
+        data:
+          title: Window handle
+          message: >-
+            These blinds cannot be locked: {{ blinds_without_lock | join(', ') }}.
+            Switch on their "Blockage" entity and choose all blinds of the same device. See the help text of the blueprint.
+  - alias: Release the blockage so that the blinds can move
+    if:
+      - condition: template
+        value_template: "{{ blockage_switches | count > 0 }}"
+    then:
+      - action: switch.turn_off
+        target:
+          entity_id: "{{ blockage_switches }}"
   - alias: Open every blind that is not completely open
     repeat:
       for_each: !input blinds
@@ -71,3 +199,63 @@ actions:
             - action: cover.open_cover
               target:
                 entity_id: "{{ repeat.item }}"
+  - alias: Keep the blinds up while the handle is open or tilted
+    if:
+      - condition: template
+        value_template: "{{ blockage_switches | count > 0 }}"
+    then:
+      - alias: Wait until all chosen blinds are completely open
+        wait_template: >-
+          {% set ns = namespace(open=true) %}
+          {% for blind in blinds %}
+            {% if not (is_state(blind, 'open')
+                       and state_attr(blind, 'current_position') in [none, 100]) %}
+              {% set ns.open = false %}
+            {% endif %}
+          {% endfor %}
+          {{ ns.open }}
+        timeout: "{{ open_timeout | float(180) }}"
+        continue_on_timeout: true
+      - variables:
+          blinds_up: "{{ wait.completed }}"
+      - choose:
+          - alias: All blinds are up and the handle is still open or tilted
+            conditions:
+              - condition: template
+                value_template: "{{ blinds_up }}"
+              - alias: The blinds are still completely open
+                condition: template
+                value_template: >-
+                  {% set ns = namespace(open=true) %}
+                  {% for blind in blinds %}
+                    {% if not (is_state(blind, 'open')
+                               and state_attr(blind, 'current_position') in [none, 100]) %}
+                      {% set ns.open = false %}
+                    {% endif %}
+                  {% endfor %}
+                  {{ ns.open }}
+              - condition: template
+                value_template: "{{ states(handle_sensor) in handle_states }}"
+            sequence:
+              - action: switch.turn_on
+                target:
+                  entity_id: "{{ blockage_switches }}"
+              - alias: The handle was closed in the meantime, release again
+                if:
+                  - condition: template
+                    value_template: "{{ states(handle_sensor) not in handle_states }}"
+                then:
+                  - action: switch.turn_off
+                    target:
+                      entity_id: "{{ blockage_switches }}"
+          - alias: The blinds did not get up in time
+            conditions:
+              - condition: template
+                value_template: "{{ not blinds_up }}"
+            sequence:
+              - action: persistent_notification.create
+                data:
+                  title: Window handle
+                  message: >-
+                    The blinds were not completely open after
+                    {{ open_timeout | int(180) }} seconds. They are not locked.

@@ -1,0 +1,90 @@
+blueprint:
+  name: "Opus GreenNet: Wippentaster steuert ein Licht"
+  description: >-
+    Schaltet Lichter um, ein oder aus, wenn eine Taste eines OPUS-Wippentasters
+    (oder die Wippentasten eines OPUS-Aktors) gedrückt wird.
+
+    Jeder Tastendruck startet die Automation, auch wenn dieselbe Taste zweimal
+    hintereinander gedrückt wird. Die Ereignis-Entities der Opus GreenNet
+    Bridge sind eingeschaltet, aber standardmäßig versteckt. Sie finden sie
+    beim Gerät des Wippentasters.
+  domain: automation
+  author: Opus GreenNet Bridge
+  source_url: https://github.com/kegelmeier/ha-opus-greennet/blob/main/blueprints/automation/opus_greennet/button_to_light.de.yaml
+  homeassistant:
+    min_version: 2026.10.1
+  input:
+    button_event:
+      name: Ereignis-Entity des Wippentasters
+      description: Die Ereignis-Entity des Wippentasters oder der Tasten des Aktors.
+      selector:
+        entity:
+          filter:
+            - integration: opus_greennet
+              domain: event
+    button:
+      name: Taste
+      description: >-
+        Welche Taste die Automation startet. Eine Wippe hat pro Wippe (A bis D)
+        eine I-Seite und eine 0-Seite.
+      default: buttonAI
+      selector:
+        select:
+          options:
+            - label: Wippe A, I-Seite
+              value: buttonAI
+            - label: Wippe A, 0-Seite
+              value: buttonA0
+            - label: Wippe B, I-Seite
+              value: buttonBI
+            - label: Wippe B, 0-Seite
+              value: buttonB0
+            - label: Wippe C, I-Seite
+              value: buttonCI
+            - label: Wippe C, 0-Seite
+              value: buttonC0
+            - label: Wippe D, I-Seite
+              value: buttonDI
+            - label: Wippe D, 0-Seite
+              value: buttonD0
+    light_target:
+      name: Licht
+      description: Die Lichter, Bereiche oder Geräte, die gesteuert werden.
+      selector:
+        target:
+          entity:
+            - domain: light
+    light_action:
+      name: Aktion
+      default: toggle
+      selector:
+        select:
+          options:
+            - label: Umschalten
+              value: toggle
+            - label: Einschalten
+              value: turn_on
+            - label: Ausschalten
+              value: turn_off
+
+mode: single
+max_exceeded: silent
+
+variables:
+  button: !input button
+  light_action: !input light_action
+
+triggers:
+  - trigger: state
+    entity_id: !input button_event
+
+conditions:
+  - alias: Only the chosen button, only on press
+    condition: template
+    value_template: >-
+      {{ trigger.to_state is not none
+         and trigger.to_state.attributes.event_type == button ~ '_pressed' }}
+
+actions:
+  - action: "light.{{ light_action }}"
+    target: !input light_target
