@@ -57,32 +57,12 @@ to the gateway open (`GET /devices/stream`):
 
 ### Daily gateway restart
 
-The gateway restarts itself once a day and then reads the configuration of its
-devices over the radio. The integration needs no setting for this; it only
-shows up as a short outage at the same time every night.
-
-- **What the gateway does.** A scheduled job reboots the gateway at a fixed
-  time of day (a marker file on the gateway can switch this off). After the
-  start the gateway runs a remote-management and remote-configuration pass
-  (ReMan/ReCom) for every device: ping threshold, unlock, metadata query,
-  version, device configuration, link tables and repeater state, then lock
-  again. This is how the gateway refreshes its own configuration cache each
-  night (`configuration.lastUpdateTime`). During the pass the gateway log shows
-  closed streams and radio timeouts. Evidence: software and logs of a gateway
-  with firmware 1.21.30 (a few dozen devices, restart in the early morning,
-  pass finished a few minutes later).
-- **What Home Assistant sees.** On one installation (firmware 1.21.30) the
-  gateway entities became unavailable every night at about the same time in
-  the early morning (between 04:00 and 05:00 CET) and returned after roughly
-  five minutes. The reported uptime then starts again and the telegram counter
-  falls back to a small value. The health check and the
-  reconnect schedule above cover this; the stream is reopened by itself.
-- **Assumption.** Earlier logs of the same gateway family (2023 to mid 2025)
-  place the restart between 03:00 and 04:00 local time, about an hour earlier
-  than the Home Assistant observation. The scheduler may now run in UTC
-  instead of local time; the logs end before the change, so this is not
-  proven. In summer the local time would then move by another hour, which has
-  not been observed.
+On one installation (firmware 1.21.30) the gateway entities became unavailable
+every night at about the same time in the early morning (between 04:00 and
+05:00 CET) and returned after roughly five minutes. The reported uptime then
+starts again and the telegram counter falls back to a small value. The
+integration needs no setting for this: the health check and the reconnect
+schedule above cover it, and the stream is reopened by itself.
 
 ### Stream format and fallback
 
@@ -99,9 +79,8 @@ format. Telegrams in the `to` direction (commands of other controllers, such as
 Apple Home) were observed on a gateway with firmware 1.21.30, each followed by
 the actuator's own report about 0.1 s later.
 
-The gateway also offers `duplicates=true|false` for the stream. The
-integration does not set it. The gateway's built-in default is `false`, and
-identical button telegrams still arrive as separate events on firmware
+The stream also takes a `duplicates` parameter. The integration does not set
+it. Identical button telegrams still arrive as separate events on firmware
 1.21.30: repeated presses of the same rocker are delivered one by one (button
 event entities over several days). Details are in the
 [protocol contract](quality/protocol-contract.md#13-findings-from-a-gateway-firmware-12130).
@@ -167,9 +146,8 @@ cancels the queued commands instead of replaying them after recovery.
   provided by the manufacturer. Keep the gateway in a trusted network. Gateways
   with WebUI 2026 use HTTPS with a pinned certificate and a token (see the
   README).
-- The gateway restarts itself every night and then reads device settings over
-  the radio; its entities are unavailable for about five minutes in that time
-  (see [Daily gateway restart](#daily-gateway-restart)).
+- On the observed installation the gateway entities are unavailable for about
+  five minutes every night (see [Daily gateway restart](#daily-gateway-restart)).
 - Battery level and signal strength are refreshed every 30 minutes.
 - The signal strength is the direct link to the gateway, without repeaters. The
   gateway reports no radio path, so the integration cannot show which repeater
@@ -227,20 +205,5 @@ gateway sent to it. The full interface contract, including the payload
 variants of older firmware, is in
 [`docs/quality/protocol-contract.md`](quality/protocol-contract.md).
 
-Query parameter names of the gateway (from the software of firmware 1.21.30;
-the integration sends only `delimited=newLine`, see
-[Stream format and fallback](#stream-format-and-fallback)):
-
-| Parameter | Seen on | Values or use |
-|-----------|---------|---------------|
-| `direction` | `/devices/stream` | `from`, `to`, `both` |
-| `delimited` | `/devices/stream` | `length`, `lengthBytes`, `lengthCharacters`, `newLine`, `emptyLine` |
-| `output` | `/devices/stream` | `formatted`, `singleLine` |
-| `duplicates` | `/devices/stream` | `true`, `false` (default `false`) |
-| `levelOfDetail` | `/devices/stream` | `full`, `high`, `medium`, `low`, `minimal` |
-| `id` | `/devices/stream` | device identifier (effect not tried) |
-| `category` | `/devices` | filter by device category |
-
-The gateway code knows further names (`refresh`, `status`, `forceDelete`,
-`baseId`, `eep`, `variation`, `version`, `organisation`); the integration does
-not use them. Not every combination was tried on a gateway.
+The integration sends only `delimited=newLine` with the stream request, see
+[Stream format and fallback](#stream-format-and-fallback).

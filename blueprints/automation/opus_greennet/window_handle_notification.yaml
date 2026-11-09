@@ -1,13 +1,17 @@
 blueprint:
   name: "Opus GreenNet: window handle opened or tilted, send a notification"
-  description: >-
-    Run a notification when a HOPPE window handle reports open or tilted,
-    optionally only after it has stayed there for a while ("left tilted for
-    30 minutes").
+  description: |-
+    **What this does.** A HOPPE window handle reports "open" or "tilted". Then
+    this automation sends you a notification, for example a message on your
+    phone. If you want, only after the handle has stayed that way for a while
+    ("tilted for 30 minutes").
 
-    The handle position sensor keeps its last value; a missing or invalid
-    position stays unknown and a gateway outage shows unavailable, so neither
-    starts the automation.
+    **Good to know**
+    - The handle sensor keeps its last value. A missing or invalid position
+      stays "unknown". A gateway outage shows "unavailable". Neither starts
+      the automation.
+    - The notification is sent once when the time is over. It is not repeated.
+    - Test it: tilt the window and wait for the time you set.
   domain: automation
   author: Opus GreenNet Bridge
   source_url: https://github.com/kegelmeier/ha-opus-greennet/blob/main/blueprints/automation/opus_greennet/window_handle_notification.yaml
@@ -37,7 +41,9 @@ blueprint:
               value: open
     stays_for:
       name: Only after this long
-      description: Leave at 0 to notify immediately.
+      description: >-
+        The handle must stay in the chosen position for this time. Leave at 0
+        to be notified at once.
       default:
         hours: 0
         minutes: 0
@@ -45,11 +51,22 @@ blueprint:
       selector:
         duration:
     notification:
-      name: Notification
-      description: >-
-        The actions that deliver the message, for example a notify action of
-        your phone. The variable trigger.to_state holds the handle sensor. The
-        default creates a persistent notification.
+      name: Notification (for example a message on your phone)
+      description: |-
+        Here you say how you want to be told. The first step is already there:
+        it shows a message in Home Assistant.
+
+        **How to get a message on your phone**
+        1. Install the Home Assistant app on your phone. Sign in once.
+        2. Click **Add action** below.
+        3. Type *notification* in the search. Choose **Notifications: Send a
+           notification via mobile_app_...** with the name of your phone.
+        4. Write a **Message**, for example:
+           `Window open: {{ trigger.to_state.name }}`
+           (`trigger.to_state.name` is replaced by the name of the handle).
+        5. Click **Save** at the end.
+
+        You can add more steps: a spoken message, a light, and so on.
       default:
         - action: persistent_notification.create
           data:
