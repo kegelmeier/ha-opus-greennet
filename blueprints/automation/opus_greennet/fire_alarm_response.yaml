@@ -1,49 +1,27 @@
 blueprint:
   name: "Opus GreenNet: fire alarm, light, open blinds and keep them up"
-  description: >-
-    React when a smoke or heat detector reports an alarm: run a warning,
-    switch on lights, move blinds up and keep them up, and allow AutoLock
-    window handles to be unlocked. Every part is optional; leave a picker
-    empty to skip that part.
+  description: |-
+    **What this does.** A smoke or heat detector sounds the alarm. Then this automation:
 
-    **Detectors.** All Opus GreenNet smoke detectors (RWM) are used
-    automatically, also ones that are added later. Switch that off or leave
-    single ones out below. Add detectors of any other brand (smoke or heat,
-    for example a heat detector) with "Additional detectors". The detectors
-    must be Home Assistant binary sensors of the device class smoke or heat.
-    A smoke detector of another brand does not have to be an Opus device.
+    1. warns you, for example with a message on your phone,
+    2. turns on lights,
+    3. opens the blinds and then **locks them open**, so they cannot close again,
+    4. frees window handles with AutoLock.
 
-    **Blinds.** Blinds that are not completely open are opened. If you also
-    pick the "Blockage" switches of these blinds, the blockage is released
-    first (a blocked blind does not move), and set again once all chosen
-    blinds are completely open, so that no automation or timer can lower them
-    while an alarm is reported. Blocking a moving blind stops it, therefore the
-    blockage is set only after the blinds have reached the top. If they do not
-    get there within the time limit, nothing is blocked and a notification
-    says so. The blockage is released when no detector reports an alarm any
-    more. The blinds then stay open where they are: they are not moved back to
-    their earlier position, but can be controlled again. The "Blockage" switch
-    is disabled by default and exists only for D2-05 blinds (blinds with
-    position and angle); enable it first. If Home Assistant restarts during an
-    alarm, the release still happens when the detectors report no alarm again,
-    but all blockage switches you chose are released at that time, also ones
-    you blocked on purpose.
+    The alarm is over when no detector reports an alarm any more. Then the blinds are unlocked. They stay open. You can use them again.
 
-    **Window handles.** Unlocking an AutoLock handle only changes the answer
-    the gateway gives the next time somebody presses the button on the handle.
-    The handle stays closed until it is pressed and turned, and the answer can
-    take effect with a delay (the integration waits about 10 seconds before it
-    sends it). This does not open a window by itself.
+    **Every part is optional.** Leave a field empty and that part does nothing.
 
-    **Warning.** The warning runs when the first detector reports an alarm
-    and once more when a second and a third one follow. It can repeat every
-    few minutes until no detector reports an alarm. The alarm ends when no
-    detector reports it and at least one reports "off": a detector that is
-    unavailable is not treated as "off". The variable active_names lists the
-    detectors that report an alarm.
+    **Detectors.** All Opus smoke detectors are used by themselves. You can also add smoke or heat detectors from other makers.
 
-    Not a replacement for certified alarm equipment. Test it with the
-    detector's test button before relying on it.
+    **Good to know**
+    - The blinds are locked only after they are completely open. A blind that is still moving would stop halfway.
+    - A locked blind does not react to the wall rocker either. That is why the lock is released as soon as the alarm is over, and also after a restart of Home Assistant.
+    - If the blinds are not open in time, nothing is locked. You get a message.
+    - Locking works for Opus blinds only. The "Blockage" entity of each blind must be switched on first. It is off at the start. See the help text at "Lock the blinds".
+    - An AutoLock handle is only freed for the next press of its button. The window does not open by itself.
+    - If Home Assistant restarts during an alarm, the blinds are still unlocked when the alarm is over. All locked blinds you chose are unlocked then, also ones you locked on purpose.
+    - This does not replace a certified alarm system. Test it with the test button of a detector. Lights and blinds really move.
   domain: automation
   author: Opus GreenNet Bridge
   source_url: https://github.com/kegelmeier/ha-opus-greennet/blob/main/blueprints/automation/opus_greennet/fire_alarm_response.yaml
@@ -51,16 +29,17 @@ blueprint:
     min_version: 2026.10.1
   input:
     include_opus:
-      name: Use all Opus GreenNet smoke detectors
+      name: Use all Opus smoke detectors
       description: >-
-        All smoke detectors of the integration are used automatically. Switch
-        off to use only the detectors listed under "Additional detectors".
+        Switch on: every Opus smoke detector is used. New ones are used too.
+        You do not have to pick them.
       default: true
       selector:
         boolean:
     excluded_detectors:
-      name: Opus GreenNet smoke detectors to leave out
-      description: Opus GreenNet smoke detectors that should not start this automation.
+      name: Opus smoke detectors to leave out
+      description: >-
+        Pick detectors here that should not start the alarm.
       default: []
       selector:
         entity:
@@ -70,10 +49,11 @@ blueprint:
               domain: binary_sensor
               device_class: smoke
     extra_detectors:
-      name: Additional detectors (any brand)
+      name: More detectors (any make)
       description: >-
-        Smoke or heat detectors of any brand, for example a heat detector.
-        They are used in the same way as the Opus GreenNet smoke detectors.
+        Add smoke or heat detectors from other makers here. Only sensors of
+        the type "smoke" or "heat" are shown. They work like the Opus smoke
+        detectors.
       default: []
       selector:
         entity:
@@ -84,12 +64,24 @@ blueprint:
                 - smoke
                 - heat
     warning:
-      name: Warning
-      description: >-
-        The actions that deliver the warning, for example a notify action of
-        your phone, a siren or TTS. The variable active_names lists the
-        detectors that report an alarm. The default creates a persistent
-        notification.
+      name: Warning (for example a message on your phone)
+      description: |-
+        Here you say how you want to be warned. The first step is already
+        there: it shows a message in Home Assistant.
+
+        **How to get a message on your phone**
+        1. Install the Home Assistant app on your phone. Sign in once.
+        2. Click **Add action** below.
+        3. Type *notification* in the search. Choose **Notifications: Send a
+           notification via mobile_app_...** with the name of your phone.
+        4. Write a **Message**, for example: `Fire alarm! {{ active_names }}`
+           (`active_names` is replaced by the name of the detector).
+        5. Click **Save** at the end.
+
+        You can add more steps: a siren, a spoken message, and so on.
+        Tip: For a loud message even if the phone is on silent, see
+        "Critical notifications" in the Home Assistant Companion App
+        documentation.
       default:
         - action: persistent_notification.create
           data:
@@ -98,8 +90,10 @@ blueprint:
       selector:
         action:
     repeat_minutes:
-      name: Repeat the warning every (minutes)
-      description: Repeat the warning while a detector still reports an alarm. 0 warns once.
+      name: Repeat the warning after (minutes)
+      description: >-
+        The warning is repeated until the alarm is over. 0 means: warn only
+        once.
       default: 0
       selector:
         number:
@@ -109,8 +103,10 @@ blueprint:
           unit_of_measurement: min
           mode: box
     lights:
-      name: Lights to switch on
-      description: Switched on at full brightness. Leave empty to skip.
+      name: Lights to turn on
+      description: >-
+        These lights are turned on at full brightness. Leave empty if you do
+        not want this.
       default: []
       selector:
         entity:
@@ -119,7 +115,9 @@ blueprint:
             - domain: light
     blinds:
       name: Blinds to open
-      description: Blinds that are not completely open get an open command. Leave empty to skip.
+      description: >-
+        These blinds are opened. A blind that is already completely open is
+        not touched. Leave empty if you do not want this.
       default: []
       selector:
         entity:
@@ -131,25 +129,29 @@ blueprint:
                 - shutter
                 - shade
                 - curtain
-    blockage_switches:
-      name: Blockage switches of these blinds
-      description: >-
-        The "Blockage" switches (disabled by default, D2-05 blinds only) of
-        the blinds above. They are released before the blinds open and set
-        again once the blinds are completely open, and released when the alarm
-        is over. Leave empty to only open the blinds.
-      default: []
+    keep_blinds_up:
+      name: Lock the blinds when they are open
+      description: |-
+        Switch on: after the blinds are open, they are locked. Nothing can
+        close them until the alarm is over. This works for Opus blinds only.
+        The blueprint finds the lock of each blind by itself.
+
+        **Before you use this:** the "Blockage" entity of each blind must be
+        switched on. It is off at the start.
+        1. Go to **Settings, Devices & services, Entities**.
+        2. Search for *Blockage*. Click the entity of your blind.
+        3. Click the gear. Switch on **Enabled**. Save.
+
+        A blind without an active "Blockage" entity is not locked. You get a
+        message.
+      default: true
       selector:
-        entity:
-          multiple: true
-          filter:
-            - integration: opus_greennet
-              domain: switch
+        boolean:
     open_timeout:
-      name: Time limit for the blinds to open (seconds)
+      name: Time to wait for the blinds (seconds)
       description: >-
-        How long to wait until all chosen blinds are completely open before
-        the blockage is set. If the limit passes, nothing is blocked.
+        The blinds are locked only when all of them are open. This is how long
+        the blueprint waits for that. If it takes longer, nothing is locked.
       default: 180
       selector:
         number:
@@ -159,11 +161,11 @@ blueprint:
           unit_of_measurement: s
           mode: box
     locks:
-      name: AutoLock window handles to unlock
+      name: Window handles with AutoLock to free
       description: >-
-        HOPPE SecureConnect AutoLock handles. Unlocking changes the answer
-        for the next button press on the handle; it does not open the window.
-        Leave empty to skip.
+        HOPPE SecureConnect AutoLock handles. They are freed for the next
+        press of the button on the handle. The window does not open by itself.
+        Leave empty if you do not want this.
       default: []
       selector:
         entity:
@@ -188,7 +190,31 @@ variables:
   repeat_minutes: !input repeat_minutes
   lights: !input lights
   blinds: !input blinds
-  blockage_switches: !input blockage_switches
+  keep_blinds_up: !input keep_blinds_up
+  # The lock ("Blockage" switch) of a blind is found through the device of the
+  # blind. Only switches of this integration that are switched on count, and
+  # only if every blind of that device is chosen: locking a device also locks
+  # its other blinds, and one of them might not be up.
+  lock_plan: >-
+    {% set opus = integration_entities('opus_greennet') %}
+    {% set ns = namespace(found=[], missing=[]) %}
+    {% if keep_blinds_up %}
+      {% for blind in blinds %}
+        {% set dev = device_entities(device_id(blind) or '') %}
+        {% set covers = expand(dev | select('match', 'cover[.]') | list)
+           | map(attribute='entity_id') | list %}
+        {% set locks = expand(dev | select('match', 'switch[.]') | select('in', opus) | list)
+           | map(attribute='entity_id') | list %}
+        {% if locks and covers | reject('in', blinds) | list | count == 0 %}
+          {% set ns.found = ns.found + locks %}
+        {% else %}
+          {% set ns.missing = ns.missing + [blind] %}
+        {% endif %}
+      {% endfor %}
+    {% endif %}
+    {{ {'switches': ns.found | unique | list, 'missing': ns.missing} }}
+  blockage_switches: "{{ lock_plan.switches }}"
+  blinds_without_lock: "{{ lock_plan.missing }}"
   open_timeout: !input open_timeout
   locks: !input locks
   detectors: >-
@@ -238,6 +264,10 @@ triggers:
                 {% set ids = (opus + extra_detectors)
                   | reject('in', excluded_detectors) | unique | list %}
                 {{ expand(ids) | selectattr('state', 'eq', 'on') | list | count >= 3 }}
+  # After a restart the alarm may be over: the blinds must not stay locked.
+  - trigger: homeassistant
+    event: start
+    id: started
   - trigger: template
     id: clear
     value_template: >-
@@ -254,17 +284,20 @@ actions:
   - choose:
       - alias: No detector reports an alarm any more
         conditions:
-          - condition: trigger
-            id: clear
+          - condition: template
+            value_template: "{{ trigger.id in ['clear', 'started'] }}"
         sequence:
-          - alias: Release the blockage of the blinds
+          - alias: Release the blockage of the blinds, if really no alarm now
             if:
               - condition: template
                 value_template: "{{ blockage_switches | count > 0 }}"
+              - condition: template
+                value_template: >-
+                  {{ expand(detectors) | selectattr('state', 'eq', 'on') | list | count == 0 }}
             then:
               - action: switch.turn_off
                 target:
-                  entity_id: !input blockage_switches
+                  entity_id: "{{ blockage_switches }}"
       - alias: Another detector raises the alarm, warn once more
         conditions:
           - condition: trigger
@@ -307,6 +340,17 @@ actions:
 
           - alias: Blinds up, then keep them up
             sequence:
+              - alias: Tell which blinds cannot be locked
+                if:
+                  - condition: template
+                    value_template: "{{ blinds_without_lock | count > 0 }}"
+                then:
+                  - action: persistent_notification.create
+                    data:
+                      title: Fire alarm
+                      message: >-
+                        These blinds cannot be locked: {{ blinds_without_lock | join(', ') }}.
+                        Switch on their "Blockage" entity and choose all blinds of the same device. See the help text of the blueprint.
               - alias: Release the blockage so that the blinds can move
                 if:
                   - condition: template
@@ -314,7 +358,7 @@ actions:
                 then:
                   - action: switch.turn_off
                     target:
-                      entity_id: !input blockage_switches
+                      entity_id: "{{ blockage_switches }}"
               - alias: Open every blind that is not completely open
                 repeat:
                   for_each: !input blinds
@@ -353,13 +397,33 @@ actions:
                         conditions:
                           - condition: template
                             value_template: "{{ blinds_up }}"
+                          - alias: The blinds are still completely open
+                            condition: template
+                            value_template: >-
+                              {% set ns = namespace(open=true) %}
+                              {% for blind in blinds %}
+                                {% if not (is_state(blind, 'open')
+                                           and state_attr(blind, 'current_position') in [none, 100]) %}
+                                  {% set ns.open = false %}
+                                {% endif %}
+                              {% endfor %}
+                              {{ ns.open }}
                           - condition: template
                             value_template: >-
                               {{ expand(detectors) | selectattr('state', 'eq', 'on') | list | count > 0 }}
                         sequence:
                           - action: switch.turn_on
                             target:
-                              entity_id: !input blockage_switches
+                              entity_id: "{{ blockage_switches }}"
+                          - alias: The alarm ended in the meantime, release again
+                            if:
+                              - condition: template
+                                value_template: >-
+                                  {{ expand(detectors) | selectattr('state', 'eq', 'on') | list | count == 0 }}
+                            then:
+                              - action: switch.turn_off
+                                target:
+                                  entity_id: "{{ blockage_switches }}"
                       - alias: The blinds did not get up in time
                         conditions:
                           - condition: template
@@ -369,8 +433,8 @@ actions:
                             data:
                               title: Fire alarm
                               message: >-
-                                The blinds were not completely open within
-                                {{ open_timeout | int(180) }} seconds. They are not blocked.
+                                The blinds were not completely open after
+                                {{ open_timeout | int(180) }} seconds. They are not locked.
 
           - alias: Allow AutoLock handles to be unlocked
             sequence:
