@@ -841,10 +841,10 @@ class OpusGreenNetSettingsReadSensor(OpusGreenNetBaseSensor):
     """When the settings shown for the device were last read from it.
 
     The gateway reads the configuration of a device itself only now and then
-    (nightly in the E0 catalog) and a device whose answer fails keeps its old
-    values. The time is the gateway's cache time, or the time of the last
-    *Read settings*. A value that is old, for example after a restore from a
-    backup, is a reason to press *Read settings*.
+    (seen at night, around 04:08 on one installation), and a device whose
+    answer fails keeps its old values. The time is the gateway's cache time, or
+    the time of the last *Read settings*. A value that is old, for example after
+    a restore from a backup, is a reason to press *Read settings*.
     """
 
     _attr_device_class = SensorDeviceClass.TIMESTAMP

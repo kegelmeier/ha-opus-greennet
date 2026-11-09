@@ -51,24 +51,33 @@ def _list(**fields: object) -> dict:
         ("NotSeen", "not_seen"),
         ("NoResponse", "no_response"),
         ("SuccessfullLearnedIn", "learned_in"),
-        ("UnsupportedEEP", "unsupported_eep"),
         ("QueryStarting", "query_starting"),
-        ("QueryInProgress", "query_in_progress"),
-        ("SuccessfullQueried", "queried"),
-        ("UnsupportedProductId", "unsupported_product_id"),
-        ("InvalidProductId", "invalid_product_id"),
-        ("UnlockFailed", "unlock_failed"),
         ("WrongSecureCode", "wrong_secure_code"),
     ],
 )
-def test_every_state_of_the_gateway_has_an_option(wire, option) -> None:
+def test_every_observed_state_has_an_option(wire, option) -> None:
     assert protocol.reman_state({"remanState": wire}) == option
     assert option in REMAN_STATES.values()
 
 
-def test_the_table_holds_exactly_the_known_states() -> None:
-    assert len(REMAN_STATES) == 11
-    assert len(set(REMAN_STATES.values())) == 11
+def test_the_table_holds_exactly_the_observed_states() -> None:
+    assert len(REMAN_STATES) == 5
+    assert len(set(REMAN_STATES.values())) == 5
+
+
+@pytest.mark.parametrize(
+    "wire",
+    [
+        "UnsupportedEEP",
+        "QueryInProgress",
+        "SuccessfullQueried",
+        "UnsupportedProductId",
+        "InvalidProductId",
+        "UnlockFailed",
+    ],
+)
+def test_a_state_not_seen_on_a_gateway_is_unknown(wire) -> None:
+    assert protocol.reman_state({"remanState": wire}) is None
 
 
 @pytest.mark.parametrize(
@@ -100,11 +109,11 @@ def test_a_later_list_replaces_the_state_in_the_same_object(coord) -> None:
     device = coord.devices[DEVICE]
 
     coord._apply_device_list(  # noqa: SLF001
-        _list(remanState="SuccessfullQueried"), authoritative=True
+        _list(remanState="QueryStarting"), authoritative=True
     )
 
     assert coord.devices[DEVICE] is device
-    assert device.reman_state == "queried"
+    assert device.reman_state == "query_starting"
 
 
 @pytest.mark.parametrize("later", [{}, {"remanState": "SomethingNew"}])
@@ -142,7 +151,7 @@ def test_the_sensor_is_unknown_without_a_state() -> None:
 
 
 def test_the_sensor_metadata_and_default() -> None:
-    sensor = _sensor("queried")
+    sensor = _sensor("query_starting")
     assert sensor.unique_id == f"{EAG_ID}_DEV1_reman_state"
     assert sensor.translation_key == "reman_state"
     assert sensor.device_class is SensorDeviceClass.ENUM

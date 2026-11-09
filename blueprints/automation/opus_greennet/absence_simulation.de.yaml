@@ -1,0 +1,727 @@
+blueprint:
+  name: "Opus GreenNet: Abwesenheitssimulation für Beleuchtung"
+  description: |-
+    **Was das macht.** Solange du weg bist, schaltet diese Automation deine Lichter zu wechselnden Zeiten ein und aus. So wirkt die Wohnung bewohnt. Es ist **kein Einbruchschutz** und gibt keine Garantie.
+
+    **Einrichten in drei Schritten** (Bereich „Grundeinstellungen“):
+    1. Festlegen, wann du weg bist: Personen **oder** einen Abwesenheitsschalter wählen.
+    2. Lichter auswählen.
+    3. Den Zeitraum festlegen, in dem Lichter angehen dürfen.
+
+    Mehr brauchst du nicht. Alles andere ist optional.
+
+    **Wer zählt als abwesend? Wähle einen Weg, nicht beide.**
+    - Du hast Personen gewählt: Die Simulation läuft, solange alle diese Personen weg sind. Der Abwesenheitsschalter wird dann ignoriert.
+    - Du hast keine Personen gewählt: Der Abwesenheitsschalter entscheidet. Die Simulation läuft, solange jeder gewählte Schalter Ein ist.
+    - Du hast nichts davon gewählt (oder keine Lichter): Es läuft nichts. Zu Beginn des Zeitraums und nach einem Neustart von Home Assistant zeigt die Automation dann einen Fehler in ihrem Ablaufprotokoll. Du findest ihn unter Einstellungen > Automationen > diese Automation > Abläufe.
+
+    **So verhält sich die Simulation**
+    - Das erste Licht geht nicht sofort an. Zuerst kommt eine zufällige Pause von 5 bis 20 Minuten.
+    - Ein Licht leuchtet 15 bis 45 Minuten. Danach folgt eine Pause von 5 bis 20 Minuten. Manchmal sind zwei Lichter gleichzeitig an. Die Zahlen sind Entwurfswerte. Sie sind nicht als besonders realistisch belegt.
+    - Lichter, die beim Start der Simulation schon an sind, werden nie angefasst.
+    - Nur Lichter, die die Simulation selbst eingeschaltet hat, schaltet sie auch wieder aus.
+    - Die Simulation endet sofort, wenn jemand nach Hause kommt, der Abwesenheitsschalter ausgeht, der Zeitraum endet oder die zusätzliche Freigabe ausgeschaltet wird. Dann werden die Lichter ausgeschaltet, die sie eingeschaltet hat.
+    - Ist ein Zustand unbekannt oder nicht verfügbar, startet nichts, und eine laufende Simulation endet. Sie startet von selbst wieder, sobald der Zustand eindeutig ist.
+    - Helligkeit (optional): Der eingestellte Prozentwert gilt **nur für dimmbare Lichter**. Lichter, die nicht dimmen können (zum Beispiel ein einfacher Schalter), werden nur eingeschaltet.
+    - Tageslicht (optional): Mit Helligkeitssensoren (Lux) kannst du festlegen, dass die Simulation erst bei genug Dunkelheit starten darf und endet, sobald es hell genug ist. Beide Bedingungen sind optional. Im Bereich „Lux pro Licht“ kannst du einzelnen Lichtern einen eigenen Sensor geben.
+
+    **Gut zu wissen**
+    - Nach dem Speichern der Automation kann es bis zu 5 Minuten dauern, bis die Simulation startet.
+    - Wähle Lichter, die in deiner Abwesenheit keine andere Automation steuert.
+    - Änderst oder lädst du die Automation neu, schaltest sie aus oder startest Home Assistant während einer Simulation neu, wird sie abgebrochen, ohne auszuschalten. Lichter, die sie eingeschaltet hatte, können an bleiben. Nach einem Neustart zählen diese Lichter als „schon an“ und bleiben unangetastet.
+    - Ein Licht, das jemand ausschaltet oder das nicht verfügbar wird, wird für den Rest seines Durchgangs in Ruhe gelassen.
+    - Wähle einzelne Lichter, keine Lichtgruppen (Gruppen werden ignoriert).
+    - Die Grenze für gleichzeitig eingeschaltete Lichter zählt ausgewählte Entitäten, nicht physische Leuchtmittel.
+    - Benötigt Home Assistant 2024.10 oder neuer.
+  domain: automation
+  source_url: https://github.com/kegelmeier/ha-opus-greennet/blob/main/blueprints/automation/opus_greennet/absence_simulation.de.yaml
+  author: Opus GreenNet Bridge
+  homeassistant:
+    min_version: 2024.10.0
+  input:
+    basics:
+      name: "Grundeinstellungen"
+      icon: mdi:cog
+      description: "Diese drei Dinge genügen: wann du weg bist, welche Lichter, welcher Zeitraum."
+      collapsed: false
+      input:
+        persons:
+          name: "Personen, die weg sein müssen"
+          description: "Wähle die Personen, die alle weg sein müssen. Wählst du hier Personen, wird der Abwesenheitsschalter weiter unten ignoriert. Wenn niemand zu Hause sein darf, wähle alle Personen deines Haushalts. Eine Person, die zu Hause ist oder deren Zustand unbekannt oder nicht verfügbar ist, zählt nicht als abwesend. Lass das Feld leer, wenn du einen Abwesenheitsschalter nutzen willst."
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - domain: person
+        absence_switch:
+          name: "Abwesenheitsschalter (nur ohne Personen)"
+          description: "Wird nur benutzt, wenn du oben keine Personen gewählt hast. Ein Helfer oder Binärsensor, der Ein ist, wenn niemand zu Hause ist. Die Simulation läuft, solange jeder hier gewählte Schalter Ein ist. Hast du oben Personen gewählt, wird dieses Feld ignoriert."
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - domain:
+                    - input_boolean
+                    - binary_sensor
+                    - switch
+        lights:
+          name: "Lichter"
+          description: "Wähle die Lichter für die Simulation. Lichter verschiedener Hersteller können gemischt werden. Beleuchtung, die Home Assistant als Schalter zeigt (zum Beispiel ein Schaltaktor), kann ebenfalls gewählt werden. Wähle mindestens eins. Wähle einzelne Lichter, keine Lichtgruppen."
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - domain:
+                    - light
+                    - switch
+        window_start:
+          name: "Beginn des erlaubten Zeitraums"
+          description: "Nur innerhalb dieses Zeitraums werden Lichter eingeschaltet. Sind Beginn und Ende gleich, gilt der ganze Tag."
+          default: "19:00:00"
+          selector:
+            time:
+        window_end:
+          name: "Ende des erlaubten Zeitraums"
+          description: "Zu dieser Zeit endet die Simulation und schaltet aus, was sie eingeschaltet hat. Ein Zeitraum über Mitternacht funktioniert, zum Beispiel 22:00 bis 06:00."
+          default: "23:00:00"
+          selector:
+            time:
+    lux_section:
+      name: "Tageslicht (Lux) - optional"
+      icon: mdi:weather-sunny
+      description: "Optional. Ohne Sensoren entscheidet nur der Zeitraum. Du kannst eine Bedingung, beide oder keine nutzen."
+      collapsed: true
+      input:
+        lux_start_sensors:
+          name: "Startbedingung: Helligkeitssensoren"
+          description: "Optional. Die Simulation startet nur, solange diese Bedingung erfüllt ist, zusätzlich zum Zeitraum. Wähle Lux-Sensoren aus beliebigen Räumen. Beispiel: Sensoren unter 50 lx, damit im Sommer kein Licht angeht, solange es noch hell ist. Sensoren, die unbekannt oder nicht verfügbar sind, werden ignoriert. Liefert kein Sensor einen Wert, gilt die Bedingung als erfüllt."
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - domain: sensor
+                  device_class: illuminance
+        lux_start_direction:
+          name: "Startbedingung: Sensorwert muss sein"
+          description: "Wird nur benutzt, wenn du Start-Sensoren gewählt hast."
+          default: below
+          selector:
+            select:
+              mode: list
+              options:
+                - label: "unter dem Wert (es ist dunkel)"
+                  value: below
+                - label: "über dem Wert (es ist hell)"
+                  value: above
+        lux_start_value:
+          name: "Startbedingung: Wert (Lux)"
+          description: "Wird nur benutzt, wenn du Start-Sensoren gewählt hast. Typische Werte für „dunkel“ sind 20 bis 100 Lux."
+          default: 50
+          selector:
+            number:
+              min: 0
+              max: 10000
+              step: 1
+              unit_of_measurement: "lx"
+              mode: box
+        lux_end_sensors:
+          name: "Endbedingung: Helligkeitssensoren"
+          description: "Optional. Die Simulation endet vorzeitig, sobald diese Bedingung erfüllt ist, auch innerhalb des Zeitraums. Die Lichter, die sie eingeschaltet hat, werden ausgeschaltet. Wähle Lux-Sensoren aus beliebigen Räumen. Beispiel: Sensoren über 100 lx, damit die Simulation endet, wenn die Sonne aufgeht. Sensoren, die unbekannt oder nicht verfügbar sind, werden ignoriert. Liefert kein Sensor einen Wert, beendet die Bedingung die Simulation nicht."
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - domain: sensor
+                  device_class: illuminance
+        lux_end_direction:
+          name: "Endbedingung: Sensorwert muss sein"
+          description: "Wird nur benutzt, wenn du End-Sensoren gewählt hast."
+          default: above
+          selector:
+            select:
+              mode: list
+              options:
+                - label: "über dem Wert (es ist hell)"
+                  value: above
+                - label: "unter dem Wert (es ist dunkel)"
+                  value: below
+        lux_end_value:
+          name: "Endbedingung: Wert (Lux)"
+          description: "Wird nur benutzt, wenn du End-Sensoren gewählt hast. Tipp: Wähle einen Wert, der sich deutlich vom Startwert unterscheidet, damit die Simulation nicht immer wieder startet und endet."
+          default: 100
+          selector:
+            number:
+              min: 0
+              max: 10000
+              step: 1
+              unit_of_measurement: "lx"
+              mode: box
+        lux_match:
+          name: "Mehrere Sensoren: welche müssen passen?"
+          description: "Wichtig nur, wenn du mehr als einen Sensor gewählt hast. Gilt für die Start- und die Endbedingung."
+          default: all
+          selector:
+            select:
+              mode: list
+              options:
+                - label: "Alle gewählten Sensoren müssen passen"
+                  value: all
+                - label: "Mindestens ein gewählter Sensor muss passen"
+                  value: any
+    lux_pair_section:
+      name: "Lux pro Licht - optional"
+      icon: mdi:lightbulb-on-outline
+      description: "Optional. Ein Licht mit eigenem Sensor geht nur an, solange sein Sensor zur Startbedingung oben passt, und sein Durchgang endet vorzeitig, wenn sein Sensor zur Endbedingung oben passt. Die Werte (unter/über, Lux) sind die aus dem Bereich „Tageslicht (Lux)“, auch wenn du dort keine Sensoren gewählt hast. Lichter, die du hier wählst, gehören automatisch zur Simulation, du musst sie nicht noch einmal wählen. Lichter ohne Sensor hier folgen den allgemeinen Regeln. Es können nur Sensoren gewählt werden, die es in Home Assistant gibt."
+      collapsed: true
+      input:
+        lux_pair_1_light:
+          name: "Paar 1: Licht"
+          description: "Optional. Ein Licht, das einen eigenen Helligkeitssensor bekommt."
+          default: ""
+          selector:
+            entity:
+              filter:
+                - domain:
+                    - light
+                    - switch
+        lux_pair_1_sensor:
+          name: "Paar 1: Helligkeitssensor für dieses Licht"
+          description: "Optional. Lux-Sensor für das Licht dieses Paars. Ist er unbekannt oder nicht verfügbar, folgt das Licht den allgemeinen Regeln."
+          default: ""
+          selector:
+            entity:
+              filter:
+                - domain: sensor
+                  device_class: illuminance
+        lux_pair_2_light:
+          name: "Paar 2: Licht"
+          description: "Optional. Ein Licht, das einen eigenen Helligkeitssensor bekommt."
+          default: ""
+          selector:
+            entity:
+              filter:
+                - domain:
+                    - light
+                    - switch
+        lux_pair_2_sensor:
+          name: "Paar 2: Helligkeitssensor für dieses Licht"
+          description: "Optional. Lux-Sensor für das Licht dieses Paars. Ist er unbekannt oder nicht verfügbar, folgt das Licht den allgemeinen Regeln."
+          default: ""
+          selector:
+            entity:
+              filter:
+                - domain: sensor
+                  device_class: illuminance
+        lux_pair_3_light:
+          name: "Paar 3: Licht"
+          description: "Optional. Ein Licht, das einen eigenen Helligkeitssensor bekommt."
+          default: ""
+          selector:
+            entity:
+              filter:
+                - domain:
+                    - light
+                    - switch
+        lux_pair_3_sensor:
+          name: "Paar 3: Helligkeitssensor für dieses Licht"
+          description: "Optional. Lux-Sensor für das Licht dieses Paars. Ist er unbekannt oder nicht verfügbar, folgt das Licht den allgemeinen Regeln."
+          default: ""
+          selector:
+            entity:
+              filter:
+                - domain: sensor
+                  device_class: illuminance
+        lux_pair_4_light:
+          name: "Paar 4: Licht"
+          description: "Optional. Ein Licht, das einen eigenen Helligkeitssensor bekommt."
+          default: ""
+          selector:
+            entity:
+              filter:
+                - domain:
+                    - light
+                    - switch
+        lux_pair_4_sensor:
+          name: "Paar 4: Helligkeitssensor für dieses Licht"
+          description: "Optional. Lux-Sensor für das Licht dieses Paars. Ist er unbekannt oder nicht verfügbar, folgt das Licht den allgemeinen Regeln."
+          default: ""
+          selector:
+            entity:
+              filter:
+                - domain: sensor
+                  device_class: illuminance
+        lux_pair_5_light:
+          name: "Paar 5: Licht"
+          description: "Optional. Ein Licht, das einen eigenen Helligkeitssensor bekommt."
+          default: ""
+          selector:
+            entity:
+              filter:
+                - domain:
+                    - light
+                    - switch
+        lux_pair_5_sensor:
+          name: "Paar 5: Helligkeitssensor für dieses Licht"
+          description: "Optional. Lux-Sensor für das Licht dieses Paars. Ist er unbekannt oder nicht verfügbar, folgt das Licht den allgemeinen Regeln."
+          default: ""
+          selector:
+            entity:
+              filter:
+                - domain: sensor
+                  device_class: illuminance
+        lux_pair_6_light:
+          name: "Paar 6: Licht"
+          description: "Optional. Ein Licht, das einen eigenen Helligkeitssensor bekommt."
+          default: ""
+          selector:
+            entity:
+              filter:
+                - domain:
+                    - light
+                    - switch
+        lux_pair_6_sensor:
+          name: "Paar 6: Helligkeitssensor für dieses Licht"
+          description: "Optional. Lux-Sensor für das Licht dieses Paars. Ist er unbekannt oder nicht verfügbar, folgt das Licht den allgemeinen Regeln."
+          default: ""
+          selector:
+            entity:
+              filter:
+                - domain: sensor
+                  device_class: illuminance
+    release_section:
+      name: "Zusätzliche Freigabe - optional"
+      icon: mdi:beach
+      description: "Optional. Du kannst das leer lassen."
+      collapsed: true
+      input:
+        release_entities:
+          name: "Zusätzliche Freigabe"
+          description: "Wenn du hier zum Beispiel deinen Urlaubsschalter wählst, läuft die Simulation nur, solange er an ist. Ohne Auswahl ist keine zusätzliche Freigabe nötig. Abwesenheit und Zeitraum gelten weiterhin. Wählst du mehrere, müssen alle an sein."
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - domain:
+                    - input_boolean
+                    - binary_sensor
+                    - switch
+    brightness_section:
+      name: "Helligkeit - optional"
+      icon: mdi:brightness-6
+      description: "Optional. Betrifft nur dimmbare Lichter. Du kannst das leer lassen."
+      collapsed: true
+      input:
+        set_brightness:
+          name: "Helligkeit setzen (nur dimmbare Lichter)"
+          description: "Aus: Lichter werden nur eingeschaltet, es wird keine Helligkeit gesendet. An: Die Helligkeit unten wird benutzt. Das funktioniert nur bei dimmbaren Lichtern. Hast du dimmbare und nicht dimmbare Lichter gewählt, werden die nicht dimmbaren einfach eingeschaltet. Es betrifft nur das Einschalten durch die Simulation. Früher gespeicherte Werte eines Geräts werden danach nicht wiederhergestellt. Hinweis: Bei Aus schaltet ein Opus-Dimmer mit voller Helligkeit ein."
+          default: false
+          selector:
+            boolean:
+        brightness_pct:
+          name: "Helligkeit in Prozent (nur dimmbare Lichter)"
+          description: "Wird nur benutzt, wenn „Helligkeit setzen“ an ist, und nur für dimmbare Lichter."
+          default: 50
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: "%"
+              mode: slider
+    advanced_section:
+      name: "Erweiterte Einstellungen"
+      icon: mdi:tune
+      description: "Hier musst du normalerweise nichts ändern."
+      collapsed: true
+      input:
+        max_lights:
+          name: "Höchstens gleichzeitig eingeschaltete Lichter"
+          description: "Diese Simulation schaltet höchstens so viele der gewählten Lichter gleichzeitig ein. Lichter, die auf anderem Weg eingeschaltet wurden, bleiben unangetastet. Das ist eine Obergrenze, kein Ziel. Es können weniger Lichter oder keins an sein. Gezählt werden gewählte Entitäten, nicht physische Leuchtmittel."
+          default: 2
+          selector:
+            number:
+              min: 1
+              max: 6
+              step: 1
+              mode: box
+
+mode: queued
+max: 2
+max_exceeded: silent
+
+triggers:
+  - trigger: state
+    id: presence
+    entity_id: !input persons
+  - trigger: state
+    id: absence_switch
+    entity_id: !input absence_switch
+  - trigger: state
+    id: release
+    entity_id: !input release_entities
+  - trigger: time
+    id: window_start
+    at: !input window_start
+  - trigger: homeassistant
+    id: ha_start
+    event: start
+  - trigger: time_pattern
+    id: periodic_check
+    minutes: "/5"
+
+variables:
+  persons: !input persons
+  absence_switch: !input absence_switch
+  lights_in: !input lights
+  lux_start_sensors: !input lux_start_sensors
+  lux_start_direction: !input lux_start_direction
+  lux_start_value: !input lux_start_value
+  lux_end_sensors: !input lux_end_sensors
+  lux_end_direction: !input lux_end_direction
+  lux_end_value: !input lux_end_value
+  lux_match: !input lux_match
+  window_start: !input window_start
+  window_end: !input window_end
+  release_entities: !input release_entities
+  set_brightness: !input set_brightness
+  brightness_pct: !input brightness_pct
+  max_lights: !input max_lights
+  pairs_raw:
+    - - !input lux_pair_1_light
+      - !input lux_pair_1_sensor
+    - - !input lux_pair_2_light
+      - !input lux_pair_2_sensor
+    - - !input lux_pair_3_light
+      - !input lux_pair_3_sensor
+    - - !input lux_pair_4_light
+      - !input lux_pair_4_sensor
+    - - !input lux_pair_5_light
+      - !input lux_pair_5_sensor
+    - - !input lux_pair_6_light
+      - !input lux_pair_6_sensor
+  targets: >-
+    {%- set a = lights_in if lights_in is not string else [lights_in] -%}
+    {%- set ns = namespace(l=a | list) -%}
+    {%- for p in pairs_raw if p[0] -%}
+      {%- set ns.l = ns.l + [p[0]] -%}
+    {%- endfor -%}
+    {{ ns.l | unique | list }}
+  light_sensor: >-
+    {%- set ns = namespace(m={}) -%}
+    {%- for p in pairs_raw if p[0] and p[1] -%}
+      {%- set ns.m = ns.m | combine({p[0]: p[1]}) -%}
+    {%- endfor -%}
+    {{ ns.m }}
+actions:
+  - alias: "Ende des Zeitraums berechnen"
+    variables:
+      end_ts: >-
+        {%- set s = (window_start ~ ':00')[:8] -%}
+        {%- set e = (window_end ~ ':00')[:8] -%}
+        {%- set n = now().strftime('%H:%M:%S') -%}
+        {%- if s == e -%}
+          {{ now().timestamp() + 86400 }}
+        {%- elif (s < e and s <= n and n < e) or (s > e and (n >= s or n < e)) -%}
+          {%- set c = today_at(e) -%}
+          {{ (c if c > now() else c + timedelta(days=1)).timestamp() }}
+        {%- else -%}
+          0
+        {%- endif -%}
+  - alias: "Fehler zeigen, wenn der Blueprint nicht eingerichtet ist"
+    if:
+      - condition: template
+        value_template: >-
+          {{ ((persons | count) + (absence_switch | count) == 0 or (targets | count) == 0) and (trigger.id | default('')) in ['ha_start', 'window_start'] }}
+    then:
+      - stop: "Die Abwesenheitssimulation ist nicht eingerichtet. Wähle in den Einstellungen der Automation Personen oder einen Abwesenheitsschalter und mindestens ein Licht."
+        error: true
+  - alias: "Nur weitermachen, wenn die Simulation jetzt starten darf"
+    condition: template
+    value_template: >-
+      {%- set bad = ['home', 'unknown', 'unavailable'] -%}
+      {%- set n_p = persons | count -%}
+      {%- set n_a = absence_switch | count -%}
+      {%- set n_r = release_entities | count -%}
+      {%- set away = (n_p > 0 and (expand(persons) | rejectattr('state', 'in', bad) | list | count) == n_p)
+         or (n_p == 0 and n_a > 0 and (expand(absence_switch) | selectattr('state', 'eq', 'on') | list | count) == n_a) -%}
+      {%- set released = n_r == 0 or (expand(release_entities) | selectattr('state', 'eq', 'on') | list | count) == n_r -%}
+      {%- set ex = expand(lux_end_sensors) | map(attribute='state') | map('float', none) | reject('none') | list -%}
+      {%- set ex_hit = (ex | select('lt', lux_end_value | float(0)) | list | count) if lux_end_direction == 'below' else (ex | select('gt', lux_end_value | float(0)) | list | count) -%}
+      {%- set end_hit = (ex | count) > 0 and (ex_hit == (ex | count) if lux_match == 'all' else ex_hit > 0) -%}
+      {%- set stop = not (away and released and not end_hit and now().timestamp() < end_ts) -%}
+      {{ not stop and (targets | count) > 0 }}
+  - alias: "Warten, bis die Start-Helligkeitsbedingung erfüllt ist (nur mit Start-Sensoren)"
+    wait_template: >-
+      {%- set bad = ['home', 'unknown', 'unavailable'] -%}
+      {%- set n_p = persons | count -%}
+      {%- set n_a = absence_switch | count -%}
+      {%- set n_r = release_entities | count -%}
+      {%- set away = (n_p > 0 and (expand(persons) | rejectattr('state', 'in', bad) | list | count) == n_p)
+         or (n_p == 0 and n_a > 0 and (expand(absence_switch) | selectattr('state', 'eq', 'on') | list | count) == n_a) -%}
+      {%- set released = n_r == 0 or (expand(release_entities) | selectattr('state', 'eq', 'on') | list | count) == n_r -%}
+      {%- set ex = expand(lux_end_sensors) | map(attribute='state') | map('float', none) | reject('none') | list -%}
+      {%- set ex_hit = (ex | select('lt', lux_end_value | float(0)) | list | count) if lux_end_direction == 'below' else (ex | select('gt', lux_end_value | float(0)) | list | count) -%}
+      {%- set end_hit = (ex | count) > 0 and (ex_hit == (ex | count) if lux_match == 'all' else ex_hit > 0) -%}
+      {%- set stop = not (away and released and not end_hit and now().timestamp() < end_ts) -%}
+      {%- set sx = expand(lux_start_sensors) | map(attribute='state') | map('float', none) | reject('none') | list -%}
+      {%- set sx_hit = (sx | select('lt', lux_start_value | float(0)) | list | count) if lux_start_direction == 'below' else (sx | select('gt', lux_start_value | float(0)) | list | count) -%}
+      {%- set start_ok = (sx | count) == 0 or (sx_hit == (sx | count) if lux_match == 'all' else sx_hit > 0) -%}
+      {{ stop or start_ok }}
+    timeout: "{{ [ (end_ts - now().timestamp()) | int, 0 ] | max }}"
+    continue_on_timeout: true
+  - alias: "Nur weitermachen, wenn die Simulation weiter erlaubt ist"
+    condition: template
+    value_template: >-
+      {%- set bad = ['home', 'unknown', 'unavailable'] -%}
+      {%- set n_p = persons | count -%}
+      {%- set n_a = absence_switch | count -%}
+      {%- set n_r = release_entities | count -%}
+      {%- set away = (n_p > 0 and (expand(persons) | rejectattr('state', 'in', bad) | list | count) == n_p)
+         or (n_p == 0 and n_a > 0 and (expand(absence_switch) | selectattr('state', 'eq', 'on') | list | count) == n_a) -%}
+      {%- set released = n_r == 0 or (expand(release_entities) | selectattr('state', 'eq', 'on') | list | count) == n_r -%}
+      {%- set ex = expand(lux_end_sensors) | map(attribute='state') | map('float', none) | reject('none') | list -%}
+      {%- set ex_hit = (ex | select('lt', lux_end_value | float(0)) | list | count) if lux_end_direction == 'below' else (ex | select('gt', lux_end_value | float(0)) | list | count) -%}
+      {%- set end_hit = (ex | count) > 0 and (ex_hit == (ex | count) if lux_match == 'all' else ex_hit > 0) -%}
+      {%- set stop = not (away and released and not end_hit and now().timestamp() < end_ts) -%}
+      {{ not stop }}
+  - alias: "Bereits eingeschaltete Lichter merken"
+    variables:
+      excluded: >-
+        {{ expand(targets) | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list }}
+  - alias: "Simulation ausführen, bis eine Stoppbedingung gilt"
+    repeat:
+      while:
+        - condition: template
+          value_template: >-
+            {%- set bad = ['home', 'unknown', 'unavailable'] -%}
+            {%- set n_p = persons | count -%}
+            {%- set n_a = absence_switch | count -%}
+            {%- set n_r = release_entities | count -%}
+            {%- set away = (n_p > 0 and (expand(persons) | rejectattr('state', 'in', bad) | list | count) == n_p)
+               or (n_p == 0 and n_a > 0 and (expand(absence_switch) | selectattr('state', 'eq', 'on') | list | count) == n_a) -%}
+            {%- set released = n_r == 0 or (expand(release_entities) | selectattr('state', 'eq', 'on') | list | count) == n_r -%}
+            {%- set ex = expand(lux_end_sensors) | map(attribute='state') | map('float', none) | reject('none') | list -%}
+            {%- set ex_hit = (ex | select('lt', lux_end_value | float(0)) | list | count) if lux_end_direction == 'below' else (ex | select('gt', lux_end_value | float(0)) | list | count) -%}
+            {%- set end_hit = (ex | count) > 0 and (ex_hit == (ex | count) if lux_match == 'all' else ex_hit > 0) -%}
+            {%- set stop = not (away and released and not end_hit and now().timestamp() < end_ts) -%}
+            {{ not stop }}
+      sequence:
+        - alias: "Zufällige Pause wählen"
+          variables:
+            pause_s: >-
+              {{ [ [ (range(300, 1201, 30) | random), ((end_ts - now().timestamp()) | int) ] | min, 0 ] | max }}
+        - alias: "Pause (endet vorzeitig, wenn die Simulation enden muss)"
+          wait_template: >-
+            {%- set bad = ['home', 'unknown', 'unavailable'] -%}
+            {%- set n_p = persons | count -%}
+            {%- set n_a = absence_switch | count -%}
+            {%- set n_r = release_entities | count -%}
+            {%- set away = (n_p > 0 and (expand(persons) | rejectattr('state', 'in', bad) | list | count) == n_p)
+               or (n_p == 0 and n_a > 0 and (expand(absence_switch) | selectattr('state', 'eq', 'on') | list | count) == n_a) -%}
+            {%- set released = n_r == 0 or (expand(release_entities) | selectattr('state', 'eq', 'on') | list | count) == n_r -%}
+            {%- set ex = expand(lux_end_sensors) | map(attribute='state') | map('float', none) | reject('none') | list -%}
+            {%- set ex_hit = (ex | select('lt', lux_end_value | float(0)) | list | count) if lux_end_direction == 'below' else (ex | select('gt', lux_end_value | float(0)) | list | count) -%}
+            {%- set end_hit = (ex | count) > 0 and (ex_hit == (ex | count) if lux_match == 'all' else ex_hit > 0) -%}
+            {%- set stop = not (away and released and not end_hit and now().timestamp() < end_ts) -%}
+            {{ stop }}
+          timeout: "{{ pause_s }}"
+          continue_on_timeout: true
+        - alias: "Abbrechen, wenn die Simulation enden muss"
+          condition: template
+          value_template: >-
+            {%- set bad = ['home', 'unknown', 'unavailable'] -%}
+            {%- set n_p = persons | count -%}
+            {%- set n_a = absence_switch | count -%}
+            {%- set n_r = release_entities | count -%}
+            {%- set away = (n_p > 0 and (expand(persons) | rejectattr('state', 'in', bad) | list | count) == n_p)
+               or (n_p == 0 and n_a > 0 and (expand(absence_switch) | selectattr('state', 'eq', 'on') | list | count) == n_a) -%}
+            {%- set released = n_r == 0 or (expand(release_entities) | selectattr('state', 'eq', 'on') | list | count) == n_r -%}
+            {%- set ex = expand(lux_end_sensors) | map(attribute='state') | map('float', none) | reject('none') | list -%}
+            {%- set ex_hit = (ex | select('lt', lux_end_value | float(0)) | list | count) if lux_end_direction == 'below' else (ex | select('gt', lux_end_value | float(0)) | list | count) -%}
+            {%- set end_hit = (ex | count) > 0 and (ex_hit == (ex | count) if lux_match == 'all' else ex_hit > 0) -%}
+            {%- set stop = not (away and released and not end_hit and now().timestamp() < end_ts) -%}
+            {{ not stop }}
+        - alias: "Nächste Runde der Lichter planen"
+          variables:
+            plan: >-
+              {%- set pool = namespace(rows=[]) -%}
+              {%- for e in targets -%}
+                {%- if states(e) == 'off' and e not in excluded and state_attr(e, 'entity_id') is none -%}
+                  {%- set pool.rows = pool.rows + [{'e': e, 'ts': as_timestamp(states[e].last_changed)}] -%}
+                {%- endif -%}
+              {%- endfor -%}
+              {%- set cands = pool.rows | sort(attribute='ts', reverse=true) | map(attribute='e') | list -%}
+              {%- set m = [max_lights | int(2), cands | count] | min -%}
+              {%- if cands | count >= 3 -%}
+                {%- set m = [m, cands | count - 1] | min -%}
+              {%- endif -%}
+              {%- set n = 0 -%}
+              {%- if m >= 1 -%}
+                {%- set n = 1 if (m == 1 or (range(0, 100) | random) < 45) else (range(2, m + 1) | random) -%}
+              {%- endif -%}
+              {%- set first_pool = cands[1:] if cands | count >= 2 else cands -%}
+              {%- set out = namespace(rows=[], left=cands, d1=900) -%}
+              {%- set base = now().timestamp() -%}
+              {%- for k in range(n) -%}
+                {%- set cand = first_pool if k == 0 else out.left -%}
+                {%- if cand | count > 0 -%}
+                  {%- set pick = cand | random -%}
+                  {%- set dur = range(900, 2701, 60) | random -%}
+                  {%- if k == 0 -%}
+                    {%- set out.d1 = dur -%}
+                  {%- endif -%}
+                  {%- set t_on = base + (0 if k == 0 else (range(180, out.d1 - 119, 60) | random)) -%}
+                  {%- set t_off = [t_on + dur, end_ts] | min -%}
+                  {%- if t_off - t_on >= 300 -%}
+                    {%- set modes = state_attr(pick, 'supported_color_modes') or [] -%}
+                    {%- set dim = 1 if (set_brightness and pick.startswith('light.') and (modes | reject('in', ['onoff', 'unknown']) | list | count) > 0) else 0 -%}
+                    {%- set out.rows = out.rows + [{'entity': pick, 't_on': t_on | int, 't_off': t_off | int, 'dim': dim, 'sensor': (light_sensor.get(pick) or '')}] -%}
+                  {%- endif -%}
+                  {%- set out.left = out.left | reject('eq', pick) | list -%}
+                {%- endif -%}
+              {%- endfor -%}
+              {{ out.rows }}
+        - variables:
+            slot_0: "{{ plan[0:1] }}"
+            slot_1: "{{ plan[1:2] }}"
+            slot_2: "{{ plan[2:3] }}"
+            slot_3: "{{ plan[3:4] }}"
+            slot_4: "{{ plan[4:5] }}"
+            slot_5: "{{ plan[5:6] }}"
+        - alias: "Geplante Lichter nebeneinander ausführen"
+          parallel:
+            - repeat:
+                for_each: "{{ slot_0 }}"
+                sequence: &slot
+                  - alias: "Auf die geplante Einschaltzeit warten (endet vorzeitig beim Stopp)"
+                    wait_template: >-
+                      {%- set bad = ['home', 'unknown', 'unavailable'] -%}
+                      {%- set n_p = persons | count -%}
+                      {%- set n_a = absence_switch | count -%}
+                      {%- set n_r = release_entities | count -%}
+                      {%- set away = (n_p > 0 and (expand(persons) | rejectattr('state', 'in', bad) | list | count) == n_p)
+                         or (n_p == 0 and n_a > 0 and (expand(absence_switch) | selectattr('state', 'eq', 'on') | list | count) == n_a) -%}
+                      {%- set released = n_r == 0 or (expand(release_entities) | selectattr('state', 'eq', 'on') | list | count) == n_r -%}
+                      {%- set ex = expand(lux_end_sensors) | map(attribute='state') | map('float', none) | reject('none') | list -%}
+                      {%- set ex_hit = (ex | select('lt', lux_end_value | float(0)) | list | count) if lux_end_direction == 'below' else (ex | select('gt', lux_end_value | float(0)) | list | count) -%}
+                      {%- set end_hit = (ex | count) > 0 and (ex_hit == (ex | count) if lux_match == 'all' else ex_hit > 0) -%}
+                      {%- set stop = not (away and released and not end_hit and now().timestamp() < end_ts) -%}
+                      {{ stop }}
+                    timeout: >-
+                      {{ [ (repeat.item.t_on - now().timestamp()) | int, 0 ] | max }}
+                    continue_on_timeout: true
+                  - alias: "Nur einschalten, wenn es noch erlaubt und das Licht aus ist"
+                    if:
+                      - condition: template
+                        value_template: >-
+                          {%- set bad = ['home', 'unknown', 'unavailable'] -%}
+                          {%- set n_p = persons | count -%}
+                          {%- set n_a = absence_switch | count -%}
+                          {%- set n_r = release_entities | count -%}
+                          {%- set away = (n_p > 0 and (expand(persons) | rejectattr('state', 'in', bad) | list | count) == n_p)
+                             or (n_p == 0 and n_a > 0 and (expand(absence_switch) | selectattr('state', 'eq', 'on') | list | count) == n_a) -%}
+                          {%- set released = n_r == 0 or (expand(release_entities) | selectattr('state', 'eq', 'on') | list | count) == n_r -%}
+                          {%- set ex = expand(lux_end_sensors) | map(attribute='state') | map('float', none) | reject('none') | list -%}
+                          {%- set ex_hit = (ex | select('lt', lux_end_value | float(0)) | list | count) if lux_end_direction == 'below' else (ex | select('gt', lux_end_value | float(0)) | list | count) -%}
+                          {%- set end_hit = (ex | count) > 0 and (ex_hit == (ex | count) if lux_match == 'all' else ex_hit > 0) -%}
+                          {%- set stop = not (away and released and not end_hit and now().timestamp() < end_ts) -%}
+                          {%- set sv = (states(repeat.item.sensor) | float(none)) if repeat.item.sensor else none -%}
+                          {%- set own_ok = sv is none or ((sv < (lux_start_value | float(0))) if lux_start_direction == 'below' else (sv > (lux_start_value | float(0)))) -%}
+                          {{ not stop and is_state(repeat.item.entity, 'off') and now().timestamp() >= repeat.item.t_on - 3 and own_ok }}
+                    then:
+                      - alias: "Licht einschalten"
+                        choose:
+                          - conditions:
+                              - condition: template
+                                value_template: >-
+                                  {{ repeat.item.dim == 1 }}
+                            sequence:
+                              - action: light.turn_on
+                                target:
+                                  entity_id: >-
+                                    {{ repeat.item.entity }}
+                                data:
+                                  brightness_pct: >-
+                                    {{ brightness_pct | int(50) }}
+                        default:
+                          - action: homeassistant.turn_on
+                            target:
+                              entity_id: >-
+                                {{ repeat.item.entity }}
+                      - alias: "Warten, bis das Licht „an“ meldet (höchstens 30 Sekunden)"
+                        wait_template: >-
+                          {{ is_state(repeat.item.entity, 'on') }}
+                        timeout: 30
+                        continue_on_timeout: true
+                      - alias: "Licht bis zur Endzeit an lassen oder bis die Simulation enden muss"
+                        if:
+                          - condition: template
+                            value_template: >-
+                              {{ is_state(repeat.item.entity, 'on') }}
+                        then:
+                          - wait_template: >-
+                              {%- set bad = ['home', 'unknown', 'unavailable'] -%}
+                              {%- set n_p = persons | count -%}
+                              {%- set n_a = absence_switch | count -%}
+                              {%- set n_r = release_entities | count -%}
+                              {%- set away = (n_p > 0 and (expand(persons) | rejectattr('state', 'in', bad) | list | count) == n_p)
+                                 or (n_p == 0 and n_a > 0 and (expand(absence_switch) | selectattr('state', 'eq', 'on') | list | count) == n_a) -%}
+                              {%- set released = n_r == 0 or (expand(release_entities) | selectattr('state', 'eq', 'on') | list | count) == n_r -%}
+                              {%- set ex = expand(lux_end_sensors) | map(attribute='state') | map('float', none) | reject('none') | list -%}
+                              {%- set ex_hit = (ex | select('lt', lux_end_value | float(0)) | list | count) if lux_end_direction == 'below' else (ex | select('gt', lux_end_value | float(0)) | list | count) -%}
+                              {%- set end_hit = (ex | count) > 0 and (ex_hit == (ex | count) if lux_match == 'all' else ex_hit > 0) -%}
+                              {%- set stop = not (away and released and not end_hit and now().timestamp() < end_ts) -%}
+                              {%- set sv = (states(repeat.item.sensor) | float(none)) if repeat.item.sensor else none -%}
+                              {%- set own_end = sv is not none and ((sv > (lux_end_value | float(0))) if lux_end_direction == 'above' else (sv < (lux_end_value | float(0)))) -%}
+                              {{ stop or own_end or not is_state(repeat.item.entity, 'on') }}
+                            timeout: >-
+                              {{ [ (repeat.item.t_off - now().timestamp()) | int, 0 ] | max }}
+                            continue_on_timeout: true
+                        else:
+                          - wait_template: >-
+                              {%- set bad = ['home', 'unknown', 'unavailable'] -%}
+                              {%- set n_p = persons | count -%}
+                              {%- set n_a = absence_switch | count -%}
+                              {%- set n_r = release_entities | count -%}
+                              {%- set away = (n_p > 0 and (expand(persons) | rejectattr('state', 'in', bad) | list | count) == n_p)
+                                 or (n_p == 0 and n_a > 0 and (expand(absence_switch) | selectattr('state', 'eq', 'on') | list | count) == n_a) -%}
+                              {%- set released = n_r == 0 or (expand(release_entities) | selectattr('state', 'eq', 'on') | list | count) == n_r -%}
+                              {%- set ex = expand(lux_end_sensors) | map(attribute='state') | map('float', none) | reject('none') | list -%}
+                              {%- set ex_hit = (ex | select('lt', lux_end_value | float(0)) | list | count) if lux_end_direction == 'below' else (ex | select('gt', lux_end_value | float(0)) | list | count) -%}
+                              {%- set end_hit = (ex | count) > 0 and (ex_hit == (ex | count) if lux_match == 'all' else ex_hit > 0) -%}
+                              {%- set stop = not (away and released and not end_hit and now().timestamp() < end_ts) -%}
+                              {{ stop }}
+                            timeout: >-
+                              {{ [ (repeat.item.t_off - now().timestamp()) | int, 0 ] | max }}
+                            continue_on_timeout: true
+                      - alias: "Nur ein Licht ausschalten, das die Simulation selbst eingeschaltet hat"
+                        if:
+                          - condition: template
+                            value_template: >-
+                              {{ is_state(repeat.item.entity, 'on') and as_timestamp(states[repeat.item.entity].last_changed) >= repeat.item.t_on - 5 and as_timestamp(states[repeat.item.entity].last_changed) <= repeat.item.t_on + 180 }}
+                        then:
+                          - action: homeassistant.turn_off
+                            target:
+                              entity_id: >-
+                                {{ repeat.item.entity }}
+            - repeat:
+                for_each: "{{ slot_1 }}"
+                sequence: *slot
+            - repeat:
+                for_each: "{{ slot_2 }}"
+                sequence: *slot
+            - repeat:
+                for_each: "{{ slot_3 }}"
+                sequence: *slot
+            - repeat:
+                for_each: "{{ slot_4 }}"
+                sequence: *slot
+            - repeat:
+                for_each: "{{ slot_5 }}"
+                sequence: *slot
