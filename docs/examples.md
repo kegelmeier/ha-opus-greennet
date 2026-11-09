@@ -44,7 +44,10 @@ through HACS.
   are afterwards and can be controlled again.
 - **Water leak, warn.** Runs your warning actions when a leak sensor reports
   water and can repeat them every few minutes until the sensor reports dry. A
-  gateway outage (*unavailable*) does not count as dry.
+  gateway outage (*unavailable*) does not count as dry. Water leak sensors of
+  other makers work too: the picker shows every binary sensor of the type
+  *moisture*. The *Warning* field explains step by step how to get a message on
+  your phone.
 - **Fire alarm (smoke or heat).** When a detector reports an alarm, runs your
   warning actions (optionally repeated until the alarm is over), switches on
   lights, opens blinds and can unlock AutoLock window handles. Every part is
