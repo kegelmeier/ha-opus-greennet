@@ -12,13 +12,14 @@ blueprint:
 
     **How long does the light stay on?** The extra time starts when ALL chosen sensors are quiet. Many sensors have their own hold time. The real time is the hold time of the sensor plus the time you set here.
 
-    **Optional parts** (sections 2 to 5, closed at the start): a fixed brightness, "only when it is dark", a night light with other lights or another brightness, and a lock. Leave them alone if you do not need them. Fields of an optional part only matter if you switch that part on.
+    **Optional parts** (sections 2 to 4, closed at the start): a fixed brightness, "only when it is dark" and a night light. Each part has its own light selection: pick the lights again in every part you switch on. Leave a part alone if you do not need it. Its fields only matter if you switch the part on.
 
     **Good to know**
     - The automation only switches off lights that it switched on itself. A light that was already on stays as it is.
     - If you switch a light off by hand while someone is in the room, it is not switched on again until the room has been empty for the extra time.
     - If Home Assistant restarts, or this automation is saved or reloaded, it forgets which lights it switched on. Those lights then stay on until you switch them off.
     - The sensors and the lights must already exist in Home Assistant. Sensors and lights of different makers can be mixed.
+    - Only lights are supported. If your lamp is shown as a switch, create a light from it first (Settings > Devices & services > Helpers > Switch as X > Light).
   domain: automation
   author: Opus GreenNet Bridge
   source_url: https://github.com/kegelmeier/ha-opus-greennet/blob/main/blueprints/automation/opus_greennet/motion_presence_light.yaml
@@ -48,27 +49,12 @@ blueprint:
         lights:
           name: Lights
           description: >-
-            The lights to switch on. Leave this empty if you only use light
-            switches (next field). Fill in at least one of the two fields. The
-            form cannot check this: without a light the automation writes an
-            error to its trace.
-          default: []
+            The lights to switch on. You can pick several.
           selector:
             entity:
               multiple: true
               filter:
                 - domain: light
-        extra_switches:
-          name: More light switches
-          description: >-
-            For lighting that Home Assistant shows as a switch. Only pick
-            switches that really control a light.
-          default: []
-          selector:
-            entity:
-              multiple: true
-              filter:
-                - domain: switch
         off_delay:
           name: Stay on after the last movement
           description: >-
@@ -92,12 +78,24 @@ blueprint:
         set_brightness:
           name: Set the brightness
           description: >-
-            Off: the lights are only switched on, no brightness is set. On:
-            dimmable lights get the brightness below. Lights that cannot be
-            dimmed and switches are just switched on.
+            Off: the lights are only switched on, no brightness is set. On: the
+            lights picked below get the brightness below.
           default: false
           selector:
             boolean:
+        brightness_lights:
+          name: Lights with this brightness
+          description: >-
+            Only fill in if "Set the brightness" is switched on. Pick the lights
+            again that should get the brightness. Lights that cannot be dimmed
+            are just switched on. Lights from section 1 that you do not pick
+            here are only switched on.
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - domain: light
         brightness:
           name: Brightness in percent
           description: >-
@@ -115,18 +113,30 @@ blueprint:
       name: "3. Only when it is dark (optional)"
       icon: mdi:weather-night
       description: >-
-        Only fill in if the light should come on only in the dark. You need a
+        Only fill in if some lights should come on only in the dark. You need a
         sensor that measures the brightness of the room in lux.
       collapsed: true
       input:
         only_when_dark:
           name: Only switch on when it is dark
           description: >-
-            Off: the light comes on whenever someone is there. On: the
-            brightness check below also has to be met.
+            Off: the lights come on whenever someone is there. On: the lights
+            picked below only come on if the brightness check below is met.
           default: false
           selector:
             boolean:
+        dark_lights:
+          name: Lights that only come on in the dark
+          description: >-
+            Only fill in if "Only switch on when it is dark" is switched on.
+            Pick the lights again that should only come on in the dark. Lights
+            from section 1 that you do not pick here come on as usual.
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - domain: light
         lux_sensor:
           name: Brightness sensor
           description: >-
@@ -142,9 +152,9 @@ blueprint:
         lux_threshold:
           name: Switch on below this brightness (lux)
           description: >-
-            Below this value the light may be switched on automatically. Exactly
-            this value is not below it: the light stays off. The check is made
-            when the light would come on. A light that is already on is not
+            Below this value the lights may be switched on automatically. Exactly
+            this value is not below it: the lights stay off. The check is made
+            once, when someone comes in. A light that is already on is not
             switched off when the room gets brighter. A broken or missing
             reading counts as dark, so the light still works.
           default: 50
@@ -159,29 +169,20 @@ blueprint:
       name: "4. Night light (optional)"
       icon: mdi:lightbulb-night
       description: >-
-        Only fill in if the light should work differently at night. The night
-        light is chosen when the light comes on and is kept until the room is
-        empty again.
+        Only fill in if the light should work differently at night. At night
+        only the night lights below are switched on, instead of the lights from
+        section 1. The choice is made when the light comes on and is kept until
+        the room is empty again.
       collapsed: true
       input:
-        night_mode:
-          name: Night light
+        night_light_enabled:
+          name: Use a night light
           description: >-
-            No night light: nothing changes at night. Same lights: at night the
-            lights above are used with the night brightness and night time
-            below. Other lights: at night the night lights below are used. If
-            you pick no night lights, the normal lights are used.
-          default: none
+            Off: nothing changes at night. On: at night the night lights below
+            are used.
+          default: false
           selector:
-            select:
-              mode: dropdown
-              options:
-                - label: No night light
-                  value: none
-                - label: Use the same lights at night
-                  value: same
-                - label: Use other lights at night
-                  value: other
+            boolean:
         night_start:
           name: Night starts at
           description: >-
@@ -199,30 +200,20 @@ blueprint:
         night_lights:
           name: Night lights
           description: >-
-            Only fill in for "Use other lights at night". Leave empty to use the
-            normal lights.
+            Only fill in if you use a night light. Pick the lights again that
+            should come on at night. They may be the same lights as in section 1
+            or other ones.
           default: []
           selector:
             entity:
               multiple: true
               filter:
                 - domain: light
-        night_switches:
-          name: More night light switches
-          description: >-
-            Only fill in for "Use other lights at night". For lighting that Home
-            Assistant shows as a switch.
-          default: []
-          selector:
-            entity:
-              multiple: true
-              filter:
-                - domain: switch
         night_set_brightness:
           name: Set a night brightness
           description: >-
-            Off: the lights are only switched on at night, no brightness is set.
-            On: dimmable lights get the night brightness.
+            Off: the night lights are only switched on, no brightness is set.
+            On: dimmable night lights get the night brightness.
           default: false
           selector:
             boolean:
@@ -249,55 +240,6 @@ blueprint:
             seconds: 0
           selector:
             duration:
-    advanced_section:
-      name: "5. Advanced settings (optional)"
-      icon: mdi:cog
-      description: Most people do not need these settings.
-      collapsed: true
-      input:
-        lock_entity:
-          name: Lock (optional)
-          description: >-
-            Pick a switch or sensor that works as a lock. While it is on, the
-            automation switches no further lights on. Lights that it switched on
-            before are switched off as usual. Leave empty if you do not need
-            this. A lock that is off, unknown or unavailable does not lock.
-          default: ""
-          selector:
-            entity:
-              filter:
-                - domain:
-                    - binary_sensor
-                    - input_boolean
-                    - switch
-        night_source:
-          name: Where does the night come from?
-          description: >-
-            Pick exactly one. Times: the times from section 4. Own switch: the
-            night is on while the switch below is on. Only used if you chose a
-            night light in section 4.
-          default: time
-          selector:
-            select:
-              mode: dropdown
-              options:
-                - label: Use the times from section 4
-                  value: time
-                - label: Use my own night mode switch
-                  value: helper
-        night_helper:
-          name: Own night mode switch
-          description: >-
-            Only fill in for "Use my own night mode switch". On means night.
-            If it is off, unknown, unavailable or missing, it is not night.
-          default: ""
-          selector:
-            entity:
-              filter:
-                - domain:
-                    - binary_sensor
-                    - input_boolean
-                    - switch
 
 # One run per room is the memory of the automation. It knows which lights it
 # switched on, so it can switch off only those. A second start while a run is
@@ -317,36 +259,36 @@ triggers:
 variables:
   sensors: !input motion_sensors
   lights: !input lights
-  switches: !input extra_switches
   delay_day: !input off_delay
   use_brightness: !input set_brightness
+  brightness_lights: !input brightness_lights
   brightness_day: !input brightness
   lux_enabled: !input only_when_dark
+  dark_lights: !input dark_lights
   lux_entity: !input lux_sensor
   lux_limit: !input lux_threshold
-  night_mode: !input night_mode
+  night_enabled: !input night_light_enabled
   night_start: !input night_start
   night_end: !input night_end
   night_lights: !input night_lights
-  night_switches: !input night_switches
   night_use_brightness: !input night_set_brightness
   night_brightness_value: !input night_brightness
   delay_night: !input night_off_delay
-  lock_entity: !input lock_entity
-  night_source: !input night_source
-  night_helper: !input night_helper
 
 actions:
   - alias: Stop with an error if the setup is incomplete
     if:
       - condition: template
         value_template: >-
-          {{ (lights | count) + (switches | count) == 0
-             or (lux_enabled and lux_entity == '') }}
+          {{ (lights | count) == 0
+             or (use_brightness and (brightness_lights | count) == 0)
+             or (lux_enabled and (lux_entity == '' or (dark_lights | count) == 0))
+             or (night_enabled and (night_lights | count) == 0) }}
     then:
       - stop: >-
-          Setup incomplete: pick at least one light or light switch, and a
-          brightness sensor if "Only switch on when it is dark" is on.
+          Setup incomplete: pick at least one light. Every part you switch on
+          needs its own lights: brightness lights, lights that only come on in
+          the dark (plus a brightness sensor), or night lights.
         error: true
 
   - alias: Do nothing if no sensor reports activity
@@ -354,51 +296,34 @@ actions:
     value_template: >-
       {{ expand(sensors) | selectattr('state', 'eq', 'on') | list | count > 0 }}
 
-  - alias: Wait until the light may start, or until everyone has left
-    wait_template: >-
-      {% set active = expand(sensors) | selectattr('state', 'eq', 'on') | list | count > 0 %}
-      {% set locked = lock_entity != '' and is_state(lock_entity, 'on') %}
-      {% set lux = states(lux_entity) if (lux_enabled and lux_entity != '') else '' %}
-      {% set dark = (not lux_enabled) or (not is_number(lux)) or ((lux | float) < (lux_limit | float)) %}
-      {{ (not active) or ((not locked) and dark) }}
-
-  - alias: Stop if everyone left before the light was needed
-    if:
-      - condition: template
-        value_template: >-
-          {{ expand(sensors) | selectattr('state', 'eq', 'on') | list | count == 0 }}
-    then:
-      - stop: Everyone left before the light was needed.
-
-  - alias: Choose day or night once for this run
+  - alias: Choose day or night and the lights once for this run
     variables:
       night_active: >-
         {% set now_hm = now().strftime('%H:%M') %}
         {% set s = night_start[:5] %}
         {% set e = night_end[:5] %}
-        {% if night_mode == 'none' %}{% set r = false %}
-        {% elif night_source == 'helper' %}{% set r = night_helper != '' and is_state(night_helper, 'on') %}
+        {% if not night_enabled %}{% set r = false %}
         {% elif s == e %}{% set r = false %}
         {% elif s < e %}{% set r = s <= now_hm < e %}
         {% else %}{% set r = now_hm >= s or now_hm < e %}
         {% endif %}
         {{ r }}
-      use_night_targets: >-
-        {{ night_active and night_mode == 'other'
-           and ((night_lights | count) + (night_switches | count)) > 0 }}
-      run_lights: "{{ night_lights if use_night_targets else lights }}"
-      run_switches: "{{ night_switches if use_night_targets else switches }}"
+      lux: "{{ states(lux_entity) if (lux_enabled and lux_entity != '') else '' }}"
+      is_dark: >-
+        {{ (not lux_enabled) or (not is_number(lux)) or ((lux | float) < (lux_limit | float)) }}
+      blocked_lights: "{{ [] if is_dark else dark_lights }}"
+      run_lights: >-
+        {{ (night_lights if night_active else lights) | reject('in', blocked_lights) | list }}
       run_set_brightness: "{{ night_use_brightness if night_active else use_brightness }}"
       run_brightness: "{{ night_brightness_value if night_active else brightness_day }}"
+      dim_pool: "{{ night_lights if night_active else brightness_lights }}"
       run_delay: >-
         {{ timedelta(**(delay_night if night_active else delay_day)).total_seconds() }}
       owned_lights: >-
         {{ run_lights | reject('is_state', 'on') | reject('is_state', 'unavailable') | list }}
-      owned_switches: >-
-        {{ run_switches | reject('is_state', 'on') | reject('is_state', 'unavailable') | list }}
       dimmable_lights: >-
         {% set ns = namespace(found=[]) %}
-        {% for entity in owned_lights %}
+        {% for entity in owned_lights if entity in dim_pool %}
           {% set modes = state_attr(entity, 'supported_color_modes') or [] %}
           {% if (modes | reject('in', ['onoff', 'unknown']) | list | count) > 0 %}
             {% set ns.found = ns.found + [entity] %}
@@ -430,16 +355,6 @@ actions:
           entity_id: "{{ plain_lights }}"
         continue_on_error: true
 
-  - alias: Switch on the light switches
-    if:
-      - condition: template
-        value_template: "{{ owned_switches | count > 0 }}"
-    then:
-      - action: switch.turn_on
-        target:
-          entity_id: "{{ owned_switches }}"
-        continue_on_error: true
-
   # The run stays alive until the room is empty and the extra time is over.
   # That is what keeps a light that was switched off by hand from being
   # switched on again during the same visit. Every round waits for an event.
@@ -469,8 +384,6 @@ actions:
             - variables:
                 off_lights: >-
                   {{ owned_lights | select('is_state', ['on', 'unknown']) | list }}
-                off_switches: >-
-                  {{ owned_switches | select('is_state', ['on', 'unknown']) | list }}
             - if:
                 - condition: template
                   value_template: "{{ off_lights | count > 0 }}"
@@ -478,13 +391,5 @@ actions:
                 - action: light.turn_off
                   target:
                     entity_id: "{{ off_lights }}"
-                  continue_on_error: true
-            - if:
-                - condition: template
-                  value_template: "{{ off_switches | count > 0 }}"
-              then:
-                - action: switch.turn_off
-                  target:
-                    entity_id: "{{ off_switches }}"
                   continue_on_error: true
             - stop: Room empty, the lights of this run are switched off.

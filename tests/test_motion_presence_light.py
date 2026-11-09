@@ -34,11 +34,8 @@ MOTION_2 = "binary_sensor.hall_presence"
 LUX = "sensor.hall_lux"
 DIM = "light.hall_dimmer"
 PLAIN = "light.hall_plain"
-SWITCH = "switch.hall_lamp"
+DIM_2 = "light.hall_dimmer_2"
 NIGHT_LIGHT = "light.hall_night"
-NIGHT_SWITCH = "switch.hall_night_lamp"
-LOCK = "input_boolean.hall_lock"
-HELPER = "input_boolean.night_mode"
 DELAY = {"milliseconds": 300}
 NIGHT_DELAY = {"milliseconds": 150}
 
@@ -55,7 +52,8 @@ def _inputs(**override: Any) -> dict[str, Any]:
 
 def _night(**override: Any) -> dict[str, Any]:
     inputs = _inputs(
-        night_mode="same",
+        night_light_enabled=True,
+        night_lights=[NIGHT_LIGHT],
         night_start="22:00:00",
         night_end="06:00:00",
         night_off_delay=NIGHT_DELAY,
@@ -95,14 +93,13 @@ async def _use(
 
 
 class Calls:
-    """Fake light and switch services that also move the states."""
+    """Fake light services that also move the states."""
 
     def __init__(self, hass: HomeAssistant) -> None:
         self.on: list[ServiceCall] = []
         self.off: list[ServiceCall] = []
-        for domain in ("light", "switch"):
-            hass.services.async_register(domain, "turn_on", self._turn_on(hass))
-            hass.services.async_register(domain, "turn_off", self._turn_off(hass))
+        hass.services.async_register("light", "turn_on", self._turn_on(hass))
+        hass.services.async_register("light", "turn_off", self._turn_off(hass))
 
     def _turn_on(self, hass: HomeAssistant) -> Any:
         def handler(call: ServiceCall) -> None:
@@ -138,11 +135,8 @@ def _world(hass: HomeAssistant) -> Calls:
     hass.states.async_set(PLAIN, "off", {"supported_color_modes": ["onoff"]})
     hass.states.async_set(DIM, "off", {"supported_color_modes": ["brightness"]})
     hass.states.async_set(NIGHT_LIGHT, "off", {"supported_color_modes": ["onoff"]})
-    hass.states.async_set(SWITCH, "off")
-    hass.states.async_set(NIGHT_SWITCH, "off")
+    hass.states.async_set(DIM_2, "off", {"supported_color_modes": ["brightness"]})
     hass.states.async_set(LUX, "300", {"device_class": "illuminance"})
-    hass.states.async_set(LOCK, "off")
-    hass.states.async_set(HELPER, "off")
     return Calls(hass)
 
 
@@ -190,14 +184,13 @@ async def test_light_follows_the_sensor_and_switches_off_after_the_delay(
 async def test_a_light_that_was_already_on_is_left_alone(hass: HomeAssistant) -> None:
     calls = _world(hass)
     hass.states.async_set(PLAIN, "on", {"supported_color_modes": ["onoff"]})
-    hass.states.async_set(SWITCH, "off")
-    await _use(hass, EN, _inputs(lights=[PLAIN], extra_switches=[SWITCH]))
+    await _use(hass, EN, _inputs(lights=[PLAIN, NIGHT_LIGHT]))
 
     await _set(hass, MOTION, "on")
-    assert calls.switched_on == [SWITCH]  # only what was off
+    assert calls.switched_on == [NIGHT_LIGHT]  # only what was off
     await _set(hass, MOTION, "off")
     await _past_the_delay()
-    assert calls.switched_off == [SWITCH]  # never the light that was on before
+    assert calls.switched_off == [NIGHT_LIGHT]  # never the light that was on before
 
 
 async def test_several_sensors_are_one_room(hass: HomeAssistant) -> None:
@@ -322,15 +315,17 @@ async def test_start_of_home_assistant_with_an_active_sensor_starts_the_light(
 # ── brightness ─────────────────────────────────────────────────────────────
 
 
-async def test_brightness_goes_only_to_dimmable_lights(hass: HomeAssistant) -> None:
+async def test_brightness_goes_only_to_the_chosen_dimmable_lights(
+    hass: HomeAssistant,
+) -> None:
     calls = _world(hass)
     await _use(
         hass,
         EN,
         _inputs(
-            lights=[DIM, PLAIN],
-            extra_switches=[SWITCH],
+            lights=[DIM, DIM_2, PLAIN],
             set_brightness=True,
+            brightness_lights=[DIM, PLAIN],
             brightness=35,
         ),
     )
@@ -339,35 +334,77 @@ async def test_brightness_goes_only_to_dimmable_lights(hass: HomeAssistant) -> N
         tuple(call.data["entity_id"]): call.data.get("brightness_pct")
         for call in calls.on
     }
-    assert by_target == {(DIM,): 35, (PLAIN,): None, (SWITCH,): None}
+    # DIM is chosen and dimmable; PLAIN is chosen but cannot dim; DIM_2 is not
+    # chosen and is only switched on.
+    assert by_target == {(DIM,): 35, (DIM_2, PLAIN): None}
 
 
 async def test_without_the_brightness_option_no_brightness_is_sent(
     hass: HomeAssistant,
 ) -> None:
     calls = _world(hass)
-    await _use(hass, EN, _inputs(lights=[DIM], set_brightness=False, brightness=35))
+    await _use(
+        hass,
+        EN,
+        _inputs(
+            lights=[DIM], set_brightness=False, brightness_lights=[DIM], brightness=35
+        ),
+    )
     await _set(hass, MOTION, "on")
     assert calls.switched_on == [DIM]
     assert "brightness_pct" not in calls.on[0].data
+
+
+async def test_brightness_option_without_lights_is_a_setup_error(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
+    calls = _world(hass)
+    await _use(hass, EN, _inputs(lights=[DIM], set_brightness=True))
+    await _set(hass, MOTION, "on")
+    assert not calls.on
+    assert "Setup incomplete" in caplog.text
 
 
 # ── only when it is dark ───────────────────────────────────────────────────
 
 
 def _dark(**override: Any) -> dict[str, Any]:
-    return _inputs(only_when_dark=True, lux_sensor=LUX, lux_threshold=50, **override)
+    return _inputs(
+        only_when_dark=True,
+        dark_lights=[PLAIN],
+        lux_sensor=LUX,
+        lux_threshold=50,
+        **override,
+    )
 
 
-async def test_bright_room_keeps_the_light_off_until_it_gets_dark(
+async def test_bright_room_keeps_the_chosen_light_off_for_this_visit(
     hass: HomeAssistant,
 ) -> None:
     calls = _world(hass)
     await _use(hass, EN, _dark())
     await _set(hass, MOTION, "on")  # 300 lx, bright
     assert not calls.on
-    await _set(hass, LUX, "49")  # no new movement is needed
+    await _set(hass, LUX, "49")  # the check was made once, at the start
+    assert not calls.on
+    await _set(hass, MOTION, "off")
+    await _past_the_delay()
+    assert not calls.on
+    assert not calls.off
+    await _set(hass, MOTION, "on")  # the next visit is checked again
     assert calls.switched_on == [PLAIN]
+
+
+async def test_lights_that_are_not_chosen_for_the_dark_come_on_as_usual(
+    hass: HomeAssistant,
+) -> None:
+    calls = _world(hass)
+    await _use(hass, EN, _dark(lights=[PLAIN, DIM]))
+    await _set(hass, MOTION, "on")  # bright: only PLAIN is held back
+    assert calls.switched_on == [DIM]
+    await _set(hass, MOTION, "off")
+    await _past_the_delay()
+    assert calls.switched_off == [DIM]
 
 
 async def test_the_limit_itself_is_not_dark(hass: HomeAssistant) -> None:
@@ -376,7 +413,10 @@ async def test_the_limit_itself_is_not_dark(hass: HomeAssistant) -> None:
     await _set(hass, LUX, "50")
     await _set(hass, MOTION, "on")
     assert not calls.on
+    await _set(hass, MOTION, "off")
+    await _past_the_delay()
     await _set(hass, LUX, "49.9")
+    await _set(hass, MOTION, "on")
     assert calls.switched_on == [PLAIN]
 
 
@@ -416,19 +456,6 @@ async def test_a_brighter_room_does_not_switch_a_running_light_off(
     assert calls.switched_off == [PLAIN]
 
 
-async def test_nobody_there_when_it_gets_dark_switches_nothing(
-    hass: HomeAssistant,
-) -> None:
-    calls = _world(hass)
-    await _use(hass, EN, _dark())
-    await _set(hass, MOTION, "on")
-    await _set(hass, MOTION, "off")  # the run ends, nothing was switched
-    await _set(hass, LUX, "10")
-    assert not calls.on
-    await _set(hass, MOTION, "on")  # dark now: normal start
-    assert calls.switched_on == [PLAIN]
-
-
 async def test_a_light_switched_off_by_hand_stays_off_when_it_gets_darker(
     hass: HomeAssistant,
 ) -> None:
@@ -446,65 +473,26 @@ async def test_dark_option_without_a_sensor_is_a_setup_error(
     hass: HomeAssistant, caplog: pytest.LogCaptureFixture
 ) -> None:
     calls = _world(hass)
-    await _use(hass, EN, _inputs(only_when_dark=True))
+    await _use(hass, EN, _inputs(only_when_dark=True, dark_lights=[PLAIN]))
     await _set(hass, MOTION, "on")
     assert not calls.on
     assert "Setup incomplete" in caplog.text
 
 
-# ── lock ───────────────────────────────────────────────────────────────────
-
-
-async def test_lock_prevents_a_start_and_unlocking_starts_while_someone_is_there(
-    hass: HomeAssistant,
+async def test_dark_option_without_lights_is_a_setup_error(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
 ) -> None:
     calls = _world(hass)
-    hass.states.async_set(LOCK, "on")
-    await _use(hass, EN, _inputs(lock_entity=LOCK))
+    await _use(hass, EN, _inputs(only_when_dark=True, lux_sensor=LUX))
     await _set(hass, MOTION, "on")
     assert not calls.on
-    await _set(hass, LOCK, "off")
-    assert calls.switched_on == [PLAIN]
-
-
-async def test_unlocking_checks_the_brightness_too(hass: HomeAssistant) -> None:
-    calls = _world(hass)
-    hass.states.async_set(LOCK, "on")
-    await _use(hass, EN, _dark(lock_entity=LOCK))
-    await _set(hass, MOTION, "on")
-    await _set(hass, LOCK, "off")
-    assert not calls.on  # unlocked but bright
-    await _set(hass, LUX, "10")
-    assert calls.switched_on == [PLAIN]
-
-
-async def test_lock_set_during_a_visit_does_not_stop_the_normal_switch_off(
-    hass: HomeAssistant,
-) -> None:
-    calls = _world(hass)
-    await _use(hass, EN, _inputs(lock_entity=LOCK))
-    await _set(hass, MOTION, "on")
-    await _set(hass, LOCK, "on")
-    await _set(hass, MOTION, "off")
-    await _past_the_delay()
-    assert calls.switched_off == [PLAIN]
-
-
-@pytest.mark.parametrize("state", ["unavailable", "unknown", "off"])
-async def test_a_lock_that_is_not_on_does_not_lock(
-    hass: HomeAssistant, state: str
-) -> None:
-    calls = _world(hass)
-    hass.states.async_set(LOCK, state)
-    await _use(hass, EN, _inputs(lock_entity=LOCK))
-    await _set(hass, MOTION, "on")
-    assert calls.switched_on == [PLAIN]
+    assert "Setup incomplete" in caplog.text
 
 
 # ── night light ────────────────────────────────────────────────────────────
 
 
-async def test_same_lights_at_night_use_the_night_brightness_and_delay(
+async def test_night_lights_use_the_night_brightness_and_delay(
     hass: HomeAssistant,
 ) -> None:
     calls = _world(hass)
@@ -512,15 +500,15 @@ async def test_same_lights_at_night_use_the_night_brightness_and_delay(
         hass,
         EN,
         _night(
-            lights=[DIM],
-            set_brightness=True,
-            brightness=90,
+            lights=[PLAIN],
+            night_lights=[DIM],
             night_set_brightness=True,
             night_brightness=15,
         ),
     )
     with _at(23, 30):
         await _set(hass, MOTION, "on")
+    assert calls.switched_on == [DIM]  # instead of the lights of section 1
     assert calls.on[0].data["brightness_pct"] == 15
     await _set(hass, MOTION, "off")
     await asyncio.sleep(0.25)  # the night time is 0.15 s, not 0.3 s
@@ -535,7 +523,9 @@ async def test_by_day_the_normal_settings_are_used(hass: HomeAssistant) -> None:
         _night(
             lights=[DIM],
             set_brightness=True,
+            brightness_lights=[DIM],
             brightness=90,
+            night_lights=[DIM],
             night_set_brightness=True,
             night_brightness=15,
         ),
@@ -557,7 +547,13 @@ async def test_night_without_a_night_brightness_only_switches_on(
     await _use(
         hass,
         EN,
-        _night(lights=[DIM], set_brightness=True, brightness=90),
+        _night(
+            lights=[DIM],
+            set_brightness=True,
+            brightness_lights=[DIM],
+            brightness=90,
+            night_lights=[DIM],
+        ),
     )
     with _at(23, 30):
         await _set(hass, MOTION, "on")
@@ -573,14 +569,7 @@ async def test_the_night_may_reach_past_midnight(
     hass: HomeAssistant, hour: int, minute: int, night: bool
 ) -> None:
     calls = _world(hass)
-    await _use(
-        hass,
-        EN,
-        _night(
-            night_mode="other",
-            night_lights=[NIGHT_LIGHT],
-        ),
-    )
+    await _use(hass, EN, _night())
     with _at(hour, minute):
         await _set(hass, MOTION, "on")
     assert calls.switched_on == ([NIGHT_LIGHT] if night else [PLAIN])
@@ -588,61 +577,39 @@ async def test_the_night_may_reach_past_midnight(
 
 async def test_equal_start_and_end_mean_no_night(hass: HomeAssistant) -> None:
     calls = _world(hass)
-    await _use(
-        hass,
-        EN,
-        _night(
-            night_mode="other",
-            night_lights=[NIGHT_LIGHT],
-            night_start="00:00:00",
-            night_end="00:00:00",
-        ),
-    )
+    await _use(hass, EN, _night(night_start="00:00:00", night_end="00:00:00"))
     with _at(3, 0):
         await _set(hass, MOTION, "on")
     assert calls.switched_on == [PLAIN]
 
 
-async def test_other_lights_at_night_include_switches_and_leave_the_normal_ones(
+async def test_night_lights_replace_the_normal_ones_and_switch_off_again(
     hass: HomeAssistant,
 ) -> None:
     calls = _world(hass)
-    await _use(
-        hass,
-        EN,
-        _night(
-            night_mode="other",
-            lights=[PLAIN],
-            extra_switches=[SWITCH],
-            night_lights=[NIGHT_LIGHT],
-            night_switches=[NIGHT_SWITCH],
-        ),
-    )
+    await _use(hass, EN, _night(lights=[PLAIN, DIM], night_lights=[NIGHT_LIGHT]))
     with _at(23, 0):
         await _set(hass, MOTION, "on")
-    assert sorted(calls.switched_on) == sorted([NIGHT_LIGHT, NIGHT_SWITCH])
+    assert calls.switched_on == [NIGHT_LIGHT]
     await _set(hass, MOTION, "off")
     await asyncio.sleep(0.4)
-    assert sorted(calls.switched_off) == sorted([NIGHT_LIGHT, NIGHT_SWITCH])
+    assert calls.switched_off == [NIGHT_LIGHT]
 
 
-async def test_other_lights_at_night_without_night_lights_use_the_normal_ones(
-    hass: HomeAssistant,
+async def test_night_option_without_night_lights_is_a_setup_error(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture
 ) -> None:
     calls = _world(hass)
-    await _use(hass, EN, _night(night_mode="other"))
+    await _use(hass, EN, _night(night_lights=[]))
     with _at(23, 0):
         await _set(hass, MOTION, "on")
-    assert calls.switched_on == [PLAIN]
+    assert not calls.on  # no fall back to the normal lights
+    assert "Setup incomplete" in caplog.text
 
 
 async def test_no_night_light_ignores_the_times(hass: HomeAssistant) -> None:
     calls = _world(hass)
-    await _use(
-        hass,
-        EN,
-        _night(night_mode="none", night_lights=[NIGHT_LIGHT]),
-    )
+    await _use(hass, EN, _night(night_light_enabled=False))
     with _at(23, 0):
         await _set(hass, MOTION, "on")
     assert calls.switched_on == [PLAIN]
@@ -652,11 +619,7 @@ async def test_the_night_profile_is_kept_until_the_room_is_empty(
     hass: HomeAssistant,
 ) -> None:
     calls = _world(hass)
-    await _use(
-        hass,
-        EN,
-        _night(night_mode="other", night_lights=[NIGHT_LIGHT]),
-    )
+    await _use(hass, EN, _night())
     with _at(5, 59):
         await _set(hass, MOTION, "on")
     # It is day now, but the run keeps its night lights.
@@ -667,53 +630,10 @@ async def test_the_night_profile_is_kept_until_the_room_is_empty(
     assert calls.switched_off == [NIGHT_LIGHT]
 
 
-@pytest.mark.parametrize(
-    ("helper_state", "night"),
-    [("on", True), ("off", False), ("unavailable", False), ("unknown", False)],
-)
-async def test_own_night_mode_switch_replaces_the_times(
-    hass: HomeAssistant, helper_state: str, night: bool
-) -> None:
-    calls = _world(hass)
-    hass.states.async_set(HELPER, helper_state)
-    await _use(
-        hass,
-        EN,
-        _night(
-            night_mode="other",
-            night_lights=[NIGHT_LIGHT],
-            night_source="helper",
-            night_helper=HELPER,
-        ),
-    )
-    with _at(12, 0):  # by the times it would be day
-        await _set(hass, MOTION, "on")
-    assert calls.switched_on == ([NIGHT_LIGHT] if night else [PLAIN])
-
-
-async def test_own_night_mode_switch_without_an_entity_means_day(
-    hass: HomeAssistant,
-) -> None:
-    calls = _world(hass)
-    await _use(
-        hass,
-        EN,
-        _night(
-            night_mode="other",
-            night_lights=[NIGHT_LIGHT],
-            night_source="helper",
-            night_helper="",
-        ),
-    )
-    with _at(23, 0):  # the times are ignored for this choice
-        await _set(hass, MOTION, "on")
-    assert calls.switched_on == [PLAIN]
-
-
 # ── targets that fail or cannot be reached ─────────────────────────────────
 
 
-async def test_a_failing_or_unreachable_target_does_not_stop_the_others(
+async def test_a_failing_or_unreachable_target_does_not_stop_the_run(
     hass: HomeAssistant,
 ) -> None:
     calls = _world(hass)
@@ -726,13 +646,12 @@ async def test_a_failing_or_unreachable_target_does_not_stop_the_others(
         raise HomeAssistantError("radio gateway did not answer")
 
     hass.services.async_register("light", "turn_on", failing)
-    await _use(hass, EN, _inputs(lights=[DIM, PLAIN], extra_switches=[SWITCH]))
+    await _use(hass, EN, _inputs(lights=[DIM, PLAIN]))
 
     await _set(hass, MOTION, "on")
     assert [call.data["entity_id"] for call in seen] == [[PLAIN]]
-    assert calls.switched_on == [SWITCH]  # the failure did not stop the switch
 
     await _set(hass, MOTION, "off")
     await _past_the_delay()
     # Still unknown, so the switch-off is sent; the unreachable light is not.
-    assert sorted(calls.switched_off) == sorted([PLAIN, SWITCH])
+    assert calls.switched_off == [PLAIN]

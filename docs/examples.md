@@ -49,8 +49,8 @@ through HACS.
 - **Motion and presence light.** Switches lights on when any of the chosen
   motion or presence sensors reports someone and off again after the last one
   has been quiet for the time you set. Basic set-up: sensors, lights, extra
-  time. Optional: a fixed brightness, "only when it is dark", a night light and
-  a lock. Details below.
+  time. Optional: a fixed brightness, "only when it is dark" and a night light.
+  Each optional part has its own light selection. Details below.
 - **Fire alarm (smoke or heat).** When a detector reports an alarm, runs your
   warning actions (optionally repeated until the alarm is over), switches on
   lights, opens blinds and can unlock AutoLock window handles. Every part is
@@ -79,10 +79,12 @@ To use them without the import button, copy them to
 
 Create **one automation per room** (or per group of lights that belong
 together). One automation takes many sensors and many lights; it never needs a
-helper, a sensor group or one automation per sensor. Sensors, lights, switches
-and brightness sensors of any maker can be mixed with Opus GreenNet devices;
-nothing in the blueprint is tied to this integration. The sensors and lights
-must already exist in Home Assistant. Choosing or removing them in the
+helper, a sensor group or one automation per sensor. Sensors, lights and
+brightness sensors of any maker can be mixed with Opus GreenNet devices;
+nothing in the blueprint is tied to this integration. Only `light` entities are
+offered. A lamp that Home Assistant shows as a switch needs a light made from it
+first (Helpers, *Switch as X*). The sensors and lights must already exist in
+Home Assistant. Choosing or removing them in the
 automation does not teach in or delete anything at the gateway.
 
 **How a visit works**
@@ -90,12 +92,11 @@ automation does not teach in or delete anything at the gateway.
 1. A visit starts when a chosen sensor turns `on` (or when Home Assistant
    starts and a sensor is already `on`). One run of the automation lives for the
    whole visit and keeps the list of lights it switched on.
-2. The light is switched on once the checks pass: a sensor is active, the lock
-   (if used) is not on, and, if "only when it is dark" is used, the room is
-   dark. If the checks fail, the run waits. It starts the light as soon as they
-   pass, without new movement: for example when it gets dark, or when the lock
-   is switched off, while someone is still there. It ends if everyone leaves
-   first.
+2. The lights are chosen once, when the visit starts: the lights of section 1,
+   or at night the night lights; lights that only come on in the dark are left
+   out if the room is not dark. The brightness is checked at this moment only.
+   A light that was left out is not switched on later in the same visit, even
+   when the room gets darker; the next visit checks again.
 3. Only lights that were off (or unknown) are switched on and owned by the run.
    A light that was already on is never touched and never switched off by the
    blueprint.
@@ -119,22 +120,23 @@ automation does not teach in or delete anything at the gateway.
   that gets brighter, for example because of the light itself, does not switch a
   running light off. A reading that is `unknown`, `unavailable` or not a number
   counts as dark (the light still works). It is never converted to 0 lx.
-- Brightness is sent only to lights whose `supported_color_modes` contain more
-  than `onoff`; other lights and switches are just switched on. Without the
-  brightness option nothing but "on" is sent.
+- Brightness is sent only to the lights chosen in section 2 whose
+  `supported_color_modes` contain more than `onoff`; other lights are just
+  switched on. Without the brightness option nothing but "on" is sent.
+- Each optional part has its own light selection (brightness lights, lights
+  that only come on in the dark, night lights). Lights of section 1 that are
+  not chosen there behave as usual. At night the night lights replace the
+  lights of section 1; there is no fall back to them.
+- An optional part that is switched on but has no lights (or, for the dark
+  option, no brightness sensor) is a set-up error: the automation switches
+  nothing and writes an error to its trace.
 - A target that is switched off by hand during the visit is not switched on
   again, not by lower lux, a second sensor or the next impulse. The visit ends
   when the room has been quiet for the extra time; the next visit starts
   normally.
-- The lock stops new switch-ons only. Lights the run already switched on are
-  switched off as usual. A lock that is `off`, `unknown`, `unavailable` or not
-  chosen does not lock.
-- Night light: *none*, *same lights* (night brightness and night extra time) or
-  *other lights*. With *other lights* and no night target chosen, the normal
-  lights are used. The night comes from the two times (they may reach past
-  midnight; equal times mean no night) or, in the advanced section, from your
-  own on/off helper (`on` = night; `off`, `unknown`, `unavailable` or none
-  chosen = day). Exactly one source is used.
+- Night light: switched on or off. The night comes from the two times (they
+  may reach past midnight; equal times mean no night). At night the night
+  lights, the night brightness and the night extra time are used.
 
 **Limits (please read)**
 
@@ -147,8 +149,8 @@ automation does not teach in or delete anything at the gateway.
   switched off by another automation, the Opus app or a direct rocker link counts
   as switched off by hand. Opus lights report an assumed state: a late or missing
   feedback can make Home Assistant show a state that differs from the lamp.
-- The form cannot check that a light or switch is chosen. Without a target the
-  automation writes an error to its trace at the next movement.
+- The form cannot check that lights are chosen. Without them the automation
+  writes an error to its trace at the next movement.
 - Only binary sensors of the device class `motion`, `occupancy` or `presence`
   and brightness sensors of the class `illuminance` are offered; a sensor
   without a class (for example a template sensor) has to get one first.
