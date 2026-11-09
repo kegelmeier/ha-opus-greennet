@@ -111,14 +111,24 @@ def test_blueprint_is_valid_and_uses_only_declared_inputs(path: Path) -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "name", ["water_leak_warning.yaml", "water_leak_warning.de.yaml"]
+)
+def test_water_leak_warning_accepts_sensors_of_any_maker(name: str) -> None:
+    """The leak picker shows every moisture sensor, not only Opus ones."""
+    inputs = load_yaml_dict(str(BLUEPRINT_DIR / name))["blueprint"]["input"]
+    entity = inputs["leak_sensors"]["selector"]["entity"]
+    assert entity["filter"] == [{"domain": "binary_sensor", "device_class": "moisture"}]
+
+
 @pytest.mark.parametrize("path", BLUEPRINTS, ids=lambda path: path.name)
 def test_entity_pickers_are_limited_to_this_integration(path: Path) -> None:
     """Pickers of Opus GreenNet entities filter by integration."""
     inputs = load_yaml_dict(str(path))["blueprint"]["input"]
     for name, definition in inputs.items():
         entity = (definition.get("selector") or {}).get("entity")
-        # Lights and blinds may come from any brand.
-        if entity is None or name in {"blinds", "lights", "extra_detectors"}:
+        # Lights, blinds, extra detectors and leak sensors may come from any brand.
+        if entity is None or name in {"blinds", "lights", "extra_detectors", "leak_sensors"}:
             continue
         assert all(f.get("integration") == "opus_greennet" for f in entity["filter"])
 

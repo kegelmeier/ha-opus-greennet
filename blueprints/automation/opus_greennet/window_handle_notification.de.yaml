@@ -1,14 +1,19 @@
 blueprint:
   name: "Opus GreenNet: Fenstergriff offen oder gekippt, Nachricht senden"
-  description: >-
-    Sendet eine Nachricht, wenn ein HOPPE-Fenstergriff „offen“ oder „gekippt“
-    meldet. Auf Wunsch erst, nachdem er eine Weile so geblieben ist („seit 30
-    Minuten gekippt“).
+  description: |-
+    **Was passiert hier?** Ein HOPPE-Fenstergriff meldet „offen“ oder
+    „gekippt“. Dann sendet diese Automation Ihnen eine Nachricht, zum Beispiel
+    auf das Handy. Auf Wunsch erst, nachdem der Griff eine Weile so geblieben
+    ist („seit 30 Minuten gekippt“).
 
-    Der Sensor für die Griffstellung behält seinen letzten Wert. Fehlt die
-    Stellung oder ist sie ungültig, bleibt sie „unbekannt“. Bei einem Ausfall
-    des Gateways zeigt er „nicht verfügbar“. Beides startet die Automation
-    nicht.
+    **Gut zu wissen**
+    - Der Griffsensor behält seinen letzten Wert. Fehlt die Stellung oder ist
+      sie ungültig, bleibt sie „unbekannt“. Bei einem Ausfall des Gateways
+      zeigt er „nicht verfügbar“. Beides startet die Automation nicht.
+    - Die Nachricht wird einmal gesendet, wenn die Zeit um ist. Sie wird nicht
+      wiederholt.
+    - Zum Testen: Kippen Sie das Fenster und warten Sie die eingestellte Zeit
+      ab.
   domain: automation
   author: Opus GreenNet Bridge
   source_url: https://github.com/kegelmeier/ha-opus-greennet/blob/main/blueprints/automation/opus_greennet/window_handle_notification.de.yaml
@@ -38,7 +43,9 @@ blueprint:
               value: open
     stays_for:
       name: Erst nach dieser Zeit
-      description: Bei 0 wird sofort benachrichtigt.
+      description: >-
+        Der Griff muss so lange in der gewählten Stellung bleiben. Bei 0 werden
+        Sie sofort benachrichtigt.
       default:
         hours: 0
         minutes: 0
@@ -46,13 +53,25 @@ blueprint:
       selector:
         duration:
     notification:
-      name: Nachricht
-      description: >-
-        Die Aktionen, die die Nachricht senden. Die Variable trigger.to_state
-        enthält den Griffsensor. Der erste Schritt zeigt eine Meldung in Home
-        Assistant. Für eine Nachricht aufs Handy: Aktion hinzufügen,
-        „Benachrichtigung“ suchen, „Benachrichtigung senden über mobile_app_…“
-        mit Ihrem Handy wählen und eine Nachricht schreiben.
+      name: Nachricht (zum Beispiel auf dem Handy)
+      description: |-
+        Hier legen Sie fest, wie Sie informiert werden. Ein erster Schritt ist
+        schon da: Er zeigt eine Meldung in Home Assistant.
+
+        **So bekommen Sie eine Nachricht auf das Handy**
+        1. Installieren Sie die Home-Assistant-App auf dem Handy. Melden Sie
+           sich einmal an.
+        2. Klicken Sie unten auf **Aktion hinzufügen**.
+        3. Tippen Sie *Benachrichtigung* in die Suche. Wählen Sie
+           **Benachrichtigungen: Eine Benachrichtigung senden über
+           mobile_app_...** mit dem Namen Ihres Handys.
+        4. Schreiben Sie eine **Nachricht**, zum Beispiel:
+           `Fenster offen: {{ trigger.to_state.name }}`
+           (`trigger.to_state.name` wird durch den Namen des Griffs ersetzt).
+        5. Klicken Sie am Ende auf **Speichern**.
+
+        Sie können weitere Schritte hinzufügen: eine Ansage, ein Licht und so
+        weiter.
       default:
         - action: persistent_notification.create
           data:
