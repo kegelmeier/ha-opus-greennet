@@ -60,9 +60,9 @@ from .discovery import (
     async_detect_webui_2026,
     async_local_networks,
     async_locate_gateway,
+    async_resolve_host,
     default_connection,
     is_local_address,
-    parse_host_literal,
 )
 from .entity import (
     async_delete_config_entry_issues,
@@ -251,15 +251,21 @@ async def async_setup_entry(
         raise ConfigEntryAuthFailed(
             translation_domain=DOMAIN, translation_key="gateway_address_required"
         )
-    configured = parse_host_literal(entry.data[CONF_HOST])
     # An entry without a generation is a gateway of the earlier generation.
     generation = entry.data.get(CONF_GENERATION, GENERATION_LEGACY)
     # Only that generation sends its credentials unencrypted.
-    non_local = (
-        generation == GENERATION_LEGACY
-        and configured is not None
-        and not is_local_address(configured, await async_local_networks(hass))
-    )
+    non_local = False
+    if generation == GENERATION_LEGACY:
+        # A host name is judged like the config flow judges it: by every
+        # address it resolves to now. A name that does not resolve (or not in
+        # time, RESOLVE_HOST_SECONDS) raises no notice; the connection then
+        # fails on its own.
+        addresses = await async_resolve_host(hass, entry.data[CONF_HOST])
+        if addresses:
+            networks = await async_local_networks(hass)
+            non_local = not all(
+                is_local_address(address, networks) for address in addresses
+            )
     async_set_non_local_address_issue(hass, entry.entry_id, non_local=non_local)
     if non_local:
         # Existing entries keep working. The gateway speaks unencrypted HTTP,

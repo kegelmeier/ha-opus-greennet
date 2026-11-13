@@ -289,9 +289,12 @@ had registered. **[HW][Test]**
   addresses; a name that does not resolve is `cannot_connect`. A zeroconf
   announcement or mDNS search result outside it is ignored
   (`not_local_address`), so stored or default credentials are never tried on it.
-  Entries stored with a public address still set up and log a warning. The
-  check happens when the address is entered; a name that later resolves
-  elsewhere is not re-checked **[Code][Test]**.
+  Entries stored with a public address still set up, log a warning and show
+  the repair notice. Every setup of such an entry (earlier generation only)
+  checks again, a host name by **all** the addresses it resolves to then, so a
+  name that later resolves elsewhere is noticed; the entry is not blocked. A
+  name that does not resolve (or not within `RESOLVE_HOST_SECONDS`) raises no
+  notice **[Code][Test]**.
 - The config flow never sends credentials in clear text to a TLS service. The
   ports 443 and the port of a configured WebUI 2026 gateway are not tried over
   plain HTTP, and any other port except the default 8080 is first asked
