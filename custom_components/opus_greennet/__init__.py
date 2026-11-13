@@ -54,6 +54,7 @@ from .const import (
     SETTING_GUARD_STORE_KEY,
     SETTING_GUARD_STORE_VERSION,
     WEBUI_2026_PORT,
+    log_eurid,
 )
 from .coordinator import GatewayMismatchError, OpusGreenNetCoordinator
 from .discovery import (
@@ -222,15 +223,17 @@ async def _async_locate_legacy_gateway(
     eag_id = entry.data[CONF_EAG_ID]
     located = await async_locate_gateway(hass, eag_id)
     if located is None:
-        _LOGGER.info("OPUS gateway %s was not found in the local network", eag_id)
+        _LOGGER.info(
+            "OPUS gateway %s was not found in the local network", log_eurid(eag_id)
+        )
         return
     if located.verified:
-        _LOGGER.info("OPUS gateway %s found in the local network", eag_id)
+        _LOGGER.info("OPUS gateway %s found in the local network", log_eurid(eag_id))
     else:
         _LOGGER.info(
             "OPUS gateway %s probably found in the local network; it rejected "
             "the default credentials",
-            eag_id,
+            log_eurid(eag_id),
         )
     hass.config_entries.async_update_entry(
         entry, data={**entry.data, **default_connection(located.host, eag_id)}
@@ -342,7 +345,7 @@ async def async_setup_entry(
         # the log keeps the precise cause.
         _LOGGER.warning(
             "OPUS gateway %s is not ready, Home Assistant will retry: %s",
-            eag_id,
+            log_eurid(eag_id),
             err,
         )
         raise ConfigEntryNotReady(
@@ -377,7 +380,7 @@ async def async_setup_entry(
         await coordinator.async_unload()
         raise
 
-    _LOGGER.info("Opus GreenNet Bridge setup complete: %s", eag_id)
+    _LOGGER.info("Opus GreenNet Bridge setup complete: %s", log_eurid(eag_id))
     return True
 
 

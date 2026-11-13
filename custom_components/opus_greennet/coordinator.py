@@ -96,6 +96,7 @@ from .const import (
     UNLOCK_ALLOWED,
     UNLOCK_NOT_ALLOWED,
     VALUE_UNKNOWN,
+    log_eurid,
 )
 from .discovery import async_gateway_address
 from .enocean_device import DeviceProfile, EnOceanDevice
@@ -642,7 +643,7 @@ class OpusGreenNetCoordinator:
         self._create_task(self._async_refresh_gateway_address(), "address lookup")
         _LOGGER.debug(
             "OPUS gateway %s sent its first device list after %.3f s",
-            self.eag_id,
+            log_eurid(self.eag_id),
             self.first_device_list_seconds,
         )
         self._timers.append(
@@ -668,7 +669,9 @@ class OpusGreenNetCoordinator:
 
     async def async_unload(self) -> None:
         """Stop all background work and mark the gateway unavailable."""
-        _LOGGER.debug("Unloading Opus GreenNet coordinator for EAG %s", self.eag_id)
+        _LOGGER.debug(
+            "Unloading Opus GreenNet coordinator for EAG %s", log_eurid(self.eag_id)
+        )
         self._unloaded = True
         self._set_gateway_available(False)
         for cancel in self._timers:
@@ -736,7 +739,7 @@ class OpusGreenNetCoordinator:
         if not self._unloaded:
             _LOGGER.info(
                 "OPUS gateway %s is %s",
-                self.eag_id,
+                log_eurid(self.eag_id),
                 "available" if available else "unavailable",
             )
         async_dispatcher_send(self.hass, f"{SIGNAL_AVAILABILITY_UPDATE}_{self.eag_id}")
@@ -757,7 +760,9 @@ class OpusGreenNetCoordinator:
         if self._auth_failed:
             return
         self._auth_failed = True
-        _LOGGER.warning("OPUS gateway %s rejected the credentials", self.eag_id)
+        _LOGGER.warning(
+            "OPUS gateway %s rejected the credentials", log_eurid(self.eag_id)
+        )
         if self._on_auth_failed is not None:
             self._on_auth_failed()
 
@@ -828,14 +833,15 @@ class OpusGreenNetCoordinator:
                             self._stream_connected = True
                             self.stream_connects += 1
                             _LOGGER.debug(
-                                "OPUS event stream connected for %s", self.eag_id
+                                "OPUS event stream connected for %s",
+                                log_eurid(self.eag_id),
                             )
                         self._handle_document(document)
                         if not self._gateway_available:
                             self._set_gateway_available(True)
                         if _is_device_list(document):
                             self._resolve_first_device_list(None)
-                _LOGGER.debug("OPUS event stream for %s ended", self.eag_id)
+                _LOGGER.debug("OPUS event stream for %s ended", log_eurid(self.eag_id))
                 self._resolve_first_device_list(
                     OpusConnectionError("The event stream ended before its device list")
                 )
@@ -846,7 +852,9 @@ class OpusGreenNetCoordinator:
                         self._handle_auth_failure()
                 return
             except OpusApiError as err:
-                _LOGGER.debug("OPUS event stream for %s failed: %s", self.eag_id, err)
+                _LOGGER.debug(
+                    "OPUS event stream for %s failed: %s", log_eurid(self.eag_id), err
+                )
                 self._resolve_first_device_list(err)
             except Exception as err:
                 _LOGGER.exception("Unexpected error in the OPUS event stream")
@@ -867,7 +875,7 @@ class OpusGreenNetCoordinator:
                 # attempt still counts towards the backoff (finding B-2).
                 _LOGGER.debug(
                     "OPUS event stream for %s closed after less than %s s",
-                    self.eag_id,
+                    log_eurid(self.eag_id),
                     STREAM_MIN_HEALTHY_SECONDS,
                 )
             delay = stream_retry_delay(failures)
@@ -930,7 +938,9 @@ class OpusGreenNetCoordinator:
             self._handle_auth_failure()
             return
         except OpusApiError as err:
-            _LOGGER.debug("OPUS gateway %s health probe failed: %s", self.eag_id, err)
+            _LOGGER.debug(
+                "OPUS gateway %s health probe failed: %s", log_eurid(self.eag_id), err
+            )
             if self._gateway_available:
                 self._set_gateway_available(False)
                 # The open stream may be half open towards a rebooting gateway.
@@ -944,7 +954,10 @@ class OpusGreenNetCoordinator:
             self.hass, f"{SIGNAL_GATEWAY_UPTIME_UPDATE}_{self.eag_id}"
         )
         if previous is not None and float(uptime) < float(previous):
-            _LOGGER.info("OPUS gateway %s restarted; reopening its stream", self.eag_id)
+            _LOGGER.info(
+                "OPUS gateway %s restarted; reopening its stream",
+                log_eurid(self.eag_id),
+            )
             # A firmware update may have happened: offer line framing again.
             self.client.reset_stream_framing()
             self._restart_stream()
@@ -978,7 +991,7 @@ class OpusGreenNetCoordinator:
         _LOGGER.warning(
             "OPUS gateway %s no longer answers as before, but a gateway with "
             "WebUI 2026 does; a user login is needed",
-            self.eag_id,
+            log_eurid(self.eag_id),
         )
         self._handle_auth_failure()
 

@@ -191,6 +191,16 @@ def test_auth_failure_is_reported_once(coord) -> None:
     coord._create_task.assert_not_called()
 
 
+def test_auth_failure_warning_does_not_contain_the_full_eurid(
+    coord, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.WARNING, logger=LOGGER):
+        coord._handle_auth_failure()
+    messages = [record.getMessage() for record in caplog.records]
+    assert messages == ["OPUS gateway …0011 rejected the credentials"]
+    assert "AABB0011" not in caplog.text
+
+
 def test_auth_failure_without_callback(coord) -> None:
     coord._handle_auth_failure()
     assert coord._auth_failed is True
@@ -370,11 +380,11 @@ def test_unavailability_is_logged_once_and_recovery_once(coord, caplog) -> None:
     messages = [
         record.getMessage()
         for record in caplog.records
-        if record.getMessage().startswith("OPUS gateway AABB0011 is")
+        if record.getMessage().startswith("OPUS gateway …0011 is")
     ]
     assert messages == [
-        "OPUS gateway AABB0011 is unavailable",
-        "OPUS gateway AABB0011 is available",
+        "OPUS gateway …0011 is unavailable",
+        "OPUS gateway …0011 is available",
     ]
     assert all(record.levelno == logging.INFO for record in caplog.records)
 
