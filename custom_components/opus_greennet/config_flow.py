@@ -11,6 +11,7 @@ from typing import Any
 import probatio as vol
 from homeassistant.config_entries import (
     ConfigEntry,
+    ConfigEntryState,
     ConfigFlow,
     ConfigFlowResult,
     OptionsFlow,
@@ -60,6 +61,14 @@ _LOGGER = logging.getLogger(__name__)
 PASSWORD_SELECTOR = TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD))
 
 _HOSTNAME_LABEL = re.compile(r"^(?!-)[A-Za-z0-9-]{1,63}(?<!-)$")
+
+
+def _gateway_answers(entry: ConfigEntry) -> bool:
+    """Return whether the entry is loaded and its gateway is reachable now."""
+    return (
+        entry.state is ConfigEntryState.LOADED
+        and entry.runtime_data.coordinator.available
+    )
 
 
 async def _async_name_leads_to(
@@ -359,6 +368,12 @@ class OpusGreenNetConfigFlow(ConfigFlow, domain=DOMAIN):
             ):
                 return self.async_abort(reason="already_configured")
         for entry in self._async_current_entries(include_ignore=False):
+            # The stored credentials go to the announced address, which nothing
+            # has verified yet. A gateway that answers at its configured
+            # address does not need a new one, so only an entry that cannot
+            # reach its gateway (or has none yet) is tried.
+            if _gateway_answers(entry):
+                continue
             if await self._async_adopt_address(entry.entry_id, host):
                 return self.async_abort(reason="already_configured")
         # The announcement carries no EURID; its serial number keeps an

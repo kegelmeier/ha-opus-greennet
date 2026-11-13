@@ -14,6 +14,7 @@ The network functions are replaced; the client itself is covered in
 from __future__ import annotations
 
 from ipaddress import ip_address
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -631,6 +632,15 @@ def _announcement(host: str) -> ZeroconfServiceInfo:
     )
 
 
+def _gateway_down(entry: ConfigEntry) -> None:
+    """The entry runs, but its gateway does not answer at the stored address.
+
+    Only then is an announcement from another address tried (the setup is
+    replaced in this module, so the entry has no coordinator of its own).
+    """
+    entry.runtime_data = SimpleNamespace(coordinator=SimpleNamespace(available=False))
+
+
 async def _announce(hass: HomeAssistant, host: str) -> dict[str, Any]:
     return await hass.config_entries.flow.async_init(
         DOMAIN,
@@ -643,6 +653,7 @@ async def test_a_new_generation_entry_keeps_its_login_and_certificate_on_a_new_a
     hass,
 ):
     entry = await _add(hass, WEBUI_DATA)
+    _gateway_down(entry)
 
     with _read(EAG_ID) as read:
         result = await _announce(hass, "192.168.1.9")
@@ -659,6 +670,7 @@ async def test_a_new_generation_entry_keeps_its_login_and_certificate_on_a_new_a
 
 async def test_an_earlier_generation_entry_stays_one_on_a_new_address(hass):
     entry = await _add(hass, LEGACY_DATA)
+    _gateway_down(entry)
 
     with _read(EAG_ID) as read:
         result = await _announce(hass, "192.168.1.9")
@@ -669,10 +681,26 @@ async def test_an_earlier_generation_entry_stays_one_on_a_new_address(hass):
     assert entry.data == {**LEGACY_DATA, "host": "192.168.1.9"}
 
 
+async def test_a_reachable_new_generation_entry_sends_nothing_to_an_announcement(
+    hass,
+):
+    entry = await _add(hass, WEBUI_DATA)
+    entry.runtime_data = SimpleNamespace(coordinator=SimpleNamespace(available=True))
+
+    with _read(EAG_ID) as read:
+        result = await _announce(hass, "192.168.1.9")
+
+    # Neither the login nor the certificate check goes to the announced address.
+    read.assert_not_awaited()
+    assert result["type"] is FlowResultType.FORM
+    assert entry.data == WEBUI_DATA
+
+
 async def test_a_gateway_with_another_eurid_does_not_move_a_new_generation_entry(
     hass,
 ):
     entry = await _add(hass, WEBUI_DATA)
+    _gateway_down(entry)
 
     with _read("CCDD0022"):
         result = await _announce(hass, "192.168.1.9")

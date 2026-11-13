@@ -13,9 +13,12 @@ OPUS gateways announce the service `_enocean._tcp` (instance `opusshgw`) over
 mDNS. The announcement contains no EURID and no credentials, so the
 integration reads `/system/info` of each announced gateway:
 
-- **Configured gateway at a new address:** the entry's credentials are tried
-  at the announced address. If the gateway reports the entry's EURID, the
-  address is updated and the entry reloads.
+- **Configured gateway at a new address:** only while the entry cannot reach
+  its gateway (not loaded, or the gateway does not answer), the entry's
+  credentials are tried at the announced address. If the gateway reports the
+  entry's EURID, the address is updated and the entry reloads. While the
+  gateway answers at its configured address, no credentials are sent to an
+  announcement, because any device in the network can announce the service.
 - **Entry of the former MQTT setup** (EURID only): the vendor default
   credentials (`admin`, password = EURID) are tried. On a match the entry gets
   address and credentials and loads without any input. The same search also
