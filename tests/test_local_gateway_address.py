@@ -379,7 +379,6 @@ async def test_the_search_drops_announced_addresses_outside_the_lan(
         ("192.0.2.10", True),
         ("10.0.0.5", False),
         ("fe80::1", False),
-        ("opusshgw.local", False),
     ],
 )
 async def test_an_existing_entry_with_a_public_address_still_sets_up_but_warns(
@@ -400,12 +399,79 @@ async def test_an_existing_entry_with_a_public_address_still_sets_up_but_warns(
     ):
         await async_setup_entry(hass, entry)
     # Every setup decides the repair notice again: shown for a public address,
-    # cleared otherwise (a host name is not judged at setup).
+    # cleared otherwise (host names: see the test below).
     issue.assert_called_once_with(hass, "entry-id", non_local=warned)
     # The entry was not blocked: setup went on to the coordinator.
     coordinator.async_setup.assert_awaited_once()
     assert ("not in a local network" in caplog.text) is warned
     assert host not in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("resolved", "warned"),
+    [
+        (["8.8.8.8"], True),
+        (["2001:4860:4860::8888"], True),
+        # One address outside the local network is enough, as in the config flow.
+        (["192.168.1.5", "8.8.8.8"], True),
+        (["192.168.1.5"], False),
+        # A name that does not resolve raises no notice; the connection fails on
+        # its own and setup goes on as before.
+        ([], False),
+    ],
+)
+async def test_an_existing_entry_whose_host_name_resolves_to_a_public_address_warns(
+    resolved: list[str], warned: bool, caplog: pytest.LogCaptureFixture
+) -> None:
+    coordinator = MagicMock()
+    coordinator.async_setup = AsyncMock(side_effect=OpusConnectionError("Offline"))
+    coordinator.async_unload = AsyncMock()
+    coordinator.async_restore_setting_guards = AsyncMock()
+    host = "opusshgw.example.org"
+    entry = SimpleNamespace(entry_id="entry-id", data={**ENTRY_DATA, "host": host})
+    coordinator_patch, session_patch = _mock_setup(coordinator)
+    hass = MagicMock()
+    with (
+        caplog.at_level(logging.WARNING, logger="custom_components.opus_greennet"),
+        coordinator_patch,
+        session_patch as issue,
+        patch(
+            "custom_components.opus_greennet.async_resolve_host",
+            AsyncMock(return_value=[ipaddress.ip_address(a) for a in resolved]),
+        ) as resolve,
+        pytest.raises(ConfigEntryNotReady),
+    ):
+        await async_setup_entry(hass, entry)
+    resolve.assert_awaited_once_with(hass, host)
+    issue.assert_called_once_with(hass, "entry-id", non_local=warned)
+    coordinator.async_setup.assert_awaited_once()
+    assert ("not in a local network" in caplog.text) is warned
+    assert host not in caplog.text
+    assert "8.8.8.8" not in caplog.text
+
+
+async def test_a_webui_2026_entry_does_not_resolve_its_host_name_at_setup() -> None:
+    coordinator = MagicMock()
+    coordinator.async_setup = AsyncMock(side_effect=OpusConnectionError("Offline"))
+    coordinator.async_unload = AsyncMock()
+    coordinator.async_restore_setting_guards = AsyncMock()
+    entry = SimpleNamespace(
+        entry_id="entry-id",
+        data={**ENTRY_DATA, "host": "opusshgw.example.org", "generation": "webui2026"},
+    )
+    coordinator_patch, session_patch = _mock_setup(coordinator)
+    with (
+        coordinator_patch,
+        session_patch as issue,
+        patch(
+            "custom_components.opus_greennet.async_resolve_host", AsyncMock()
+        ) as resolve,
+        pytest.raises(ConfigEntryNotReady),
+    ):
+        await async_setup_entry(MagicMock(), entry)
+    resolve.assert_not_awaited()
+    issue.assert_called_once()
+    assert issue.call_args.kwargs == {"non_local": False}
 
 
 # ── networks Home Assistant is attached to ──────────────────────────────────
