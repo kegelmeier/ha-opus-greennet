@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from ipaddress import ip_address
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import pytest
 from homeassistant import config_entries
@@ -16,6 +16,7 @@ from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from zeroconf import IPVersion, ServiceStateChange
 
 from custom_components.opus_greennet.const import DOMAIN
+from custom_components.opus_greennet.coordinator import OpusGreenNetCoordinator
 from custom_components.opus_greennet.discovery import (
     ZEROCONF_TYPE,
     LocatedGateway,
@@ -253,12 +254,15 @@ async def test_discovery_completes_a_legacy_entry_and_ends_its_reauth(
     assert not hass.config_entries.flow.async_progress_by_handler(DOMAIN)
 
 
-async def test_discovery_updates_a_changed_address(
+async def test_discovery_updates_a_changed_address_of_an_unreachable_gateway(
     hass: HomeAssistant, gateway: FakeGateway
 ) -> None:
     with patch.object(gateway, "host", "localhost"):
         entry = await setup_bridge(hass, gateway)
     assert entry.data["host"] == "localhost"
+    # The entry is not running (for example after a failed setup).
+    await hass.config_entries.async_unload(entry.entry_id)
+    assert entry.state is ConfigEntryState.NOT_LOADED
     # The configured name no longer leads to the announced address.
     with patch(
         f"{CONFIG_FLOW}.async_resolve_host",
@@ -269,6 +273,59 @@ async def test_discovery_updates_a_changed_address(
     await hass.async_block_till_done()
     await gateway.wait_for_stream()
     assert entry.data["host"] == "127.0.0.1"
+    assert entry.state is ConfigEntryState.LOADED
+
+
+async def test_discovery_updates_the_address_of_a_loaded_gateway_that_is_down(
+    hass: HomeAssistant, gateway: FakeGateway
+) -> None:
+    with patch.object(gateway, "host", "localhost"):
+        entry = await setup_bridge(hass, gateway)
+    with (
+        patch.object(
+            OpusGreenNetCoordinator,
+            "available",
+            new_callable=PropertyMock,
+            return_value=False,
+        ),
+        patch(
+            f"{CONFIG_FLOW}.async_resolve_host",
+            AsyncMock(return_value=[ip_address("192.0.2.9")]),
+        ),
+    ):
+        result = await _discover(hass, "127.0.0.1")
+    assert result["reason"] == "already_configured"
+    await hass.async_block_till_done()
+    await gateway.wait_for_stream()
+    assert entry.data["host"] == "127.0.0.1"
+    assert entry.state is ConfigEntryState.LOADED
+
+
+async def test_discovery_sends_no_credentials_while_the_gateway_answers(
+    hass: HomeAssistant, gateway: FakeGateway
+) -> None:
+    """Any device in the LAN can announce the service; the password stays."""
+    with patch.object(gateway, "host", "localhost"):
+        entry = await setup_bridge(hass, gateway)
+    assert entry.runtime_data.coordinator.available
+    requests = len(gateway.requests)
+    data = dict(entry.data)
+    # The configured name leads elsewhere, so the announcement looks like a
+    # new address of the gateway.
+    with (
+        patch(
+            f"{CONFIG_FLOW}.async_resolve_host",
+            AsyncMock(return_value=[ip_address("192.0.2.9")]),
+        ),
+        patch(f"{CONFIG_FLOW}.async_read_gateway_id") as read_gateway_id,
+    ):
+        result = await _discover(hass, "127.0.0.1")
+    read_gateway_id.assert_not_called()
+    assert len(gateway.requests) == requests
+    # Offered as a gateway of its own, which the person has to confirm.
+    assert result["type"] is FlowResultType.FORM
+    await hass.async_block_till_done()
+    assert dict(entry.data) == data
     assert entry.state is ConfigEntryState.LOADED
 
 
