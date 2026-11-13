@@ -12,6 +12,19 @@ DOMAIN: Final = "opus_greennet"
 # every device and entity unique ID.
 CONF_EAG_ID: Final = "eag_id"
 
+EURID_LOG_VISIBLE_CHARS: Final = 4
+
+
+def log_eurid(eag_id: object) -> str:
+    """Return the EURID shortened for log lines.
+
+    The EURID is the gateway's default password, and logs are often posted in
+    issues. Only the last characters stay, enough to tell gateways apart.
+    """
+    text = str(eag_id)
+    return f"…{text[-EURID_LOG_VISIBLE_CHARS:]}"
+
+
 DEFAULT_PORT: Final = 8080
 DEFAULT_USERNAME: Final = "admin"
 

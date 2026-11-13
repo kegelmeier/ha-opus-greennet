@@ -42,6 +42,7 @@ from .const import (
     DEFAULT_USERNAME,
     DOMAIN,
     WEBUI_2026_PORT,
+    log_eurid,
 )
 from .discovery import (
     GatewayEndpoint,
@@ -397,7 +398,7 @@ class OpusGreenNetConfigFlow(ConfigFlow, domain=DOMAIN):
             return False
         if found != eag_id:
             return False
-        _LOGGER.info("OPUS gateway %s found at a new address", eag_id)
+        _LOGGER.info("OPUS gateway %s found at a new address", log_eurid(eag_id))
         self.hass.config_entries.async_update_entry(
             entry, data={**entry.data, **connection}
         )

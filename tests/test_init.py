@@ -36,7 +36,7 @@ from custom_components.opus_greennet.api import (
     OpusResponseError,
     OpusTimeoutError,
 )
-from custom_components.opus_greennet.const import SETTING_GUARD_STORE_KEY
+from custom_components.opus_greennet.const import SETTING_GUARD_STORE_KEY, log_eurid
 from custom_components.opus_greennet.coordinator import OpusGreenNetCoordinator
 from custom_components.opus_greennet.enocean_device import EnOceanDevice
 from tests.fake_gateway import FakeGateway, device_object
@@ -446,8 +446,8 @@ async def test_failed_setup_logs_the_underlying_cause(
     assert raised.value.__cause__ is failure
     assert raised.value.translation_key == "gateway_unavailable"
     assert (
-        f"OPUS gateway {EAG_ID} is not ready, Home Assistant will retry: {expected_log}"
-        in caplog.text
+        f"OPUS gateway …{EAG_ID[-4:]} is not ready, Home Assistant will retry: "
+        f"{expected_log}" in caplog.text
     )
 
 
@@ -461,6 +461,58 @@ async def test_failed_setup_logs_the_real_gateway_error(
     ):
         await async_setup_entry(hass, _gateway_entry(gateway))
     assert (
-        f"OPUS gateway {EAG_ID} is not ready, Home Assistant will retry: "
+        f"OPUS gateway …{EAG_ID[-4:]} is not ready, Home Assistant will retry: "
         "status 500: forced failure" in caplog.text
     )
+
+
+def _own_log_lines(
+    caplog: pytest.LogCaptureFixture, level: int
+) -> list[logging.LogRecord]:
+    return [
+        record
+        for record in caplog.records
+        if record.name.startswith("custom_components.opus_greennet")
+        and record.levelno >= level
+    ]
+
+
+def test_log_eurid_keeps_only_the_last_characters() -> None:
+    assert log_eurid(EAG_ID) == "…0011"
+    assert log_eurid("12") == "…12"
+    assert EAG_ID not in log_eurid(EAG_ID)
+
+
+async def test_setup_logs_do_not_contain_the_full_eurid(
+    hass: HomeAssistant, gateway: FakeGateway, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The EURID is the default password; INFO/WARNING/DEBUG lines are posted."""
+    with caplog.at_level(logging.DEBUG, logger="custom_components.opus_greennet"):
+        entry = await _add(hass, _gateway_entry(gateway))
+        assert entry.state is ConfigEntryState.LOADED
+        await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()
+    lines = _own_log_lines(caplog, logging.DEBUG)
+    assert any("setup complete: …0011" in r.getMessage() for r in lines)
+    assert [r.getMessage() for r in lines if EAG_ID in r.getMessage()] == []
+
+
+async def test_not_ready_warning_does_not_contain_the_full_eurid(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    coordinator = MagicMock()
+    coordinator.async_setup = AsyncMock(side_effect=OpusConnectionError("down"))
+    coordinator.async_unload = AsyncMock()
+    coordinator.async_restore_setting_guards = AsyncMock()
+    entry = SimpleNamespace(entry_id="entry-id", data=ENTRY_DATA)
+    coordinator_patch, session_patch = _mock_setup(coordinator)
+    with (
+        coordinator_patch,
+        session_patch,
+        caplog.at_level(logging.WARNING, logger="custom_components.opus_greennet"),
+        pytest.raises(ConfigEntryNotReady),
+    ):
+        await async_setup_entry(MagicMock(), entry)
+    warnings = _own_log_lines(caplog, logging.WARNING)
+    assert warnings
+    assert [r.getMessage() for r in warnings if EAG_ID in r.getMessage()] == []
