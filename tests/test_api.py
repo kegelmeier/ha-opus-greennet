@@ -79,6 +79,36 @@ def test_decode_response_rejects(text: str, reason: str) -> None:
         decode_response(text)
 
 
+def _hostile_message() -> str:
+    """A gateway text with a fake log line, control characters and a huge tail."""
+    return (
+        "no matching group\n2026-11-13 10:00:00 ERROR fake log line\r\x1b[31m\x00"
+        "\u2028tab\there" + "x" * 100_000
+    )
+
+
+def test_decode_response_bounds_the_gateway_message() -> None:
+    text = json.dumps({"header": {"httpStatus": 400, "message": _hostile_message()}})
+    with pytest.raises(OpusResponseError) as raised:
+        decode_response(text)
+    reason = raised.value.reason
+    prefix = "status 400: "
+    assert reason.startswith(prefix + "no matching group")
+    assert len(reason) <= len(prefix) + 200
+    assert reason.isprintable()
+    assert str(raised.value) == reason
+
+
+def test_http_error_bounds_the_gateway_message() -> None:
+    text = json.dumps({"header": {"httpStatus": 500, "message": _hostile_message()}})
+    error = api._http_error(text, 500)
+    prefix = "status 500: "
+    assert error.reason.startswith(prefix + "no matching group")
+    assert len(error.reason) <= len(prefix) + 200
+    assert error.reason.isprintable()
+    assert (error.http_status, error.gateway_status) == (500, 500)
+
+
 def test_decode_response_without_required_status() -> None:
     assert decode_response('{"x": 1}', require_status=False) == {"x": 1}
 

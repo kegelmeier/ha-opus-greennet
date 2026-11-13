@@ -56,6 +56,10 @@ CONNECT_TIMEOUT: Final = 10.0
 # After this many seconds without data it is reopened; the fresh device list
 # that every new stream starts with also resynchronises all state.
 STREAM_IDLE_TIMEOUT: Final = 900.0
+# Longest gateway message (``header.message``) kept in an error text. Gateway
+# texts are short sentences; 200 characters match the limit of the radio
+# journal (``JOURNAL_TEXT_LENGTH`` in ``coordinator.py``).
+MAX_GATEWAY_MESSAGE_LENGTH: Final = 200
 # Upper bound for one streamed JSON document (the full device list of a large
 # installation is a few hundred kilobytes).
 MAX_DOCUMENT_SIZE: Final = 8 * 1024 * 1024
@@ -229,9 +233,22 @@ def _error_reason(data: JsonObject, status: int) -> str:
 
 
 def _gateway_message(data: JsonObject) -> str:
+    """Return ``header.message`` as one short, printable line.
+
+    The text is untrusted: it ends up in exceptions, log lines, translated
+    errors and the diagnostics. Characters that are not printable (line breaks,
+    escape and other control characters, Unicode line separators) become a
+    space, so the text cannot start a forged log line, and it is cut to
+    ``MAX_GATEWAY_MESSAGE_LENGTH`` characters.
+    """
     header = as_object(data.get("header")) or {}
     message = header.get("message")
-    return message if isinstance(message, str) else ""
+    if not isinstance(message, str):
+        return ""
+    return "".join(
+        char if char.isprintable() else " "
+        for char in message[:MAX_GATEWAY_MESSAGE_LENGTH]
+    )
 
 
 def _http_error(text: str, http_status: int) -> OpusResponseError:
