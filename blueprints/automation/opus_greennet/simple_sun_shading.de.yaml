@@ -1,0 +1,855 @@
+blueprint:
+  name: "Opus GreenNet: Einfacher Sonnenschutz für einen Rollladen"
+  description: |-
+    **Was das macht.** Ein Rollladen fährt in eine Sonnenschutz-Position, wenn deine Bedingungen passen. Wenn sie enden, fährt er zurück dorthin, wo er vorher war.
+
+    **Richte es in Abschnitt 1 ein.** Alles andere ist freiwillig:
+    1. Wähle den Rollladen.
+    2. Stelle ein, wie weit er offen bleibt (0 % ist zu, 100 % ist offen).
+    3. Wähle den Wandtaster (oder die Tasten des Aktors), mit dem du diesen Rollladen bedienst.
+    4. Wähle einen Helfer vom Typ „Datum“ für die Tagespause. Im Hilfetext dort steht, wie du ihn anlegst.
+
+    Standardmäßig wird zwischen 10:00 und 18:00 Uhr beschattet. Prüfe die Zeiten in Abschnitt 2.
+
+    **Wann wird beschattet?** Alle Bedingungen, die du benutzt, müssen gleichzeitig passen: Zeitfenster, Sonnenrichtung und Sonnenhöhe, Außentemperatur, Außenhelligkeit. Benutze nur das Zeitfenster oder nimm weitere dazu. Mindestens eine Bedingung muss an sein.
+
+    **Du drückst den Wandtaster, dann ruht die Automatik heute.** Wenn du den Rollladen am Wandtaster bedienst, fährt diese Automatik heute nicht mehr. Morgen ist sie wieder bereit. Um Mitternacht fährt der Rollladen nicht.
+
+    **Ein Rollladen pro Automation.** Benutze diesen Blueprint noch einmal für den nächsten Rollladen. Lass keine andere Automation (zum Beispiel Cover Control Automation) denselben Rollladen bewegen.
+
+    **Gut zu wissen**
+    - Hat eine andere Automation den Rollladen schon geschlossen (zum Beispiel abends), fährt diese Automation ihn nie wieder hoch. Sie fährt nur weiter zu. Sie fährt den Rollladen nur zurück, wenn er noch auf der Beschattungs-Position steht.
+    - Nur Tastendrücke am Wandtaster oder an den Tasten des Aktors zählen als Handbedienung. Eine Fahrt aus der App, von einem Dashboard oder durch eine andere Automation wird nicht bemerkt. Für Geräte anderer Hersteller siehe den erweiterten Bereich.
+    - Den Sonnenstand berechnet Home Assistant für den Wohnort, der in Home Assistant eingestellt ist. Du gibst hier keinen Ort ein. Du stellst nur ein, aus welchen Richtungen die Sonne auf dieses Fenster scheint.
+    - Ein Türkontakt verhindert nur das Herunterfahren. Er öffnet den Rollladen nie zum Lüften.
+    - Wenn Home Assistant neu startet oder du diese Automation speicherst, während der Rollladen beschattet, bleibt der Rollladen stehen. Er fährt dann nicht von selbst zurück.
+    - Das ist eine Komfortfunktion. Es ist keine Sicherheitseinrichtung.
+  domain: automation
+  author: Opus GreenNet Bridge
+  source_url: https://github.com/kegelmeier/ha-opus-greennet/blob/main/blueprints/automation/opus_greennet/simple_sun_shading.de.yaml
+  homeassistant:
+    min_version: 2026.10.1
+  input:
+    basic_section:
+      name: "1. Rollladen und Bedienung"
+      icon: mdi:blinds
+      description: >-
+        Fülle diese vier Dinge aus. Dann arbeitet der Rollladen mit dem Zeitfenster aus Abschnitt 2.
+      input:
+        cover:
+          name: "Rollladen"
+          description: >-
+            Der Rollladen oder die Jalousie, die beschattet wird. Ein Rollladen pro Automation. Er muss eine Position in Prozent anfahren können.
+          selector:
+            entity:
+              filter:
+                - domain: cover
+                  supported_features:
+                    - cover.CoverEntityFeature.SET_POSITION
+        shade_position:
+          name: "So weit offen lassen"
+          description: >-
+            Wie weit der Rollladen zum Beschatten offen bleibt. 100 % ist ganz offen. Ein kleinerer Wert gibt mehr Schatten. Zum Beschatten wird der Rollladen nie ganz geschlossen, weil sich das Fenster sonst aufheizt. Der kleinste Wert ist 10 %. Bewährt haben sich 25 bis 30 %. Der Rollladen fährt nur weiter zu. Er wird nie auf diesen Wert geöffnet.
+          default: 30
+          selector:
+            number:
+              min: 10
+              max: 100
+              step: 1
+              unit_of_measurement: "%"
+              mode: slider
+        manual_events:
+          name: "Wandtaster oder Tasten dieses Rollladens"
+          description: >-
+            Wähle die Opus-GreenNet-Ereignis-Entität des Wandtasters oder die Entität „Tasten“ des Rollladenaktors. Wenn du drückst, ruht die Automatik für den Rest des Tages. Du kannst mehrere wählen. Für Geräte anderer Hersteller nutze den erweiterten Bereich.
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - integration: opus_greennet
+                  domain: event
+        manual_rockers:
+          name: "Wippe dieses Rollladens"
+          description: >-
+            Ein Wandtaster kann mehrere Wippen haben (A bis D). Wähle nur die Wippe oder die Wippen, mit denen du diesen Rollladen bedienst. Ein Druck auf eine Wippe, die du nicht gewählt hast, pausiert diesen Rollladen nicht.
+          default:
+            - A
+          selector:
+            select:
+              multiple: true
+              options:
+                - label: "Wippe A"
+                  value: A
+                - label: "Wippe B"
+                  value: B
+                - label: "Wippe C"
+                  value: C
+                - label: "Wippe D"
+                  value: D
+        pause_helper:
+          name: "Helfer für die Tagespause"
+          description: |-
+            Dieser Helfer merkt sich, an welchem Tag du den Rollladen von Hand bedient hast. Es muss ein Helfer vom Typ **Datum** sein. Du trägst dort nichts ein.
+
+            **So legst du ihn einmal an:**
+            1. Gehe zu **Einstellungen, Geräte & Dienste, Helfer**.
+            2. Klicke auf **Helfer erstellen** und wähle **Datum und/oder Uhrzeit**.
+            3. Gib einen Namen ein, zum Beispiel *Sonnenschutz Pause Wohnzimmer*.
+            4. Schalte nur **Datum** an. **Uhrzeit** bleibt aus. Speichern.
+            5. Wähle ihn hier aus.
+
+            **Wichtig:** Ein neuer Helfer zeigt das heutige Datum. Das heißt: heute ruhen. Zum Testen am selben Tag öffne den Helfer und stelle ein früheres Datum ein, zum Beispiel gestern. Sonst arbeitet die Automatik ab morgen.
+
+            Lege für jeden Rollladen einen eigenen Helfer an. Teile keinen Helfer zwischen Rollläden.
+          selector:
+            entity:
+              filter:
+                - domain: input_datetime
+    time_section:
+      name: "2. Wann darf beschattet werden? (Zeit)"
+      icon: mdi:clock-outline
+      description: >-
+        Die einfachste Einstellung: zwischen zwei Uhrzeiten beschatten. Wenn du zusätzlich Sonne, Temperatur oder Helligkeit nutzt (nächste Abschnitte), müssen alle passen.
+      input:
+        use_time:
+          name: "Zeitfenster benutzen"
+          description: >-
+            An: es wird nur zwischen den beiden Uhrzeiten unten beschattet. Aus: die Uhrzeit spielt keine Rolle, die anderen Bedingungen entscheiden.
+          default: true
+          selector:
+            boolean:
+        time_start:
+          name: "Beschatten darf beginnen um"
+          description: >-
+            Ab dieser Uhrzeit ist Beschatten erlaubt. Sie muss vor der Endzeit liegen.
+          default: "10:00:00"
+          selector:
+            time:
+        time_end:
+          name: "Beschatten endet um"
+          description: >-
+            Zu dieser Uhrzeit fährt der Rollladen zurück. Das Fenster kann nicht über Mitternacht reichen. Beginn und Ende dürfen nicht gleich sein.
+          default: "18:00:00"
+          selector:
+            time:
+    sun_section:
+      name: "3. Sonnenstand (freiwillig)"
+      icon: mdi:white-balance-sunny
+      description: >-
+        Nur ausfüllen, wenn die Sonne entscheiden soll. Home Assistant berechnet, wo die Sonne steht. Du stellst nur ein, aus welchen Richtungen sie auf dieses Fenster scheint. Wenn du mehrere Bedingungen nutzt, müssen alle passen.
+      collapsed: true
+      input:
+        use_sun:
+          name: "Sonnenstand benutzen"
+          description: >-
+            Aus: der Sonnenstand wird nicht benutzt. An: es wird nur beschattet, solange die Sonne im Bereich unten steht. Der Sonnenstand wird automatisch für den Wohnort berechnet, der in Home Assistant eingestellt ist. Du gibst hier keinen Ort ein. Stelle nur ein, aus welchen Richtungen Sonnenlicht auf dieses Fenster fällt. Bäume, andere Häuser und Dachüberstände kennt die Automation nicht.
+          default: false
+          selector:
+            boolean:
+        sun_azimuth_from:
+          name: "Sonnenrichtung ab"
+          description: >-
+            Die Sonne muss mindestens in dieser Richtung stehen. 0° = Norden, 90° = Osten, 180° = Süden, 270° = Westen. Beispiel für ein Fenster nach Süden: von 135° bis 225°. Das ist nur ein Beispiel. Deine Werte findest du mit der Sonnen-Entität (sun.sun, Attribut Azimut), während die Sonne auf dein Fenster scheint. Der Bereich darf über Norden reichen, zum Beispiel von 300° bis 60°.
+          default: 135
+          selector:
+            number:
+              min: 0
+              max: 360
+              step: 1
+              unit_of_measurement: "°"
+              mode: box
+        sun_azimuth_to:
+          name: "Sonnenrichtung bis"
+          description: >-
+            Die Sonne darf höchstens in dieser Richtung stehen. Gleiche Skala wie oben. Ab und bis dürfen nicht gleich sein.
+          default: 225
+          selector:
+            number:
+              min: 0
+              max: 360
+              step: 1
+              unit_of_measurement: "°"
+              mode: box
+        sun_min_elevation:
+          name: "Sonne mindestens so hoch"
+          description: >-
+            Wie hoch die Sonne über dem Horizont steht, in Grad. 0° ist der Horizont. Ein höherer Wert beginnt das Beschatten morgens später und beendet es abends früher.
+          default: 15
+          selector:
+            number:
+              min: 0
+              max: 90
+              step: 1
+              unit_of_measurement: "°"
+              mode: box
+    temperature_section:
+      name: "4. Außentemperatur (freiwillig)"
+      icon: mdi:thermometer
+      description: >-
+        Nur ausfüllen, wenn nur bei Wärme draußen beschattet werden soll. Lass den Sensor leer, um die Temperatur nicht zu nutzen.
+      collapsed: true
+      input:
+        temperature_sensor:
+          name: "Außentemperatur-Sensor"
+          description: >-
+            Ein Sensor, der die Temperatur draußen misst, in °C, °F oder K. Ist dieses Feld leer, wird die Temperatur nicht benutzt. Hat der Sensor keinen Wert, wird nicht neu beschattet.
+          default: ""
+          selector:
+            entity:
+              filter:
+                - domain: sensor
+                  device_class: temperature
+        temperature_threshold:
+          name: "Beschatten ab dieser Temperatur"
+          description: >-
+            Das Beschatten beginnt, wenn es mindestens so warm ist. Ein kleinerer Wert beschattet öfter. Das Beschatten endet erst, wenn es deutlich kühler ist (siehe erweiterter Bereich).
+          default: 22
+          selector:
+            number:
+              min: -30
+              max: 60
+              step: 0.5
+              unit_of_measurement: °C
+              mode: box
+    lux_section:
+      name: "5. Außenhelligkeit (freiwillig)"
+      icon: mdi:brightness-7
+      description: >-
+        Nur ausfüllen, wenn nur bei Helligkeit draußen beschattet werden soll. Lass den Sensor leer, um die Helligkeit nicht zu nutzen.
+      collapsed: true
+      input:
+        lux_sensor:
+          name: "Außenhelligkeits-Sensor"
+          description: >-
+            Ein Sensor für die Helligkeit draußen, in Lux. Er sollte draußen messen und nicht von diesem Rollladen verdeckt werden. Ist dieses Feld leer, wird die Helligkeit nicht benutzt. Hat der Sensor keinen Wert, wird nicht neu beschattet.
+          default: ""
+          selector:
+            entity:
+              filter:
+                - domain: sensor
+                  device_class: illuminance
+        lux_threshold:
+          name: "Beschatten ab dieser Helligkeit"
+          description: >-
+            Das Beschatten beginnt, wenn es mindestens so hell ist. Ein kleinerer Wert beschattet öfter. Gute Werte hängen von deinem Sensor und deinem Fenster ab. Der Standardwert ist nur ein erster Versuch.
+          default: 20000
+          selector:
+            number:
+              min: 0
+              max: 150000
+              step: 500
+              unit_of_measurement: lx
+              mode: box
+    door_section:
+      name: "6. Tür offen (freiwillig)"
+      icon: mdi:door-open
+      description: >-
+        Nur ausfüllen, wenn eine Tür oder ein Fenster frei bleiben muss. Das ist keine Lüftungsfunktion.
+      collapsed: true
+      input:
+        door_contacts:
+          name: "Tür- oder Fensterkontakte"
+          description: >-
+            Solange einer dieser Kontakte offen ist, wird der Rollladen nicht automatisch heruntergefahren. Hat ein Kontakt keinen Wert, wird auch nicht heruntergefahren. Schließt ein Kontakt wieder, prüft die Automation die Lage neu. Ein Rollladen, der schon zu ist, wird wegen des Kontakts nicht geöffnet. Das ist keine Sicherheitseinrichtung und kein Schutz vor dem Aussperren. Andere Automationen und der Wandtaster werden nicht gesperrt.
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - domain: binary_sensor
+                  device_class:
+                    - door
+                    - window
+                    - opening
+                    - garage_door
+    advanced_section:
+      name: "7. Erweitert (freiwillig)"
+      icon: mdi:tune
+      description: >-
+        Hier musst du nichts ändern. Die Standardwerte passen für die meisten Häuser.
+      collapsed: true
+      input:
+        start_delay:
+          name: "Wartezeit vor dem Beschatten"
+          description: >-
+            Alle deine Bedingungen müssen so lange passen, bevor der Rollladen herunterfährt. Eine längere Zeit vermeidet Fahrten bei kurzer Sonne. 0 heißt: sofort herunterfahren. Stunden, Minuten und Sekunden.
+          default:
+            hours: 0
+            minutes: 2
+            seconds: 0
+          selector:
+            duration:
+        end_delay:
+          name: "Wartezeit vor der Rückkehr"
+          description: >-
+            Der Rollladen fährt erst zurück, wenn die Bedingungen so lange weg waren. Das vermeidet Fahrten wegen kurzer Wolken. Das Ende des Zeitfensters wird nicht verzögert. Stunden, Minuten und Sekunden.
+          default:
+            hours: 0
+            minutes: 10
+            seconds: 0
+          selector:
+            duration:
+        temperature_hysteresis:
+          name: "Temperatur-Rückschaltdifferenz"
+          description: >-
+            Das Beschatten endet erst, wenn es so viel kälter ist als die Beschattungs-Temperatur. Ein höherer Wert vermeidet ständiges Hin und Her um den Grenzwert. 0 heißt: kein Unterschied.
+          default: 2
+          selector:
+            number:
+              min: 0
+              max: 10
+              step: 0.5
+              unit_of_measurement: °C
+              mode: box
+        lux_hysteresis:
+          name: "Helligkeits-Rückschaltdifferenz"
+          description: >-
+            Das Beschatten endet erst, wenn die Helligkeit so viel Prozent unter dem Beschattungs-Grenzwert liegt. Ein höherer Wert vermeidet Fahrten bei vorbeiziehenden Wolken.
+          default: 25
+          selector:
+            number:
+              min: 0
+              max: 90
+              step: 5
+              unit_of_measurement: "%"
+              mode: box
+        sun_max_elevation:
+          name: "Sonne höchstens so hoch"
+          description: >-
+            Nur nützlich, wenn die Sonne zu hoch steht, um das Fenster zu erreichen, zum Beispiel unter einem Dachüberstand im Sommer. 90° heißt: keine obere Grenze. Wird nur mit dem Sonnenstand benutzt.
+          default: 90
+          selector:
+            number:
+              min: 1
+              max: 90
+              step: 1
+              unit_of_measurement: "°"
+              mode: box
+        other_manual_triggers:
+          name: "Anderes Signal für Handbedienung (Geräte anderer Hersteller)"
+          description: >-
+            Nur für Wandtaster oder Tasten, die nicht von Opus GreenNet sind. Füge einen oder mehrere Auslöser hinzu. Jedes Mal, wenn einer auslöst, zählt das als Tastendruck von Hand, und die Automatik ruht für den Rest des Tages. Nimm nur Auslöser, die auslösen, wenn ein Mensch drückt. Nimm nicht die Position dieses Rollladens: Sie ändert sich auch, wenn die Automation ihn fährt.
+          default: []
+          selector:
+            trigger:
+
+# Why "parallel": a press on the wall switch must never wait for, or cancel, a
+# running shading. The press is its own short run and writes the day pause. A
+# long run (waiting, shading, return) is the only memory of the start position
+# of ONE blind and must survive such presses. Every long run re-reads the day
+# pause before it moves the blind, so it never works against a press.
+mode: parallel
+max: 10
+max_exceeded: silent
+
+# Values for the trigger templates (limited templates, no states here).
+trigger_variables:
+  cover: !input cover
+  door_contacts: !input door_contacts
+  use_time: !input use_time
+  time_start: !input time_start
+  time_end: !input time_end
+  use_sun: !input use_sun
+  az_from: !input sun_azimuth_from
+  az_to: !input sun_azimuth_to
+  elev_min: !input sun_min_elevation
+  elev_max: !input sun_max_elevation
+  temp_sensor: !input temperature_sensor
+  temp_min: !input temperature_threshold
+  temp_hyst: !input temperature_hysteresis
+  lux_sensor: !input lux_sensor
+  lux_min: !input lux_threshold
+  lux_hyst: !input lux_hysteresis
+
+variables:
+  cover: !input cover
+  shade_input: !input shade_position
+  shade: "{{ [shade_input | float(30), 10] | max }}"
+  manual_events: !input manual_events
+  manual_rockers: !input manual_rockers
+  other_triggers: !input other_manual_triggers
+  pause_helper: !input pause_helper
+  use_time: !input use_time
+  time_start: !input time_start
+  time_end: !input time_end
+  use_sun: !input use_sun
+  az_from: !input sun_azimuth_from
+  az_to: !input sun_azimuth_to
+  elev_min: !input sun_min_elevation
+  elev_max: !input sun_max_elevation
+  temp_sensor: !input temperature_sensor
+  temp_min: !input temperature_threshold
+  temp_hyst: !input temperature_hysteresis
+  lux_sensor: !input lux_sensor
+  lux_min: !input lux_threshold
+  lux_hyst: !input lux_hysteresis
+  door_contacts: !input door_contacts
+  start_delay: !input start_delay
+  end_delay: !input end_delay
+  start_seconds: "{{ timedelta(**start_delay).total_seconds() }}"
+  end_seconds: "{{ timedelta(**end_delay).total_seconds() }}"
+
+triggers:
+  # All switched-on criteria are true (strict limits), the blind can be
+  # reached and no door contact blocks: for the waiting time. A door that
+  # closes or a blind that comes back makes this true again.
+  - trigger: template
+    id: shade
+    value_template: >-
+      {% set t_lim = temp_min %}
+      {% set l_lim = lux_min %}
+      {% set hms = now().strftime('%H:%M:%S') %}
+      {% set az = state_attr('sun.sun', 'azimuth') %}
+      {% set el = state_attr('sun.sun', 'elevation') %}
+      {% set t_raw = states(temp_sensor) if temp_sensor != '' else '' %}
+      {% set t_unit = state_attr(temp_sensor, 'unit_of_measurement') if temp_sensor != '' else '' %}
+      {% set l_raw = states(lux_sensor) if lux_sensor != '' else '' %}
+      {% set l_unit = state_attr(lux_sensor, 'unit_of_measurement') if lux_sensor != '' else '' %}
+      {% if not use_time %}{% set c_time = 'skip' %}
+      {% elif time_start >= time_end %}{% set c_time = 'invalid' %}
+      {% elif time_start <= hms < time_end %}{% set c_time = 'ok' %}
+      {% else %}{% set c_time = 'no' %}{% endif %}
+      {% if not use_sun %}{% set c_sun = 'skip' %}
+      {% elif az_from % 360 == az_to % 360 or elev_min > elev_max %}{% set c_sun = 'invalid' %}
+      {% elif not (is_number(az) and is_number(el)) %}{% set c_sun = 'invalid' %}
+      {% else %}
+        {% set a = az | float %}
+        {% set f = az_from % 360 %}
+        {% set t = az_to % 360 %}
+        {% set inside = (f <= a <= t) if f < t else (a >= f or a <= t) %}
+        {% set c_sun = 'ok' if (inside and elev_min <= (el | float) <= elev_max) else 'no' %}
+      {% endif %}
+      {% if temp_sensor == '' %}{% set c_temp = 'skip' %}
+      {% elif not is_number(t_raw) or t_unit not in ['°C', '°F', 'K'] %}{% set c_temp = 'invalid' %}
+      {% else %}
+        {% set tv = t_raw | float %}
+        {% set tc = tv if t_unit == '°C' else ((tv - 32) / 1.8 if t_unit == '°F' else tv - 273.15) %}
+        {% set c_temp = 'ok' if tc >= t_lim else 'no' %}
+      {% endif %}
+      {% if lux_sensor == '' %}{% set c_lux = 'skip' %}
+      {% elif not is_number(l_raw) or l_unit not in ['lx', none] %}{% set c_lux = 'invalid' %}
+      {% else %}
+        {% set c_lux = 'ok' if (l_raw | float) >= l_lim else 'no' %}
+      {% endif %}
+      {% set cs = [c_time, c_sun, c_temp, c_lux] %}
+      {% set cov_pos = state_attr(cover, 'current_position') %}
+      {% set door = namespace(blocked=false) %}
+      {% for d in door_contacts %}{% if not is_state(d, 'off') %}{% set door.blocked = true %}{% endif %}{% endfor %}
+      {{ 'ok' in cs and 'no' not in cs and 'invalid' not in cs and is_number(cov_pos) and not door.blocked }}
+    for: !input start_delay
+  # A press on a rocker or button.
+  - trigger: state
+    id: manual_event
+    entity_id: !input manual_events
+  # After a start or a reload: one look at the situation, because the
+  # template trigger above does not fire for a condition that is already true.
+  - trigger: homeassistant
+    id: init
+    event: start
+  - trigger: event
+    id: init
+    event_type: automation_reloaded
+  # Any other manual signal (advanced, for devices of other makers).
+  - triggers: !input other_manual_triggers
+
+actions:
+  - alias: "Herausfinden, was diesen Lauf gestartet hat"
+    variables:
+      is_manual: "{{ trigger.id not in ['shade', 'init'] }}"
+
+  # ── 1. Manual operation: set the day pause, nothing else ───────────────
+  - alias: "Handbedienung: heute ruhen"
+    if:
+      - condition: template
+        value_template: "{{ is_manual }}"
+    then:
+      - alias: "Ein echter Druck auf eine gewählte Wippe startet die Tagespause"
+        if:
+          - condition: template
+            value_template: >-
+              {% set t = trigger.to_state | default(none) %}
+              {% set f = trigger.from_state | default(none) %}
+              {% set kind = (t.attributes.get('event_type', '') | string) if t is not none else '' %}
+              {{ trigger.id != 'manual_event'
+                 or (t is not none and f is not none
+                     and f.state not in ['unavailable', 'unknown']
+                     and t.state not in ['unavailable', 'unknown']
+                     and f.state != t.state
+                     and kind.startswith('button') and kind.endswith('_pressed')
+                     and kind[6:7] in manual_rockers
+                     and (t.attributes.get('channel', 0) | int(0)) == 0) }}
+        then:
+          - action: input_datetime.set_datetime
+            target:
+              entity_id: !input pause_helper
+            data:
+              date: "{{ now().strftime('%Y-%m-%d') }}"
+      - stop: "Handbedienung verarbeitet. Es wird nichts gefahren."
+
+  # ── 2. After a start or reload: wait for the values ────────────────────
+  - alias: "Nach Start oder Neuladen: warten, bis die Werte da sind"
+    if:
+      - condition: template
+        value_template: "{{ trigger.id == 'init' }}"
+    then:
+      - delay: "{{ [start_seconds | float, 60] | max }}"
+      - alias: "Anhalten, wenn ein anderer Lauf aktiv ist"
+        if:
+          - condition: template
+            value_template: "{{ this.attributes.current | int(0) > 1 }}"
+        then:
+          - stop: "Ein anderer Lauf ist aktiv. Hier ist nichts zu tun."
+
+  # ── 3. Read the situation once ─────────────────────────────────────────
+  - alias: "Die Lage einmal lesen"
+    variables:
+      helper_state: "{{ states(pause_helper) }}"
+      helper_ok: >-
+        {{ helper_state | regex_match('^\d{4}-\d{2}-\d{2}$') }}
+      paused: "{{ helper_ok and helper_state == now().strftime('%Y-%m-%d') }}"
+      crit: >-
+        {% set t_lim = temp_min %}
+        {% set l_lim = lux_min %}
+        {% set hms = now().strftime('%H:%M:%S') %}
+        {% set az = state_attr('sun.sun', 'azimuth') %}
+        {% set el = state_attr('sun.sun', 'elevation') %}
+        {% set t_raw = states(temp_sensor) if temp_sensor != '' else '' %}
+        {% set t_unit = state_attr(temp_sensor, 'unit_of_measurement') if temp_sensor != '' else '' %}
+        {% set l_raw = states(lux_sensor) if lux_sensor != '' else '' %}
+        {% set l_unit = state_attr(lux_sensor, 'unit_of_measurement') if lux_sensor != '' else '' %}
+        {% if not use_time %}{% set c_time = 'skip' %}
+        {% elif time_start >= time_end %}{% set c_time = 'invalid' %}
+        {% elif time_start <= hms < time_end %}{% set c_time = 'ok' %}
+        {% else %}{% set c_time = 'no' %}{% endif %}
+        {% if not use_sun %}{% set c_sun = 'skip' %}
+        {% elif az_from % 360 == az_to % 360 or elev_min > elev_max %}{% set c_sun = 'invalid' %}
+        {% elif not (is_number(az) and is_number(el)) %}{% set c_sun = 'invalid' %}
+        {% else %}
+          {% set a = az | float %}
+          {% set f = az_from % 360 %}
+          {% set t = az_to % 360 %}
+          {% set inside = (f <= a <= t) if f < t else (a >= f or a <= t) %}
+          {% set c_sun = 'ok' if (inside and elev_min <= (el | float) <= elev_max) else 'no' %}
+        {% endif %}
+        {% if temp_sensor == '' %}{% set c_temp = 'skip' %}
+        {% elif not is_number(t_raw) or t_unit not in ['°C', '°F', 'K'] %}{% set c_temp = 'invalid' %}
+        {% else %}
+          {% set tv = t_raw | float %}
+          {% set tc = tv if t_unit == '°C' else ((tv - 32) / 1.8 if t_unit == '°F' else tv - 273.15) %}
+          {% set c_temp = 'ok' if tc >= t_lim else 'no' %}
+        {% endif %}
+        {% if lux_sensor == '' %}{% set c_lux = 'skip' %}
+        {% elif not is_number(l_raw) or l_unit not in ['lx', none] %}{% set c_lux = 'invalid' %}
+        {% else %}
+          {% set c_lux = 'ok' if (l_raw | float) >= l_lim else 'no' %}
+        {% endif %}
+        {{ {'time': c_time, 'sun': c_sun, 'temp': c_temp, 'lux': c_lux} }}
+      cfg_issue: >-
+        {% if not (use_time or use_sun or temp_sensor != '' or lux_sensor != '') %}criterion
+        {% elif manual_events | count == 0 and other_triggers | count == 0 %}manual
+        {% elif not helper_ok %}helper
+        {% elif use_time and time_start >= time_end %}time
+        {% elif use_sun and (az_from % 360 == az_to % 360 or elev_min > elev_max) %}sun
+        {% endif %}
+      door_open: >-
+        {% set ns = namespace(open=false) %}
+        {% for door in door_contacts %}{% if is_state(door, 'on') %}{% set ns.open = true %}{% endif %}{% endfor %}
+        {{ ns.open }}
+      door_blocks: >-
+        {% set ns = namespace(blocked=false) %}
+        {% for door in door_contacts %}{% if not is_state(door, 'off') %}{% set ns.blocked = true %}{% endif %}{% endfor %}
+        {{ ns.blocked }}
+      cov_state: "{{ states(cover) }}"
+      cov_pos: "{{ state_attr(cover, 'current_position') }}"
+      cov_known: "{{ cov_state not in ['unavailable', 'unknown'] and is_number(cov_pos) }}"
+      cov_moving: "{{ cov_state in ['opening', 'closing'] }}"
+      missing: >-
+        {% set ns = namespace(m=[]) %}
+        {% if not cov_known %}{% set ns.m = ns.m + ['blind'] %}{% endif %}
+        {% if crit.sun == 'invalid' %}{% set ns.m = ns.m + ['sun'] %}{% endif %}
+        {% if crit.temp == 'invalid' %}{% set ns.m = ns.m + ['temperature'] %}{% endif %}
+        {% if crit.lux == 'invalid' %}{% set ns.m = ns.m + ['brightness'] %}{% endif %}
+        {{ ns.m }}
+      start_position: "{{ cov_pos | int(0) if cov_known else none }}"
+
+  # ── 4. Decide, in a fixed order ────────────────────────────────────────
+  - alias: "Einrichtung unvollständig"
+    if:
+      - condition: template
+        value_template: "{{ cfg_issue | trim != '' }}"
+    then:
+      - stop: "Einrichtung unvollständig: {{ {'criterion': 'schalte mindestens eine Bedingung an (Zeit, Sonne, Temperatur oder Helligkeit).', 'manual': 'wähle die Wandtaster- oder Tasten-Ereignisse dieses Rollladens oder füge im erweiterten Bereich einen Auslöser hinzu.', 'helper': 'der Helfer für die Tagespause fehlt, ist nicht verfügbar oder hat kein Datum. Nimm einen Helfer nur vom Typ Datum.', 'time': 'die Startzeit muss vor der Endzeit liegen.', 'sun': 'die beiden Sonnenrichtungen müssen verschieden sein, und die niedrigste Sonnenhöhe darf nicht über der höchsten liegen.'}[cfg_issue | trim] }} Es wurde nichts gefahren."
+        error: true
+  - alias: "Heute pausiert: Handbedienung erkannt"
+    if:
+      - condition: template
+        value_template: "{{ paused }}"
+    then:
+      - stop: "Heute pausiert: Handbedienung erkannt. Es wurde nichts gefahren."
+  - alias: "Schließfahrt gesperrt: Tür ist offen oder ohne Wert"
+    if:
+      - condition: template
+        value_template: "{{ door_blocks }}"
+    then:
+      - stop: "Schließfahrt gesperrt: ein Türkontakt ist offen oder hat keinen Wert. Es wurde nichts gefahren."
+  - alias: "Keine Fahrt: ein benötigter Wert fehlt"
+    if:
+      - condition: template
+        value_template: "{{ missing | count > 0 }}"
+    then:
+      - stop: "Keine Fahrt: ein benötigter Wert fehlt ({% for m in missing %}{{ {'blind': 'Rollladen', 'sun': 'Sonnenstand', 'temperature': 'Außentemperatur', 'brightness': 'Außenhelligkeit'}[m] }}{% if not loop.last %}, {% endif %}{% endfor %}). Es wurde nichts gefahren."
+  - alias: "Keine Beschattung: außerhalb des Zeitfensters"
+    if:
+      - condition: template
+        value_template: "{{ crit.time == 'no' }}"
+    then:
+      - stop: "Keine Beschattung: außerhalb des Zeitfensters."
+  - alias: "Keine Beschattung: Sonne erreicht das Fenster nicht"
+    if:
+      - condition: template
+        value_template: "{{ crit.sun == 'no' }}"
+    then:
+      - stop: "Keine Beschattung: Die Sonne steht nicht im gewählten Bereich."
+  - alias: "Keine Beschattung: Außentemperatur unter der Grenze"
+    if:
+      - condition: template
+        value_template: "{{ crit.temp == 'no' }}"
+    then:
+      - stop: "Keine Beschattung: Die Außentemperatur liegt unter der Grenze."
+  - alias: "Keine Beschattung: Außenhelligkeit unter der Grenze"
+    if:
+      - condition: template
+        value_template: "{{ crit.lux == 'no' }}"
+    then:
+      - stop: "Keine Beschattung: Die Außenhelligkeit liegt unter der Grenze."
+  - alias: "Keine Änderung: Rollladen ist bereits ausreichend geschlossen"
+    if:
+      - condition: template
+        value_template: "{{ (cov_pos | float) <= (shade | float) + 5 }}"
+    then:
+      - stop: "Keine Änderung: Der Rollladen steht schon auf oder unter der Beschattungs-Position. Es wurde nichts gefahren. Dieser Lauf fährt ihn später auch nicht zurück."
+  - alias: "Keine Fahrt: Rollladen fährt gerade"
+    if:
+      - condition: template
+        value_template: "{{ cov_moving }}"
+    then:
+      - stop: "Keine Fahrt: Der Rollladen fährt gerade. Es wurde nichts gefahren."
+
+  # ── 5. Close to the shading position ───────────────────────────────────
+  # From here on this run owns the shading: it knows the start position.
+  - alias: "Rollladen auf die Beschattungs-Position fahren"
+    action: cover.set_cover_position
+    target:
+      entity_id: !input cover
+    data:
+      position: "{{ shade | int }}"
+
+  # ── 6. Watch the drive: a door that opens, or a press ──────────────────
+  - alias: "Fahrt beobachten: auf das Ziel, eine offene Tür oder einen Tastendruck warten"
+    wait_template: >-
+      {% set hv = states(pause_helper) %}
+      {% set paused_now = (not (hv | regex_match('^\d{4}-\d{2}-\d{2}$'))) or hv == now().strftime('%Y-%m-%d') %}
+      {% set d = namespace(open=false) %}
+      {% for door in door_contacts %}{% if is_state(door, 'on') %}{% set d.open = true %}{% endif %}{% endfor %}
+      {% set pos = state_attr(cover, 'current_position') %}
+      {% set arrived = is_number(pos) and ((pos | float) - (shade | float)) | abs <= 5
+         and states(cover) not in ['opening', 'closing'] %}
+      {{ paused_now or d.open or arrived }}
+    timeout: 180
+    continue_on_timeout: true
+  - alias: "Lage nach der Fahrt ansehen"
+    variables:
+      after: >-
+        {% set hv = states(pause_helper) %}
+        {% set paused_now = (not (hv | regex_match('^\d{4}-\d{2}-\d{2}$'))) or hv == now().strftime('%Y-%m-%d') %}
+        {% set d = namespace(open=false) %}
+        {% for door in door_contacts %}{% if is_state(door, 'on') %}{% set d.open = true %}{% endif %}{% endfor %}
+        {% set pos = state_attr(cover, 'current_position') %}
+        {% set arrived = is_number(pos) and ((pos | float) - (shade | float)) | abs <= 5
+           and states(cover) not in ['opening', 'closing'] %}
+        {{ {'paused': paused_now, 'door_open': d.open, 'arrived': arrived} }}
+  - alias: "Heute pausiert: Tastendruck während der Fahrt"
+    if:
+      - condition: template
+        value_template: "{{ after.paused }}"
+    then:
+      - stop: "Heute pausiert: Handbedienung während der Fahrt erkannt. Es wird nichts mehr gefahren."
+  - alias: "Tür öffnete beim Schließen: Rollladen anhalten lassen"
+    if:
+      - condition: template
+        value_template: "{{ after.door_open and not after.arrived }}"
+    then:
+      - action: cover.stop_cover
+        target:
+          entity_id: !input cover
+        continue_on_error: true
+      - stop: "Ein Türkontakt wurde geöffnet, während der Rollladen schloss. Stopp angefordert. Der Rollladen wird nicht zurückgefahren."
+
+  # ── 7. Shading is active: wait until it ends ───────────────────────────
+  # One round: wait for a reason to end, wait for the confirmation time, look
+  # again. A reason that is gone again (a cloud) only starts the next round.
+  - alias: "Beschattung ist aktiv: warten, bis sie endet"
+    repeat:
+      count: 1000000
+      sequence:
+        - alias: "Auf einen Grund zum Beenden warten: Tastendruck, Ende des Zeitfensters oder Bedingungen weg"
+          wait_template: >-
+            {% set hv = states(pause_helper) %}
+            {% set paused_now = (not (hv | regex_match('^\d{4}-\d{2}-\d{2}$'))) or hv == now().strftime('%Y-%m-%d') %}
+            {% set t_lim = temp_min - temp_hyst %}
+            {% set l_lim = lux_min * (1 - lux_hyst / 100) %}
+            {% set hms = now().strftime('%H:%M:%S') %}
+            {% set az = state_attr('sun.sun', 'azimuth') %}
+            {% set el = state_attr('sun.sun', 'elevation') %}
+            {% set t_raw = states(temp_sensor) if temp_sensor != '' else '' %}
+            {% set t_unit = state_attr(temp_sensor, 'unit_of_measurement') if temp_sensor != '' else '' %}
+            {% set l_raw = states(lux_sensor) if lux_sensor != '' else '' %}
+            {% set l_unit = state_attr(lux_sensor, 'unit_of_measurement') if lux_sensor != '' else '' %}
+            {% if not use_time %}{% set c_time = 'skip' %}
+            {% elif time_start >= time_end %}{% set c_time = 'invalid' %}
+            {% elif time_start <= hms < time_end %}{% set c_time = 'ok' %}
+            {% else %}{% set c_time = 'no' %}{% endif %}
+            {% if not use_sun %}{% set c_sun = 'skip' %}
+            {% elif az_from % 360 == az_to % 360 or elev_min > elev_max %}{% set c_sun = 'invalid' %}
+            {% elif not (is_number(az) and is_number(el)) %}{% set c_sun = 'invalid' %}
+            {% else %}
+              {% set a = az | float %}
+              {% set f = az_from % 360 %}
+              {% set t = az_to % 360 %}
+              {% set inside = (f <= a <= t) if f < t else (a >= f or a <= t) %}
+              {% set c_sun = 'ok' if (inside and elev_min <= (el | float) <= elev_max) else 'no' %}
+            {% endif %}
+            {% if temp_sensor == '' %}{% set c_temp = 'skip' %}
+            {% elif not is_number(t_raw) or t_unit not in ['°C', '°F', 'K'] %}{% set c_temp = 'invalid' %}
+            {% else %}
+              {% set tv = t_raw | float %}
+              {% set tc = tv if t_unit == '°C' else ((tv - 32) / 1.8 if t_unit == '°F' else tv - 273.15) %}
+              {% set c_temp = 'ok' if tc >= t_lim else 'no' %}
+            {% endif %}
+            {% if lux_sensor == '' %}{% set c_lux = 'skip' %}
+            {% elif not is_number(l_raw) or l_unit not in ['lx', none] %}{% set c_lux = 'invalid' %}
+            {% else %}
+              {% set c_lux = 'ok' if (l_raw | float) >= l_lim else 'no' %}
+            {% endif %}
+            {{ paused_now or c_time == 'no' or 'no' in [c_sun, c_temp, c_lux] }}
+        - alias: "Warten: die Bedingungen müssen für die Wartezeit weg bleiben"
+          wait_template: >-
+            {% set hv = states(pause_helper) %}
+            {% set paused_now = (not (hv | regex_match('^\d{4}-\d{2}-\d{2}$'))) or hv == now().strftime('%Y-%m-%d') %}
+            {% set t_lim = temp_min - temp_hyst %}
+            {% set l_lim = lux_min * (1 - lux_hyst / 100) %}
+            {% set hms = now().strftime('%H:%M:%S') %}
+            {% set az = state_attr('sun.sun', 'azimuth') %}
+            {% set el = state_attr('sun.sun', 'elevation') %}
+            {% set t_raw = states(temp_sensor) if temp_sensor != '' else '' %}
+            {% set t_unit = state_attr(temp_sensor, 'unit_of_measurement') if temp_sensor != '' else '' %}
+            {% set l_raw = states(lux_sensor) if lux_sensor != '' else '' %}
+            {% set l_unit = state_attr(lux_sensor, 'unit_of_measurement') if lux_sensor != '' else '' %}
+            {% if not use_time %}{% set c_time = 'skip' %}
+            {% elif time_start >= time_end %}{% set c_time = 'invalid' %}
+            {% elif time_start <= hms < time_end %}{% set c_time = 'ok' %}
+            {% else %}{% set c_time = 'no' %}{% endif %}
+            {% if not use_sun %}{% set c_sun = 'skip' %}
+            {% elif az_from % 360 == az_to % 360 or elev_min > elev_max %}{% set c_sun = 'invalid' %}
+            {% elif not (is_number(az) and is_number(el)) %}{% set c_sun = 'invalid' %}
+            {% else %}
+              {% set a = az | float %}
+              {% set f = az_from % 360 %}
+              {% set t = az_to % 360 %}
+              {% set inside = (f <= a <= t) if f < t else (a >= f or a <= t) %}
+              {% set c_sun = 'ok' if (inside and elev_min <= (el | float) <= elev_max) else 'no' %}
+            {% endif %}
+            {% if temp_sensor == '' %}{% set c_temp = 'skip' %}
+            {% elif not is_number(t_raw) or t_unit not in ['°C', '°F', 'K'] %}{% set c_temp = 'invalid' %}
+            {% else %}
+              {% set tv = t_raw | float %}
+              {% set tc = tv if t_unit == '°C' else ((tv - 32) / 1.8 if t_unit == '°F' else tv - 273.15) %}
+              {% set c_temp = 'ok' if tc >= t_lim else 'no' %}
+            {% endif %}
+            {% if lux_sensor == '' %}{% set c_lux = 'skip' %}
+            {% elif not is_number(l_raw) or l_unit not in ['lx', none] %}{% set c_lux = 'invalid' %}
+            {% else %}
+              {% set c_lux = 'ok' if (l_raw | float) >= l_lim else 'no' %}
+            {% endif %}
+            {{ paused_now or c_time == 'no' or 'no' not in [c_sun, c_temp, c_lux] }}
+          timeout: "{{ [end_seconds | float, 0.1] | max }}"
+          continue_on_timeout: true
+        - alias: "Die Lage noch einmal ansehen"
+          variables:
+            now_state: >-
+              {% set hv = states(pause_helper) %}
+              {% set paused_now = (not (hv | regex_match('^\d{4}-\d{2}-\d{2}$'))) or hv == now().strftime('%Y-%m-%d') %}
+              {% set t_lim = temp_min - temp_hyst %}
+              {% set l_lim = lux_min * (1 - lux_hyst / 100) %}
+              {% set hms = now().strftime('%H:%M:%S') %}
+              {% set az = state_attr('sun.sun', 'azimuth') %}
+              {% set el = state_attr('sun.sun', 'elevation') %}
+              {% set t_raw = states(temp_sensor) if temp_sensor != '' else '' %}
+              {% set t_unit = state_attr(temp_sensor, 'unit_of_measurement') if temp_sensor != '' else '' %}
+              {% set l_raw = states(lux_sensor) if lux_sensor != '' else '' %}
+              {% set l_unit = state_attr(lux_sensor, 'unit_of_measurement') if lux_sensor != '' else '' %}
+              {% if not use_time %}{% set c_time = 'skip' %}
+              {% elif time_start >= time_end %}{% set c_time = 'invalid' %}
+              {% elif time_start <= hms < time_end %}{% set c_time = 'ok' %}
+              {% else %}{% set c_time = 'no' %}{% endif %}
+              {% if not use_sun %}{% set c_sun = 'skip' %}
+              {% elif az_from % 360 == az_to % 360 or elev_min > elev_max %}{% set c_sun = 'invalid' %}
+              {% elif not (is_number(az) and is_number(el)) %}{% set c_sun = 'invalid' %}
+              {% else %}
+                {% set a = az | float %}
+                {% set f = az_from % 360 %}
+                {% set t = az_to % 360 %}
+                {% set inside = (f <= a <= t) if f < t else (a >= f or a <= t) %}
+                {% set c_sun = 'ok' if (inside and elev_min <= (el | float) <= elev_max) else 'no' %}
+              {% endif %}
+              {% if temp_sensor == '' %}{% set c_temp = 'skip' %}
+              {% elif not is_number(t_raw) or t_unit not in ['°C', '°F', 'K'] %}{% set c_temp = 'invalid' %}
+              {% else %}
+                {% set tv = t_raw | float %}
+                {% set tc = tv if t_unit == '°C' else ((tv - 32) / 1.8 if t_unit == '°F' else tv - 273.15) %}
+                {% set c_temp = 'ok' if tc >= t_lim else 'no' %}
+              {% endif %}
+              {% if lux_sensor == '' %}{% set c_lux = 'skip' %}
+              {% elif not is_number(l_raw) or l_unit not in ['lx', none] %}{% set c_lux = 'invalid' %}
+              {% else %}
+                {% set c_lux = 'ok' if (l_raw | float) >= l_lim else 'no' %}
+              {% endif %}
+              {{ {'paused': paused_now, 'time_over': c_time == 'no', 'failing': 'no' in [c_sun, c_temp, c_lux]} }}
+        - alias: "Heute pausiert: Handbedienung erkannt, keine Rückfahrt"
+          if:
+            - condition: template
+              value_template: "{{ now_state.paused }}"
+          then:
+            - stop: "Heute pausiert: Handbedienung erkannt. Der Rollladen wird nicht zurückgefahren."
+        - alias: "Beschattung ist zu Ende: zurückfahren"
+          if:
+            - condition: template
+              value_template: "{{ now_state.time_over or now_state.failing }}"
+          then:
+            - alias: "Den Rollladen ansehen"
+              variables:
+                back_state: "{{ states(cover) }}"
+                back_pos: "{{ state_attr(cover, 'current_position') }}"
+                back_known: "{{ back_state not in ['unavailable', 'unknown'] and is_number(back_pos) }}"
+            - alias: "Keine Rückfahrt: Rollladen hat keine gültige Position"
+              if:
+                - condition: template
+                  value_template: "{{ not back_known }}"
+              then:
+                - stop: "Keine Rückfahrt: Der Rollladen hat keine gültige Position. Es wurde nichts gefahren."
+            - alias: "Keine Rückfahrt: Rollladen wurde von jemand anderem bewegt"
+              if:
+                - condition: template
+                  value_template: >-
+                    {{ back_state in ['opening', 'closing']
+                       or ((back_pos | float) - (shade | float)) | abs > 5 }}
+              then:
+                - stop: "Keine Rückfahrt: Der Rollladen steht nicht mehr auf der Beschattungs-Position (von jemand anderem bewegt oder fährt noch). Es wurde nichts gefahren."
+            - alias: "Zur gemerkten Ausgangsposition zurückfahren"
+              action: cover.set_cover_position
+              target:
+                entity_id: !input cover
+              data:
+                position: "{{ start_position }}"
+            - stop: "Rückfahrt gesendet. Beschattung beendet."

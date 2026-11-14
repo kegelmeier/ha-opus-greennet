@@ -20,6 +20,7 @@ from homeassistant.components.blueprint.schemas import BLUEPRINT_SCHEMA
 from homeassistant.core import CoreState, HomeAssistant, ServiceCall
 from homeassistant.helpers import condition, template, translation, trigger
 from homeassistant.setup import async_setup_component
+from homeassistant.util import dt as dt_util
 from homeassistant.util.yaml import extract_inputs, load_yaml_dict
 
 from custom_components.opus_greennet.const import BUTTON_KEYS
@@ -41,6 +42,8 @@ def _version(text: str) -> tuple[int, ...]:
 def test_the_expected_blueprints_exist() -> None:
     assert {path.name for path in BLUEPRINTS} == {
         "button_to_light.yaml",
+        "simple_sun_shading.yaml",
+        "simple_sun_shading.de.yaml",
         "water_leak_warning.yaml",
         "window_handle_blind_up.yaml",
         "window_handle_notification.yaml",
@@ -70,7 +73,15 @@ def test_entity_pickers_are_limited_to_this_integration(path: Path) -> None:
     inputs = load_yaml_dict(str(path))["blueprint"]["input"]
     for name, definition in inputs.items():
         entity = (definition.get("selector") or {}).get("entity")
-        if entity is None or name == "blinds":  # blinds may come from any brand
+        # Blinds, sensors and the helper of the sun shading may come from any brand.
+        if entity is None or name in {
+            "blinds",
+            "cover",
+            "pause_helper",
+            "temperature_sensor",
+            "lux_sensor",
+            "door_contacts",
+        }:
             continue
         assert all(f.get("integration") == "opus_greennet" for f in entity["filter"])
 
@@ -260,3 +271,198 @@ async def test_water_leak_warns_once_and_not_on_an_outage(
     await hass.async_block_till_done()
     assert len(messages) == 1
     assert messages[0].data["title"] == "Water leak"
+
+
+# ── simple sun shading ─────────────────────────────────────────────────────
+
+# Texts a user reads. Everything else must be identical in both languages.
+_TEXT_KEYS = {"name", "description", "alias", "label", "source_url", "stop"}
+
+
+def _without_texts(node: Any) -> Any:
+    if isinstance(node, dict):
+        return {
+            key: _without_texts(value)
+            for key, value in node.items()
+            if key not in _TEXT_KEYS
+        }
+    if isinstance(node, list):
+        return [_without_texts(item) for item in node]
+    return node
+
+
+def test_the_german_sun_shading_only_differs_in_its_texts() -> None:
+    english = load_yaml_dict(str(BLUEPRINT_DIR / "simple_sun_shading.yaml"))
+    german = load_yaml_dict(str(BLUEPRINT_DIR / "simple_sun_shading.de.yaml"))
+    assert _without_texts(german) == _without_texts(english)
+    assert german["blueprint"]["name"] != english["blueprint"]["name"]
+
+
+def test_sun_shading_never_closes_the_blind_completely() -> None:
+    inputs = load_yaml_dict(str(BLUEPRINT_DIR / "simple_sun_shading.yaml"))[
+        "blueprint"
+    ]["input"]
+    shade = inputs["basic_section"]["input"]["shade_position"]
+    assert shade["selector"]["number"]["min"] >= 10
+    assert 25 <= shade["default"] <= 30
+
+
+_SHADING = {
+    "cover": "cover.blind",
+    "pause_helper": "input_datetime.pause",
+    "manual_events": ["event.rocker"],
+    "use_time": False,
+    "lux_sensor": "sensor.lux",
+    "lux_threshold": 20000,
+    "start_delay": {"hours": 0, "minutes": 0, "seconds": 0},
+    "end_delay": {"hours": 0, "minutes": 0, "seconds": 0},
+}
+
+
+async def _settle() -> None:
+    """Let runs progress. A shading run waits for ever, so no block_till_done."""
+    await asyncio.sleep(0.4)
+
+
+async def _shading_setup(
+    hass: HomeAssistant, name: str, position: int, **inputs: Any
+) -> list[int]:
+    """Use the blueprint; return the list of positions the blind was sent to."""
+    sent: list[int] = []
+
+    def set_position(call: ServiceCall) -> None:
+        sent.append(call.data["position"])
+        hass.states.async_set(
+            "cover.blind",
+            "open" if call.data["position"] else "closed",
+            {"current_position": call.data["position"]},
+        )
+
+    hass.services.async_register("cover", "set_cover_position", set_position)
+    hass.services.async_register("cover", "stop_cover", lambda call: None)
+    hass.states.async_set("cover.blind", "open", {"current_position": position})
+    hass.states.async_set("sensor.lux", "100", {"unit_of_measurement": "lx"})
+    hass.states.async_set("sun.sun", "above_horizon", {"azimuth": 180, "elevation": 40})
+    hass.states.async_set("event.rocker", "2026-11-14T10:00:00.000+00:00", {})
+    assert await async_setup_component(
+        hass,
+        "input_datetime",
+        {"input_datetime": {"pause": {"has_date": True, "initial": "2020-01-01"}}},
+    )
+    await _use(hass, name, {**_SHADING, **inputs})
+    return sent
+
+
+def _bright(hass: HomeAssistant, lux: str) -> None:
+    hass.states.async_set("sensor.lux", lux, {"unit_of_measurement": "lx"})
+
+
+@pytest.mark.parametrize(
+    "name", ["simple_sun_shading.yaml", "simple_sun_shading.de.yaml"]
+)
+async def test_sun_shading_closes_to_the_shade_position_and_goes_back(
+    hass: HomeAssistant, name: str
+) -> None:
+    sent = await _shading_setup(hass, name, 80)
+
+    _bright(hass, "30000")
+    await _settle()
+    assert sent == [30]
+
+    _bright(hass, "100")
+    await _settle()
+    assert sent == [30, 80]
+
+
+async def test_sun_shading_keeps_shading_in_the_hysteresis_band(
+    hass: HomeAssistant,
+) -> None:
+    sent = await _shading_setup(hass, "simple_sun_shading.yaml", 80)
+    _bright(hass, "30000")
+    await _settle()
+    # 17000 is below the start limit but above the lowered keep limit (15000).
+    _bright(hass, "17000")
+    await _settle()
+    assert sent == [30]
+
+
+async def test_a_press_on_the_chosen_rocker_pauses_the_day(
+    hass: HomeAssistant,
+) -> None:
+    sent = await _shading_setup(hass, "simple_sun_shading.yaml", 80)
+
+    for kind, extra in (
+        ("buttonBI_pressed", {}),
+        ("buttonAI_released", {}),
+        ("buttonAI_pressed", {"channel": 1}),
+    ):
+        hass.states.async_set(
+            "event.rocker",
+            f"2026-11-14T10:00:0{len(extra)}.{len(kind)}+00:00",
+            {"event_type": kind, **extra},
+        )
+        await _settle()
+    assert hass.states.get("input_datetime.pause").state == "2020-01-01"
+
+    hass.states.async_set(
+        "event.rocker",
+        "2026-11-14T10:01:00.000+00:00",
+        {"event_type": "buttonAI_pressed"},
+    )
+    await _settle()
+    assert hass.states.get("input_datetime.pause").state == dt_util.now().strftime(
+        "%Y-%m-%d"
+    )
+
+    _bright(hass, "30000")
+    await _settle()
+    assert not sent
+
+
+async def test_a_press_during_shading_cancels_the_return_drive(
+    hass: HomeAssistant,
+) -> None:
+    sent = await _shading_setup(hass, "simple_sun_shading.yaml", 80)
+    _bright(hass, "30000")
+    await _settle()
+    hass.states.async_set(
+        "event.rocker",
+        "2026-11-14T10:01:00.000+00:00",
+        {"event_type": "buttonAI_pressed"},
+    )
+    await _settle()
+    _bright(hass, "100")
+    await _settle()
+    assert sent == [30]
+
+
+async def test_an_open_door_blocks_closing_until_it_is_shut(
+    hass: HomeAssistant,
+) -> None:
+    hass.states.async_set("binary_sensor.door", "on")
+    sent = await _shading_setup(
+        hass, "simple_sun_shading.yaml", 80, door_contacts=["binary_sensor.door"]
+    )
+    _bright(hass, "30000")
+    await _settle()
+    assert not sent
+
+    hass.states.async_set("binary_sensor.door", "off")
+    await _settle()
+    assert sent == [30]
+
+
+async def test_sun_shading_neither_closes_fully_nor_raises_a_closed_blind(
+    hass: HomeAssistant,
+) -> None:
+    # A value below the minimum, written into the file by hand, is lifted to 10.
+    sent = await _shading_setup(hass, "simple_sun_shading.yaml", 100, shade_position=0)
+    _bright(hass, "30000")
+    await _settle()
+    assert sent == [10]
+
+    # Another automation closes the blind completely: it is not raised again.
+    hass.states.async_set("cover.blind", "closed", {"current_position": 0})
+    _bright(hass, "100")
+    await _settle()
+    assert sent == [10]

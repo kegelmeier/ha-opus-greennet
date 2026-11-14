@@ -1,0 +1,855 @@
+blueprint:
+  name: "Opus GreenNet: simple sun shading for one blind"
+  description: |-
+    **What this does.** One blind moves to a shading position when your conditions are met. When they end, it goes back to where it was.
+
+    **Set it up in section 1.** Everything else is optional:
+    1. Pick the blind.
+    2. Choose how far it stays open (0 % is closed, 100 % is open).
+    3. Pick the wall switch (or the buttons of the actuator) that operate this blind.
+    4. Pick a helper of type "Date" for the day pause. Its help text shows how to create it.
+
+    By default it shades between 10:00 and 18:00. Check the times in section 2.
+
+    **When does it shade?** Every condition you use must be true at the same time: time window, sun direction and height, outside temperature, outside brightness. Use only the time window, or add more. At least one condition must be on.
+
+    **Press the wall switch, and it rests today.** If you operate the blind at its wall switch, this automation does nothing more today. Tomorrow it is ready again. It does not move the blind at midnight.
+
+    **One blind per automation.** Use this blueprint again for the next blind. Do not let another automation (for example Cover Control Automation) move the same blind.
+
+    **Good to know**
+    - If another automation has already closed the blind (for example in the evening), this automation never raises it again. It only closes further. It moves the blind back only if the blind is still at the shading position.
+    - Only presses on the wall switch or on the buttons of the actuator count as manual operation. A move from the app, a dashboard or another automation is not noticed. For devices of other makers see the advanced section.
+    - The sun position is calculated by Home Assistant for the home location set in Home Assistant. You do not enter a location here. You only say from which directions the sun shines on this window.
+    - A door contact only stops the blind from closing. It never opens the blind for ventilation.
+    - If Home Assistant restarts, or if you save this automation, while the blind is shaded, the blind stays where it is. It does not go back by itself.
+    - This is a convenience function. It is not a safety device.
+  domain: automation
+  author: Opus GreenNet Bridge
+  source_url: https://github.com/kegelmeier/ha-opus-greennet/blob/main/blueprints/automation/opus_greennet/simple_sun_shading.yaml
+  homeassistant:
+    min_version: 2026.10.1
+  input:
+    basic_section:
+      name: "1. Blind and manual operation"
+      icon: mdi:blinds
+      description: >-
+        Fill in these four things. Then the blind works with the time window from section 2.
+      input:
+        cover:
+          name: "Blind"
+          description: >-
+            The blind or roller shutter that is shaded. One blind per automation. It must be able to move to a position in percent.
+          selector:
+            entity:
+              filter:
+                - domain: cover
+                  supported_features:
+                    - cover.CoverEntityFeature.SET_POSITION
+        shade_position:
+          name: "Keep it open this far"
+          description: >-
+            How far the blind stays open for shading. 100 % is fully open. A lower value gives more shade. For shading the blind is never closed completely, because the window would heat up. The lowest value is 10 %. 25 to 30 % has worked well. The blind only closes further. It is never opened to this value.
+          default: 30
+          selector:
+            number:
+              min: 10
+              max: 100
+              step: 1
+              unit_of_measurement: "%"
+              mode: slider
+        manual_events:
+          name: "Wall switch or buttons of this blind"
+          description: >-
+            Pick the Opus GreenNet event entity of the wall switch, or the Buttons entity of the blind actuator. When you press, the automation rests for the rest of the day. You can pick more than one. For devices of other makers use the advanced section.
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - integration: opus_greennet
+                  domain: event
+        manual_rockers:
+          name: "Rocker of this blind"
+          description: >-
+            A wall switch can have several rockers (A to D). Pick only the rocker or rockers that operate this blind. A press on a rocker you did not pick does not pause this blind.
+          default:
+            - A
+          selector:
+            select:
+              multiple: true
+              options:
+                - label: "Rocker A"
+                  value: A
+                - label: "Rocker B"
+                  value: B
+                - label: "Rocker C"
+                  value: C
+                - label: "Rocker D"
+                  value: D
+        pause_helper:
+          name: "Helper for the day pause"
+          description: |-
+            This helper remembers on which day you operated the blind by hand. It must be a helper of type **Date**. You do not enter anything in it.
+
+            **Create it once:**
+            1. Go to **Settings, Devices & services, Helpers**.
+            2. Click **Create helper** and choose **Date and/or time**.
+            3. Give it a name, for example *Sun shading pause living room*.
+            4. Switch on **Date** only. Leave **Time** off. Save.
+            5. Pick it here.
+
+            **Important:** a new helper shows today's date. That means: rest today. To test on the same day, open the helper and set an earlier date, for example yesterday. Otherwise the automation starts working tomorrow.
+
+            Create one helper for each blind. Do not share a helper between blinds.
+          selector:
+            entity:
+              filter:
+                - domain: input_datetime
+    time_section:
+      name: "2. When may it shade? (time)"
+      icon: mdi:clock-outline
+      description: >-
+        The simplest setting: shade between two times of the day. If you also use sun, temperature or brightness (next sections), all of them must fit.
+      input:
+        use_time:
+          name: "Use a time window"
+          description: >-
+            On: it shades only between the two times below. Off: the time does not matter and the other conditions decide.
+          default: true
+          selector:
+            boolean:
+        time_start:
+          name: "Shading may start at"
+          description: >-
+            From this time on shading is allowed. It must be before the end time.
+          default: "10:00:00"
+          selector:
+            time:
+        time_end:
+          name: "Shading ends at"
+          description: >-
+            At this time the blind goes back. The window cannot reach past midnight. Start and end must not be the same.
+          default: "18:00:00"
+          selector:
+            time:
+    sun_section:
+      name: "3. Sun position (optional)"
+      icon: mdi:white-balance-sunny
+      description: >-
+        Only fill in if the sun should decide. Home Assistant calculates where the sun is. You only say from which directions it shines on this window. If you use several conditions, all must fit.
+      collapsed: true
+      input:
+        use_sun:
+          name: "Use the sun position"
+          description: >-
+            Off: the sun position is not used. On: it shades only while the sun stands in the range below. The sun position is calculated automatically for the home location set in Home Assistant. You do not enter a location here. Only set the directions from which sunlight reaches this window. Trees, other houses and roof overhangs are not known to the automation.
+          default: false
+          selector:
+            boolean:
+        sun_azimuth_from:
+          name: "Sun direction from"
+          description: >-
+            The sun must be at least in this direction. 0° = north, 90° = east, 180° = south, 270° = west. Example for a window that faces south: from 135° to 225°. This is only an example. Find your values with the sun entity (sun.sun, attribute Azimuth) while the sun shines on your window. The range may reach past north, for example from 300° to 60°.
+          default: 135
+          selector:
+            number:
+              min: 0
+              max: 360
+              step: 1
+              unit_of_measurement: "°"
+              mode: box
+        sun_azimuth_to:
+          name: "Sun direction to"
+          description: >-
+            The sun must be at most in this direction. Same scale as above. From and to must not be the same.
+          default: 225
+          selector:
+            number:
+              min: 0
+              max: 360
+              step: 1
+              unit_of_measurement: "°"
+              mode: box
+        sun_min_elevation:
+          name: "Sun at least this high"
+          description: >-
+            How high the sun stands above the horizon, in degrees. 0° is the horizon. A higher value starts shading later in the morning and ends it earlier in the evening.
+          default: 15
+          selector:
+            number:
+              min: 0
+              max: 90
+              step: 1
+              unit_of_measurement: "°"
+              mode: box
+    temperature_section:
+      name: "4. Outside temperature (optional)"
+      icon: mdi:thermometer
+      description: >-
+        Only fill in if it should shade only when it is warm outside. Leave the sensor empty to not use the temperature.
+      collapsed: true
+      input:
+        temperature_sensor:
+          name: "Outside temperature sensor"
+          description: >-
+            A sensor that measures the temperature outside, in °C, °F or K. If this field is empty, the temperature is not used. If the sensor has no value, nothing new is shaded.
+          default: ""
+          selector:
+            entity:
+              filter:
+                - domain: sensor
+                  device_class: temperature
+        temperature_threshold:
+          name: "Shade from this temperature"
+          description: >-
+            Shading starts when it is at least this warm. A lower value shades more often. Shading ends only when it is clearly cooler (see the advanced section).
+          default: 22
+          selector:
+            number:
+              min: -30
+              max: 60
+              step: 0.5
+              unit_of_measurement: °C
+              mode: box
+    lux_section:
+      name: "5. Outside brightness (optional)"
+      icon: mdi:brightness-7
+      description: >-
+        Only fill in if it should shade only when it is bright outside. Leave the sensor empty to not use the brightness.
+      collapsed: true
+      input:
+        lux_sensor:
+          name: "Outside brightness sensor"
+          description: >-
+            A sensor for the brightness outside, in lux. It should measure outside and not be covered by this blind. If this field is empty, the brightness is not used. If the sensor has no value, nothing new is shaded.
+          default: ""
+          selector:
+            entity:
+              filter:
+                - domain: sensor
+                  device_class: illuminance
+        lux_threshold:
+          name: "Shade from this brightness"
+          description: >-
+            Shading starts when it is at least this bright. A lower value shades more often. Good values depend on your sensor and your window. The default is only a first guess.
+          default: 20000
+          selector:
+            number:
+              min: 0
+              max: 150000
+              step: 500
+              unit_of_measurement: lx
+              mode: box
+    door_section:
+      name: "6. Door open (optional)"
+      icon: mdi:door-open
+      description: >-
+        Only fill in if a door or window must stay free. This is no ventilation function.
+      collapsed: true
+      input:
+        door_contacts:
+          name: "Door or window contacts"
+          description: >-
+            While one of these contacts is open, the blind is not closed automatically. If a contact has no value, the blind is not closed either. When a contact closes again, the automation looks at the situation again. A blind that is already closed is not opened because of the contact. This is no safety device and no protection against being locked out. Other automations and the wall switch are not blocked.
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - domain: binary_sensor
+                  device_class:
+                    - door
+                    - window
+                    - opening
+                    - garage_door
+    advanced_section:
+      name: "7. Advanced (optional)"
+      icon: mdi:tune
+      description: >-
+        You do not need to change anything here. The default values work for most homes.
+      collapsed: true
+      input:
+        start_delay:
+          name: "Wait before shading"
+          description: >-
+            All your conditions must fit for this long before the blind closes. A longer time avoids moves for short sun. 0 means: close at once. Hours, minutes and seconds.
+          default:
+            hours: 0
+            minutes: 2
+            seconds: 0
+          selector:
+            duration:
+        end_delay:
+          name: "Wait before going back"
+          description: >-
+            The blind goes back only when the conditions have been gone for this long. This avoids moves because of short clouds. The end of the time window is not delayed. Hours, minutes and seconds.
+          default:
+            hours: 0
+            minutes: 10
+            seconds: 0
+          selector:
+            duration:
+        temperature_hysteresis:
+          name: "Temperature difference to go back"
+          description: >-
+            Shading ends only when it is this much colder than the shading temperature. A higher value avoids switching back and forth around the limit. 0 means: no difference.
+          default: 2
+          selector:
+            number:
+              min: 0
+              max: 10
+              step: 0.5
+              unit_of_measurement: °C
+              mode: box
+        lux_hysteresis:
+          name: "Brightness difference to go back"
+          description: >-
+            Shading ends only when the brightness is this many percent below the shading limit. A higher value avoids moves with passing clouds.
+          default: 25
+          selector:
+            number:
+              min: 0
+              max: 90
+              step: 5
+              unit_of_measurement: "%"
+              mode: box
+        sun_max_elevation:
+          name: "Sun at most this high"
+          description: >-
+            Only useful if the sun is too high to reach the window, for example under a roof overhang in summer. 90° means: no upper limit. Only used with the sun position.
+          default: 90
+          selector:
+            number:
+              min: 1
+              max: 90
+              step: 1
+              unit_of_measurement: "°"
+              mode: box
+        other_manual_triggers:
+          name: "Other manual signal (devices of other makers)"
+          description: >-
+            Only for wall switches or buttons that are not Opus GreenNet. Add one or more triggers. Every time one of them fires, it counts as a manual press and the automation rests for the rest of the day. Use only triggers that fire when a person presses. Do not use the position of this blind: that also changes when the automation moves it.
+          default: []
+          selector:
+            trigger:
+
+# Why "parallel": a press on the wall switch must never wait for, or cancel, a
+# running shading. The press is its own short run and writes the day pause. A
+# long run (waiting, shading, return) is the only memory of the start position
+# of ONE blind and must survive such presses. Every long run re-reads the day
+# pause before it moves the blind, so it never works against a press.
+mode: parallel
+max: 10
+max_exceeded: silent
+
+# Values for the trigger templates (limited templates, no states here).
+trigger_variables:
+  cover: !input cover
+  door_contacts: !input door_contacts
+  use_time: !input use_time
+  time_start: !input time_start
+  time_end: !input time_end
+  use_sun: !input use_sun
+  az_from: !input sun_azimuth_from
+  az_to: !input sun_azimuth_to
+  elev_min: !input sun_min_elevation
+  elev_max: !input sun_max_elevation
+  temp_sensor: !input temperature_sensor
+  temp_min: !input temperature_threshold
+  temp_hyst: !input temperature_hysteresis
+  lux_sensor: !input lux_sensor
+  lux_min: !input lux_threshold
+  lux_hyst: !input lux_hysteresis
+
+variables:
+  cover: !input cover
+  shade_input: !input shade_position
+  shade: "{{ [shade_input | float(30), 10] | max }}"
+  manual_events: !input manual_events
+  manual_rockers: !input manual_rockers
+  other_triggers: !input other_manual_triggers
+  pause_helper: !input pause_helper
+  use_time: !input use_time
+  time_start: !input time_start
+  time_end: !input time_end
+  use_sun: !input use_sun
+  az_from: !input sun_azimuth_from
+  az_to: !input sun_azimuth_to
+  elev_min: !input sun_min_elevation
+  elev_max: !input sun_max_elevation
+  temp_sensor: !input temperature_sensor
+  temp_min: !input temperature_threshold
+  temp_hyst: !input temperature_hysteresis
+  lux_sensor: !input lux_sensor
+  lux_min: !input lux_threshold
+  lux_hyst: !input lux_hysteresis
+  door_contacts: !input door_contacts
+  start_delay: !input start_delay
+  end_delay: !input end_delay
+  start_seconds: "{{ timedelta(**start_delay).total_seconds() }}"
+  end_seconds: "{{ timedelta(**end_delay).total_seconds() }}"
+
+triggers:
+  # All switched-on criteria are true (strict limits), the blind can be
+  # reached and no door contact blocks: for the waiting time. A door that
+  # closes or a blind that comes back makes this true again.
+  - trigger: template
+    id: shade
+    value_template: >-
+      {% set t_lim = temp_min %}
+      {% set l_lim = lux_min %}
+      {% set hms = now().strftime('%H:%M:%S') %}
+      {% set az = state_attr('sun.sun', 'azimuth') %}
+      {% set el = state_attr('sun.sun', 'elevation') %}
+      {% set t_raw = states(temp_sensor) if temp_sensor != '' else '' %}
+      {% set t_unit = state_attr(temp_sensor, 'unit_of_measurement') if temp_sensor != '' else '' %}
+      {% set l_raw = states(lux_sensor) if lux_sensor != '' else '' %}
+      {% set l_unit = state_attr(lux_sensor, 'unit_of_measurement') if lux_sensor != '' else '' %}
+      {% if not use_time %}{% set c_time = 'skip' %}
+      {% elif time_start >= time_end %}{% set c_time = 'invalid' %}
+      {% elif time_start <= hms < time_end %}{% set c_time = 'ok' %}
+      {% else %}{% set c_time = 'no' %}{% endif %}
+      {% if not use_sun %}{% set c_sun = 'skip' %}
+      {% elif az_from % 360 == az_to % 360 or elev_min > elev_max %}{% set c_sun = 'invalid' %}
+      {% elif not (is_number(az) and is_number(el)) %}{% set c_sun = 'invalid' %}
+      {% else %}
+        {% set a = az | float %}
+        {% set f = az_from % 360 %}
+        {% set t = az_to % 360 %}
+        {% set inside = (f <= a <= t) if f < t else (a >= f or a <= t) %}
+        {% set c_sun = 'ok' if (inside and elev_min <= (el | float) <= elev_max) else 'no' %}
+      {% endif %}
+      {% if temp_sensor == '' %}{% set c_temp = 'skip' %}
+      {% elif not is_number(t_raw) or t_unit not in ['°C', '°F', 'K'] %}{% set c_temp = 'invalid' %}
+      {% else %}
+        {% set tv = t_raw | float %}
+        {% set tc = tv if t_unit == '°C' else ((tv - 32) / 1.8 if t_unit == '°F' else tv - 273.15) %}
+        {% set c_temp = 'ok' if tc >= t_lim else 'no' %}
+      {% endif %}
+      {% if lux_sensor == '' %}{% set c_lux = 'skip' %}
+      {% elif not is_number(l_raw) or l_unit not in ['lx', none] %}{% set c_lux = 'invalid' %}
+      {% else %}
+        {% set c_lux = 'ok' if (l_raw | float) >= l_lim else 'no' %}
+      {% endif %}
+      {% set cs = [c_time, c_sun, c_temp, c_lux] %}
+      {% set cov_pos = state_attr(cover, 'current_position') %}
+      {% set door = namespace(blocked=false) %}
+      {% for d in door_contacts %}{% if not is_state(d, 'off') %}{% set door.blocked = true %}{% endif %}{% endfor %}
+      {{ 'ok' in cs and 'no' not in cs and 'invalid' not in cs and is_number(cov_pos) and not door.blocked }}
+    for: !input start_delay
+  # A press on a rocker or button.
+  - trigger: state
+    id: manual_event
+    entity_id: !input manual_events
+  # After a start or a reload: one look at the situation, because the
+  # template trigger above does not fire for a condition that is already true.
+  - trigger: homeassistant
+    id: init
+    event: start
+  - trigger: event
+    id: init
+    event_type: automation_reloaded
+  # Any other manual signal (advanced, for devices of other makers).
+  - triggers: !input other_manual_triggers
+
+actions:
+  - alias: "Find out what started this run"
+    variables:
+      is_manual: "{{ trigger.id not in ['shade', 'init'] }}"
+
+  # ── 1. Manual operation: set the day pause, nothing else ───────────────
+  - alias: "Manual operation: rest for today"
+    if:
+      - condition: template
+        value_template: "{{ is_manual }}"
+    then:
+      - alias: "A real press of a chosen rocker starts the day pause"
+        if:
+          - condition: template
+            value_template: >-
+              {% set t = trigger.to_state | default(none) %}
+              {% set f = trigger.from_state | default(none) %}
+              {% set kind = (t.attributes.get('event_type', '') | string) if t is not none else '' %}
+              {{ trigger.id != 'manual_event'
+                 or (t is not none and f is not none
+                     and f.state not in ['unavailable', 'unknown']
+                     and t.state not in ['unavailable', 'unknown']
+                     and f.state != t.state
+                     and kind.startswith('button') and kind.endswith('_pressed')
+                     and kind[6:7] in manual_rockers
+                     and (t.attributes.get('channel', 0) | int(0)) == 0) }}
+        then:
+          - action: input_datetime.set_datetime
+            target:
+              entity_id: !input pause_helper
+            data:
+              date: "{{ now().strftime('%Y-%m-%d') }}"
+      - stop: "Manual operation handled. Nothing is moved."
+
+  # ── 2. After a start or reload: wait for the values ────────────────────
+  - alias: "After a start or a reload: wait until the values are there"
+    if:
+      - condition: template
+        value_template: "{{ trigger.id == 'init' }}"
+    then:
+      - delay: "{{ [start_seconds | float, 60] | max }}"
+      - alias: "Stop if another run is active"
+        if:
+          - condition: template
+            value_template: "{{ this.attributes.current | int(0) > 1 }}"
+        then:
+          - stop: "Another run is active. Nothing to do here."
+
+  # ── 3. Read the situation once ─────────────────────────────────────────
+  - alias: "Read the situation once"
+    variables:
+      helper_state: "{{ states(pause_helper) }}"
+      helper_ok: >-
+        {{ helper_state | regex_match('^\d{4}-\d{2}-\d{2}$') }}
+      paused: "{{ helper_ok and helper_state == now().strftime('%Y-%m-%d') }}"
+      crit: >-
+        {% set t_lim = temp_min %}
+        {% set l_lim = lux_min %}
+        {% set hms = now().strftime('%H:%M:%S') %}
+        {% set az = state_attr('sun.sun', 'azimuth') %}
+        {% set el = state_attr('sun.sun', 'elevation') %}
+        {% set t_raw = states(temp_sensor) if temp_sensor != '' else '' %}
+        {% set t_unit = state_attr(temp_sensor, 'unit_of_measurement') if temp_sensor != '' else '' %}
+        {% set l_raw = states(lux_sensor) if lux_sensor != '' else '' %}
+        {% set l_unit = state_attr(lux_sensor, 'unit_of_measurement') if lux_sensor != '' else '' %}
+        {% if not use_time %}{% set c_time = 'skip' %}
+        {% elif time_start >= time_end %}{% set c_time = 'invalid' %}
+        {% elif time_start <= hms < time_end %}{% set c_time = 'ok' %}
+        {% else %}{% set c_time = 'no' %}{% endif %}
+        {% if not use_sun %}{% set c_sun = 'skip' %}
+        {% elif az_from % 360 == az_to % 360 or elev_min > elev_max %}{% set c_sun = 'invalid' %}
+        {% elif not (is_number(az) and is_number(el)) %}{% set c_sun = 'invalid' %}
+        {% else %}
+          {% set a = az | float %}
+          {% set f = az_from % 360 %}
+          {% set t = az_to % 360 %}
+          {% set inside = (f <= a <= t) if f < t else (a >= f or a <= t) %}
+          {% set c_sun = 'ok' if (inside and elev_min <= (el | float) <= elev_max) else 'no' %}
+        {% endif %}
+        {% if temp_sensor == '' %}{% set c_temp = 'skip' %}
+        {% elif not is_number(t_raw) or t_unit not in ['°C', '°F', 'K'] %}{% set c_temp = 'invalid' %}
+        {% else %}
+          {% set tv = t_raw | float %}
+          {% set tc = tv if t_unit == '°C' else ((tv - 32) / 1.8 if t_unit == '°F' else tv - 273.15) %}
+          {% set c_temp = 'ok' if tc >= t_lim else 'no' %}
+        {% endif %}
+        {% if lux_sensor == '' %}{% set c_lux = 'skip' %}
+        {% elif not is_number(l_raw) or l_unit not in ['lx', none] %}{% set c_lux = 'invalid' %}
+        {% else %}
+          {% set c_lux = 'ok' if (l_raw | float) >= l_lim else 'no' %}
+        {% endif %}
+        {{ {'time': c_time, 'sun': c_sun, 'temp': c_temp, 'lux': c_lux} }}
+      cfg_issue: >-
+        {% if not (use_time or use_sun or temp_sensor != '' or lux_sensor != '') %}criterion
+        {% elif manual_events | count == 0 and other_triggers | count == 0 %}manual
+        {% elif not helper_ok %}helper
+        {% elif use_time and time_start >= time_end %}time
+        {% elif use_sun and (az_from % 360 == az_to % 360 or elev_min > elev_max) %}sun
+        {% endif %}
+      door_open: >-
+        {% set ns = namespace(open=false) %}
+        {% for door in door_contacts %}{% if is_state(door, 'on') %}{% set ns.open = true %}{% endif %}{% endfor %}
+        {{ ns.open }}
+      door_blocks: >-
+        {% set ns = namespace(blocked=false) %}
+        {% for door in door_contacts %}{% if not is_state(door, 'off') %}{% set ns.blocked = true %}{% endif %}{% endfor %}
+        {{ ns.blocked }}
+      cov_state: "{{ states(cover) }}"
+      cov_pos: "{{ state_attr(cover, 'current_position') }}"
+      cov_known: "{{ cov_state not in ['unavailable', 'unknown'] and is_number(cov_pos) }}"
+      cov_moving: "{{ cov_state in ['opening', 'closing'] }}"
+      missing: >-
+        {% set ns = namespace(m=[]) %}
+        {% if not cov_known %}{% set ns.m = ns.m + ['blind'] %}{% endif %}
+        {% if crit.sun == 'invalid' %}{% set ns.m = ns.m + ['sun'] %}{% endif %}
+        {% if crit.temp == 'invalid' %}{% set ns.m = ns.m + ['temperature'] %}{% endif %}
+        {% if crit.lux == 'invalid' %}{% set ns.m = ns.m + ['brightness'] %}{% endif %}
+        {{ ns.m }}
+      start_position: "{{ cov_pos | int(0) if cov_known else none }}"
+
+  # ── 4. Decide, in a fixed order ────────────────────────────────────────
+  - alias: "Setup incomplete"
+    if:
+      - condition: template
+        value_template: "{{ cfg_issue | trim != '' }}"
+    then:
+      - stop: "Setup incomplete: {{ {'criterion': 'switch on at least one condition (time, sun, temperature or brightness).', 'manual': 'pick the wall switch or button events of this blind, or add a trigger in the advanced section.', 'helper': 'the day pause helper is missing, not available or has no date. Use a helper of type Date only.', 'time': 'the start time must be before the end time.', 'sun': 'the two sun directions must differ, and the lowest sun height must not be above the highest.'}[cfg_issue | trim] }} Nothing was moved."
+        error: true
+  - alias: "Paused today: manual operation detected"
+    if:
+      - condition: template
+        value_template: "{{ paused }}"
+    then:
+      - stop: "Paused today: manual operation detected. Nothing was moved."
+  - alias: "Closing blocked: a door is open or has no value"
+    if:
+      - condition: template
+        value_template: "{{ door_blocks }}"
+    then:
+      - stop: "Closing blocked: a door contact is open or has no value. Nothing was moved."
+  - alias: "No drive: a needed value is missing"
+    if:
+      - condition: template
+        value_template: "{{ missing | count > 0 }}"
+    then:
+      - stop: "No drive: a needed value is missing ({{ missing | join(', ') }}). Nothing was moved."
+  - alias: "No shading: outside the time window"
+    if:
+      - condition: template
+        value_template: "{{ crit.time == 'no' }}"
+    then:
+      - stop: "No shading: outside the time window."
+  - alias: "No shading: the sun does not reach the window"
+    if:
+      - condition: template
+        value_template: "{{ crit.sun == 'no' }}"
+    then:
+      - stop: "No shading: the sun is not in the chosen range."
+  - alias: "No shading: outside temperature below the limit"
+    if:
+      - condition: template
+        value_template: "{{ crit.temp == 'no' }}"
+    then:
+      - stop: "No shading: the outside temperature is below the limit."
+  - alias: "No shading: outside brightness below the limit"
+    if:
+      - condition: template
+        value_template: "{{ crit.lux == 'no' }}"
+    then:
+      - stop: "No shading: the outside brightness is below the limit."
+  - alias: "No change: the blind is already closed enough"
+    if:
+      - condition: template
+        value_template: "{{ (cov_pos | float) <= (shade | float) + 5 }}"
+    then:
+      - stop: "No change: the blind is already at or below the shading position. Nothing was moved. This run does not move it back later."
+  - alias: "No drive: the blind is moving right now"
+    if:
+      - condition: template
+        value_template: "{{ cov_moving }}"
+    then:
+      - stop: "No drive: the blind is moving right now. Nothing was moved."
+
+  # ── 5. Close to the shading position ───────────────────────────────────
+  # From here on this run owns the shading: it knows the start position.
+  - alias: "Close the blind to the shading position"
+    action: cover.set_cover_position
+    target:
+      entity_id: !input cover
+    data:
+      position: "{{ shade | int }}"
+
+  # ── 6. Watch the drive: a door that opens, or a press ──────────────────
+  - alias: "Watch the drive: wait for the target, an open door or a press"
+    wait_template: >-
+      {% set hv = states(pause_helper) %}
+      {% set paused_now = (not (hv | regex_match('^\d{4}-\d{2}-\d{2}$'))) or hv == now().strftime('%Y-%m-%d') %}
+      {% set d = namespace(open=false) %}
+      {% for door in door_contacts %}{% if is_state(door, 'on') %}{% set d.open = true %}{% endif %}{% endfor %}
+      {% set pos = state_attr(cover, 'current_position') %}
+      {% set arrived = is_number(pos) and ((pos | float) - (shade | float)) | abs <= 5
+         and states(cover) not in ['opening', 'closing'] %}
+      {{ paused_now or d.open or arrived }}
+    timeout: 180
+    continue_on_timeout: true
+  - alias: "Look at the situation after the drive"
+    variables:
+      after: >-
+        {% set hv = states(pause_helper) %}
+        {% set paused_now = (not (hv | regex_match('^\d{4}-\d{2}-\d{2}$'))) or hv == now().strftime('%Y-%m-%d') %}
+        {% set d = namespace(open=false) %}
+        {% for door in door_contacts %}{% if is_state(door, 'on') %}{% set d.open = true %}{% endif %}{% endfor %}
+        {% set pos = state_attr(cover, 'current_position') %}
+        {% set arrived = is_number(pos) and ((pos | float) - (shade | float)) | abs <= 5
+           and states(cover) not in ['opening', 'closing'] %}
+        {{ {'paused': paused_now, 'door_open': d.open, 'arrived': arrived} }}
+  - alias: "Paused today: a press came during the drive"
+    if:
+      - condition: template
+        value_template: "{{ after.paused }}"
+    then:
+      - stop: "Paused today: manual operation detected during the drive. Nothing else is moved."
+  - alias: "A door opened while closing: ask the blind to stop"
+    if:
+      - condition: template
+        value_template: "{{ after.door_open and not after.arrived }}"
+    then:
+      - action: cover.stop_cover
+        target:
+          entity_id: !input cover
+        continue_on_error: true
+      - stop: "A door contact opened while the blind was closing. Stop requested. The blind is not moved back."
+
+  # ── 7. Shading is active: wait until it ends ───────────────────────────
+  # One round: wait for a reason to end, wait for the confirmation time, look
+  # again. A reason that is gone again (a cloud) only starts the next round.
+  - alias: "Shading is active: wait until it ends"
+    repeat:
+      count: 1000000
+      sequence:
+        - alias: "Wait for a reason to end: press, end of the time window or conditions gone"
+          wait_template: >-
+            {% set hv = states(pause_helper) %}
+            {% set paused_now = (not (hv | regex_match('^\d{4}-\d{2}-\d{2}$'))) or hv == now().strftime('%Y-%m-%d') %}
+            {% set t_lim = temp_min - temp_hyst %}
+            {% set l_lim = lux_min * (1 - lux_hyst / 100) %}
+            {% set hms = now().strftime('%H:%M:%S') %}
+            {% set az = state_attr('sun.sun', 'azimuth') %}
+            {% set el = state_attr('sun.sun', 'elevation') %}
+            {% set t_raw = states(temp_sensor) if temp_sensor != '' else '' %}
+            {% set t_unit = state_attr(temp_sensor, 'unit_of_measurement') if temp_sensor != '' else '' %}
+            {% set l_raw = states(lux_sensor) if lux_sensor != '' else '' %}
+            {% set l_unit = state_attr(lux_sensor, 'unit_of_measurement') if lux_sensor != '' else '' %}
+            {% if not use_time %}{% set c_time = 'skip' %}
+            {% elif time_start >= time_end %}{% set c_time = 'invalid' %}
+            {% elif time_start <= hms < time_end %}{% set c_time = 'ok' %}
+            {% else %}{% set c_time = 'no' %}{% endif %}
+            {% if not use_sun %}{% set c_sun = 'skip' %}
+            {% elif az_from % 360 == az_to % 360 or elev_min > elev_max %}{% set c_sun = 'invalid' %}
+            {% elif not (is_number(az) and is_number(el)) %}{% set c_sun = 'invalid' %}
+            {% else %}
+              {% set a = az | float %}
+              {% set f = az_from % 360 %}
+              {% set t = az_to % 360 %}
+              {% set inside = (f <= a <= t) if f < t else (a >= f or a <= t) %}
+              {% set c_sun = 'ok' if (inside and elev_min <= (el | float) <= elev_max) else 'no' %}
+            {% endif %}
+            {% if temp_sensor == '' %}{% set c_temp = 'skip' %}
+            {% elif not is_number(t_raw) or t_unit not in ['°C', '°F', 'K'] %}{% set c_temp = 'invalid' %}
+            {% else %}
+              {% set tv = t_raw | float %}
+              {% set tc = tv if t_unit == '°C' else ((tv - 32) / 1.8 if t_unit == '°F' else tv - 273.15) %}
+              {% set c_temp = 'ok' if tc >= t_lim else 'no' %}
+            {% endif %}
+            {% if lux_sensor == '' %}{% set c_lux = 'skip' %}
+            {% elif not is_number(l_raw) or l_unit not in ['lx', none] %}{% set c_lux = 'invalid' %}
+            {% else %}
+              {% set c_lux = 'ok' if (l_raw | float) >= l_lim else 'no' %}
+            {% endif %}
+            {{ paused_now or c_time == 'no' or 'no' in [c_sun, c_temp, c_lux] }}
+        - alias: "Wait: the conditions must stay gone for the waiting time"
+          wait_template: >-
+            {% set hv = states(pause_helper) %}
+            {% set paused_now = (not (hv | regex_match('^\d{4}-\d{2}-\d{2}$'))) or hv == now().strftime('%Y-%m-%d') %}
+            {% set t_lim = temp_min - temp_hyst %}
+            {% set l_lim = lux_min * (1 - lux_hyst / 100) %}
+            {% set hms = now().strftime('%H:%M:%S') %}
+            {% set az = state_attr('sun.sun', 'azimuth') %}
+            {% set el = state_attr('sun.sun', 'elevation') %}
+            {% set t_raw = states(temp_sensor) if temp_sensor != '' else '' %}
+            {% set t_unit = state_attr(temp_sensor, 'unit_of_measurement') if temp_sensor != '' else '' %}
+            {% set l_raw = states(lux_sensor) if lux_sensor != '' else '' %}
+            {% set l_unit = state_attr(lux_sensor, 'unit_of_measurement') if lux_sensor != '' else '' %}
+            {% if not use_time %}{% set c_time = 'skip' %}
+            {% elif time_start >= time_end %}{% set c_time = 'invalid' %}
+            {% elif time_start <= hms < time_end %}{% set c_time = 'ok' %}
+            {% else %}{% set c_time = 'no' %}{% endif %}
+            {% if not use_sun %}{% set c_sun = 'skip' %}
+            {% elif az_from % 360 == az_to % 360 or elev_min > elev_max %}{% set c_sun = 'invalid' %}
+            {% elif not (is_number(az) and is_number(el)) %}{% set c_sun = 'invalid' %}
+            {% else %}
+              {% set a = az | float %}
+              {% set f = az_from % 360 %}
+              {% set t = az_to % 360 %}
+              {% set inside = (f <= a <= t) if f < t else (a >= f or a <= t) %}
+              {% set c_sun = 'ok' if (inside and elev_min <= (el | float) <= elev_max) else 'no' %}
+            {% endif %}
+            {% if temp_sensor == '' %}{% set c_temp = 'skip' %}
+            {% elif not is_number(t_raw) or t_unit not in ['°C', '°F', 'K'] %}{% set c_temp = 'invalid' %}
+            {% else %}
+              {% set tv = t_raw | float %}
+              {% set tc = tv if t_unit == '°C' else ((tv - 32) / 1.8 if t_unit == '°F' else tv - 273.15) %}
+              {% set c_temp = 'ok' if tc >= t_lim else 'no' %}
+            {% endif %}
+            {% if lux_sensor == '' %}{% set c_lux = 'skip' %}
+            {% elif not is_number(l_raw) or l_unit not in ['lx', none] %}{% set c_lux = 'invalid' %}
+            {% else %}
+              {% set c_lux = 'ok' if (l_raw | float) >= l_lim else 'no' %}
+            {% endif %}
+            {{ paused_now or c_time == 'no' or 'no' not in [c_sun, c_temp, c_lux] }}
+          timeout: "{{ [end_seconds | float, 0.1] | max }}"
+          continue_on_timeout: true
+        - alias: "Look at the situation again"
+          variables:
+            now_state: >-
+              {% set hv = states(pause_helper) %}
+              {% set paused_now = (not (hv | regex_match('^\d{4}-\d{2}-\d{2}$'))) or hv == now().strftime('%Y-%m-%d') %}
+              {% set t_lim = temp_min - temp_hyst %}
+              {% set l_lim = lux_min * (1 - lux_hyst / 100) %}
+              {% set hms = now().strftime('%H:%M:%S') %}
+              {% set az = state_attr('sun.sun', 'azimuth') %}
+              {% set el = state_attr('sun.sun', 'elevation') %}
+              {% set t_raw = states(temp_sensor) if temp_sensor != '' else '' %}
+              {% set t_unit = state_attr(temp_sensor, 'unit_of_measurement') if temp_sensor != '' else '' %}
+              {% set l_raw = states(lux_sensor) if lux_sensor != '' else '' %}
+              {% set l_unit = state_attr(lux_sensor, 'unit_of_measurement') if lux_sensor != '' else '' %}
+              {% if not use_time %}{% set c_time = 'skip' %}
+              {% elif time_start >= time_end %}{% set c_time = 'invalid' %}
+              {% elif time_start <= hms < time_end %}{% set c_time = 'ok' %}
+              {% else %}{% set c_time = 'no' %}{% endif %}
+              {% if not use_sun %}{% set c_sun = 'skip' %}
+              {% elif az_from % 360 == az_to % 360 or elev_min > elev_max %}{% set c_sun = 'invalid' %}
+              {% elif not (is_number(az) and is_number(el)) %}{% set c_sun = 'invalid' %}
+              {% else %}
+                {% set a = az | float %}
+                {% set f = az_from % 360 %}
+                {% set t = az_to % 360 %}
+                {% set inside = (f <= a <= t) if f < t else (a >= f or a <= t) %}
+                {% set c_sun = 'ok' if (inside and elev_min <= (el | float) <= elev_max) else 'no' %}
+              {% endif %}
+              {% if temp_sensor == '' %}{% set c_temp = 'skip' %}
+              {% elif not is_number(t_raw) or t_unit not in ['°C', '°F', 'K'] %}{% set c_temp = 'invalid' %}
+              {% else %}
+                {% set tv = t_raw | float %}
+                {% set tc = tv if t_unit == '°C' else ((tv - 32) / 1.8 if t_unit == '°F' else tv - 273.15) %}
+                {% set c_temp = 'ok' if tc >= t_lim else 'no' %}
+              {% endif %}
+              {% if lux_sensor == '' %}{% set c_lux = 'skip' %}
+              {% elif not is_number(l_raw) or l_unit not in ['lx', none] %}{% set c_lux = 'invalid' %}
+              {% else %}
+                {% set c_lux = 'ok' if (l_raw | float) >= l_lim else 'no' %}
+              {% endif %}
+              {{ {'paused': paused_now, 'time_over': c_time == 'no', 'failing': 'no' in [c_sun, c_temp, c_lux]} }}
+        - alias: "Paused today: manual operation detected, no return drive"
+          if:
+            - condition: template
+              value_template: "{{ now_state.paused }}"
+          then:
+            - stop: "Paused today: manual operation detected. The blind is not moved back."
+        - alias: "Shading has ended: go back"
+          if:
+            - condition: template
+              value_template: "{{ now_state.time_over or now_state.failing }}"
+          then:
+            - alias: "Look at the blind"
+              variables:
+                back_state: "{{ states(cover) }}"
+                back_pos: "{{ state_attr(cover, 'current_position') }}"
+                back_known: "{{ back_state not in ['unavailable', 'unknown'] and is_number(back_pos) }}"
+            - alias: "No return: the blind has no valid position"
+              if:
+                - condition: template
+                  value_template: "{{ not back_known }}"
+              then:
+                - stop: "No return: the blind has no valid position. Nothing was moved."
+            - alias: "No return: the blind was moved by someone else"
+              if:
+                - condition: template
+                  value_template: >-
+                    {{ back_state in ['opening', 'closing']
+                       or ((back_pos | float) - (shade | float)) | abs > 5 }}
+              then:
+                - stop: "No return: the blind is not at the shading position any more (moved by someone else, or still moving). Nothing was moved."
+            - alias: "Return to the remembered start position"
+              action: cover.set_cover_position
+              target:
+                entity_id: !input cover
+              data:
+                position: "{{ start_position }}"
+            - stop: "Return drive sent. Shading ended."

@@ -12,7 +12,7 @@ Bridge**). How each device type behaves is described in
 
 ## Blueprints
 
-Four blueprints cover common automations. Import one with the button, then
+Five blueprints cover common automations. Import one with the button, then
 create an automation from it under **Settings → Automations & scenes →
 Blueprints**. The pickers list only the matching Opus GreenNet entities, so no
 entity IDs have to be typed. A blueprint is a copy: later changes in this
@@ -25,6 +25,8 @@ through HACS.
 | Window handle opened or tilted, send a notification | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fwindow_handle_notification.yaml) |
 | Window handle opened or tilted, blinds move up | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fwindow_handle_blind_up.yaml) |
 | Water leak, warn | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fwater_leak_warning.yaml) |
+| Sun shading for one blind (English) | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fsimple_sun_shading.yaml) |
+| Sonnenschutz für einen Rollladen (Deutsch) | [![Import blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fkegelmeier%2Fha-opus-greennet%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fopus_greennet%2Fsimple_sun_shading.de.yaml) |
 
 - **Rocker button controls a light.** Toggles, switches on or off lights when
   the chosen button is pressed. Every press counts, also the same button twice
@@ -35,6 +37,19 @@ through HACS.
 - **Window handle, blinds move up.** Opens the chosen blinds when the handle is
   tilted or open, for example to keep the way free at a balcony door. Blinds
   that are already completely open get no command.
+- **Sun shading for one blind.** Closes one blind to a shading position
+  (never below 10 %, 30 % by default) while the chosen conditions all hold:
+  time window, sun direction and height (taken from Home Assistant's
+  `sun.sun`), outside temperature and outside brightness. At least one
+  condition must be on. An open door contact only stops further closing. A
+  press on the chosen rocker pauses the automation until the end of the day:
+  no drive at midnight, no return drive, no recovery drive. After the
+  conditions end, the blind goes back to its start position only if the
+  blueprint closed it and nobody moved it since. A blind that another
+  automation has already closed is never raised. A helper of type *Date* keeps
+  the pause across restarts. Only presses on the wall switch count as manual
+  operation, not moves from an app or dashboard. Any cover, sensor and rocker
+  can be chosen, not only Opus GreenNet ones.
 - **Water leak, warn.** Runs your warning actions when a leak sensor reports
   water and can repeat them every few minutes until the sensor reports dry. A
   gateway outage (*unavailable*) does not count as dry.
