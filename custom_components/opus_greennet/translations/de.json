@@ -955,7 +955,7 @@
     },
     "set_cover_position": {
       "name": "Jalousieposition setzen",
-      "description": "Fährt eine D2-05-Jalousie auf eine Position, optional nach einer Referenzfahrt in eine Endlage, die die Positionserfassung nachkalibriert.",
+      "description": "Fährt eine D2-05-Jalousie auf eine Position und stellt optional im selben Befehl den Lamellenwinkel ein. Eine Referenzfahrt in eine Endlage kalibriert vorher die Positionserfassung nach.",
       "fields": {
         "device_id": {
           "name": "Geräte-ID",
@@ -964,6 +964,10 @@
         "position": {
           "name": "Position",
           "description": "Zielposition in Prozent, 100 ist offen und 0 geschlossen (Home-Assistant-Skala)."
+        },
+        "angle": {
+          "name": "Lamellenwinkel",
+          "description": "Lamellenwinkel in Prozent, zusammen mit der Position in einem Befehl gesendet. 0 ist offen und 100 geschlossen. Leer lassen, um den aktuellen Winkel zu behalten."
         },
         "repositioning": {
           "name": "Referenzfahrt",

@@ -2317,14 +2317,19 @@ class OpusGreenNetCoordinator:
         position: int,
         channel: int = 0,
         repositioning: str | None = None,
+        angle: int | None = None,
     ) -> CommandDelivery:
         """Set OPUS position (0 = open, 100 = closed).
 
         ``repositioning`` (D2-05 "Go to Position and Angle") makes the blind
         drive to an end position first (``firstUp``/``firstDown``) and so
         recalibrates its position tracking; ``direct`` is the default.
+        ``angle`` (0-100) is sent in the same command, so the blind receives
+        position and slat angle in one telegram.
         """
         functions: list[WireFunction] = [{"key": "position", "value": str(position)}]
+        if angle is not None:
+            functions.append({"key": KEY_ANGLE, "value": str(angle)})
         if repositioning is not None:
             functions.append({"key": KEY_REPOSITIONING, "value": repositioning})
         return await self.async_send_command(
