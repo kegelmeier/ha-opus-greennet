@@ -78,6 +78,15 @@ set_cover_position:
           max: 100
           step: 1
           unit_of_measurement: "%"
+    angle:
+      required: false
+      example: 100
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          unit_of_measurement: "%"
     repositioning:
       required: false
       default: direct

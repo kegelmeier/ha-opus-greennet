@@ -91,7 +91,20 @@ data:
   device_id: AABB1122
   position: 30
   repositioning: first_up
+
+# Fully down with the slats closed, in one command
+action: opus_greennet.set_cover_position
+data:
+  device_id: AABB1122
+  position: 0
+  angle: 100
 ```
+
+With `angle`, the position and the slat angle go to the blind in one command.
+The standard `cover.set_cover_position` and `cover.set_cover_tilt_position`
+actions send them as two separate commands. `angle` uses the tilt scale of the
+cover entity (0 = slats open, 100 = closed); it is rejected for blinds without a
+slat rotation.
 
 Add `channel` for a multi-channel actuator and `config_entry_id` when more than
 one gateway is set up. The action is acknowledged by the gateway, not by the

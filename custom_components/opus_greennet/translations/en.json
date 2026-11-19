@@ -955,7 +955,7 @@
     },
     "set_cover_position": {
       "name": "Set blind position",
-      "description": "Moves a D2-05 blind to a position, optionally after a reference run to an end position that recalibrates its position tracking.",
+      "description": "Moves a D2-05 blind to a position and, optionally, sets the slat angle in the same command. A reference run to an end position first recalibrates its position tracking.",
       "fields": {
         "device_id": {
           "name": "Device ID",
@@ -964,6 +964,10 @@
         "position": {
           "name": "Position",
           "description": "Target position in percent, 100 is open and 0 is closed (Home Assistant scale)."
+        },
+        "angle": {
+          "name": "Tilt angle",
+          "description": "Slat angle in percent, sent together with the position in one command. 0 is open and 100 is closed. Leave empty to keep the current angle."
         },
         "repositioning": {
           "name": "Reference run",

@@ -97,6 +97,7 @@ SERVICE_RELOAD_ENTRY = "reload_entry"
 SERVICE_SET_COVER_POSITION = "set_cover_position"
 ATTR_DEVICE_ID = "device_id"
 ATTR_POSITION = "position"
+ATTR_ANGLE = "angle"
 ATTR_REPOSITIONING = "repositioning"
 ATTR_CHANNEL = "channel"
 # Service values (snake case for the selector translations) -> wire values.
@@ -128,6 +129,7 @@ SERVICE_SET_COVER_POSITION_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_DEVICE_ID): cv.string,
         vol.Required(ATTR_POSITION): vol.All(vol.Coerce(int), vol.Range(0, 100)),
+        vol.Optional(ATTR_ANGLE): vol.All(vol.Coerce(int), vol.Range(0, 100)),
         vol.Optional(ATTR_REPOSITIONING, default="direct"): vol.In(
             REPOSITIONING_OPTIONS
         ),
@@ -500,6 +502,7 @@ def _register_services(hass: HomeAssistant) -> None:
         device = coordinator.get_device(device_id)
         repositioning = REPOSITIONING_OPTIONS[call.data[ATTR_REPOSITIONING]]
         channel = call.data[ATTR_CHANNEL]
+        angle = call.data.get(ATTR_ANGLE)
         if (
             device is None
             or not device.is_cover
@@ -508,6 +511,7 @@ def _register_services(hass: HomeAssistant) -> None:
                 repositioning != REPOSITIONING_DIRECT
                 and not device.supports_repositioning
             )
+            or (angle is not None and not device.supports_tilt_for_channel(channel))
         ):
             raise ServiceValidationError(
                 translation_domain=DOMAIN,
@@ -522,6 +526,7 @@ def _register_services(hass: HomeAssistant) -> None:
             repositioning=(
                 None if repositioning == REPOSITIONING_DIRECT else repositioning
             ),
+            angle=angle,
         )
 
     async def handle_reload_entry(call: ServiceCall) -> None:
